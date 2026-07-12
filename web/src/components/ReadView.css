@@ -1,0 +1,168 @@
+/**
+ * ReadView styles — pure rendered prose, no editor chrome.
+ *
+ * All colors via tokens so dark mode is automatic. Heading scale matches
+ * the editor's hybrid-mode rendering so read and edit feel like the same
+ * surface.
+ */
+
+.kp-read-view {
+  width: 100%;
+  font-family: var(--kp-font-ui);
+  font-size: 16px;
+  line-height: var(--kp-leading-normal);
+  color: var(--kp-text-primary);
+  padding: var(--kp-space-8) clamp(var(--kp-space-4), 4vw, var(--kp-space-12)) var(--kp-space-16);
+  background: var(--kp-surface-base);
+}
+
+/* ---- Block elements ---- */
+
+.kp-read-view h1,
+.kp-read-view h2,
+.kp-read-view h3,
+.kp-read-view h4,
+.kp-read-view h5,
+.kp-read-view h6 {
+  color: var(--kp-text-primary);
+  font-weight: var(--kp-weight-bold);
+  letter-spacing: var(--kp-tracking-snug);
+  line-height: var(--kp-leading-tight);
+  margin: 1.4em 0 0.5em;
+}
+.kp-read-view h1 { font-size: 1.75rem; letter-spacing: var(--kp-tracking-tight); margin-top: 0; }
+.kp-read-view h2 { font-size: 1.4rem; }
+.kp-read-view h3 { font-size: 1.2rem; font-weight: var(--kp-weight-semibold); }
+.kp-read-view h4 { font-size: 1.05rem; font-weight: var(--kp-weight-semibold); }
+.kp-read-view h5 { font-size: 1rem; font-weight: var(--kp-weight-semibold); }
+.kp-read-view h6 {
+  font-size: 0.95rem;
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-secondary);
+}
+
+.kp-read-view p {
+  margin: 0 0 1em;
+}
+
+.kp-read-view ul,
+.kp-read-view ol {
+  margin: 0.5em 0 1em;
+  padding-left: 1.75rem;
+}
+.kp-read-view ul { list-style-type: disc; }
+.kp-read-view ol { list-style-type: decimal; }
+.kp-read-view li { margin: 0.2em 0; }
+.kp-read-view li::marker { color: var(--kp-text-muted); }
+.kp-read-view ul ul,
+.kp-read-view ol ul { list-style-type: circle; }
+.kp-read-view ul ol,
+.kp-read-view ol ol { list-style-type: lower-alpha; }
+
+.kp-read-view blockquote {
+  margin: 1em 0;
+  padding: 0.25em 1rem;
+  border-left: 3px solid var(--kp-border-strong);
+  color: var(--kp-text-secondary);
+}
+
+.kp-read-view hr {
+  border: 0;
+  border-top: 1px solid var(--kp-border-subtle);
+  margin: 2em 0;
+}
+
+/* ---- Inline elements ---- */
+
+.kp-read-view strong { font-weight: var(--kp-weight-bold); color: var(--kp-text-primary); }
+.kp-read-view em { font-style: italic; }
+
+.kp-rv-link {
+  color: var(--kp-accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--kp-duration) var(--kp-ease);
+}
+.kp-rv-link:hover {
+  border-bottom-color: var(--kp-accent);
+}
+
+/* Wiki-links: Obsidian-subtle (decision #4) — accent text + dotted underline */
+.kp-rv-wikilink {
+  color: var(--kp-accent);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  font-weight: var(--kp-weight-medium);
+}
+.kp-rv-wikilink:hover {
+  text-decoration-style: solid;
+}
+
+/* ---- Code ---- */
+
+.kp-rv-inline-code {
+  font-family: var(--kp-font-mono);
+  font-size: 0.9em;
+  background: var(--kp-surface-muted);
+  color: var(--kp-text-primary);
+  border-radius: var(--kp-radius-xs);
+  padding: 0.05em 0.4em;
+}
+
+.kp-rv-code-block {
+  font-family: var(--kp-font-mono);
+  background: var(--kp-surface-muted);
+  color: var(--kp-text-primary);
+  border-radius: var(--kp-radius-md);
+  padding: 0.85rem 1rem;
+  margin: 1em 0;
+  overflow-x: auto;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.kp-rv-code-block code {
+  background: transparent;
+  padding: 0;
+  border: 0;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* ---- Tables ---- */
+
+.kp-rv-table-wrap {
+  margin: 1em 0;
+  overflow-x: auto;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-sm);
+}
+.kp-rv-table-wrap table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.95rem;
+}
+.kp-rv-table-wrap th,
+.kp-rv-table-wrap td {
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid var(--kp-border-subtle);
+  text-align: left;
+}
+.kp-rv-table-wrap th {
+  background: var(--kp-surface-sunken);
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-primary);
+}
+.kp-rv-table-wrap tr:last-child td {
+  border-bottom: 0;
+}
+
+/* ---- Images ---- */
+
+.kp-read-view img {
+  max-width: 100%;
+  border-radius: var(--kp-radius-md);
+  margin: 1em 0;
+}

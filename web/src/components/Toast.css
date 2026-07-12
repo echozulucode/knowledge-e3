@@ -1,0 +1,45 @@
+/**
+ * Toast notification styles
+ *
+ * Uses design tokens for colors and spacing.
+ * Mobile: full-width with margin; desktop: max-width 420px.
+ * Respects prefers-reduced-motion.
+ */
+
+.kp-toast-viewport {
+  /* Fixed positioning handled by inline styles in Toast.tsx */
+}
+
+.kp-toast-item {
+  /* Styled inline in Toast.tsx, but we define animations and media queries here */
+
+  /* Mobile: constrain width */
+  @media (max-width: 640px) {
+    max-width: calc(100vw - var(--kp-space-3) * 2);
+  }
+
+  /* Desktop: max-width 420px */
+  @media (min-width: 641px) {
+    max-width: 420px;
+  }
+}
+
+/* Toast entry animation */
+@keyframes kp-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Reduced motion: disable animation */
+@media (prefers-reduced-motion: reduce) {
+  .kp-toast-item {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}

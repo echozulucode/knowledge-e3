@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font-family: var(--kp-font-ui);
+}
+
+a {
+  color: var(--kp-accent);
+  transition: color var(--kp-duration) var(--kp-ease);
+}
+
+a:hover {
+  color: var(--kp-accent-hover);
+}

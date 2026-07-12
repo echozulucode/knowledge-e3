@@ -1,0 +1,80 @@
+/**
+ * Root layout — app shell grid
+ * Sidebar (collapsible) + Header + Main content area
+ */
+
+/* App shell: viewport-locked. Sidebar + header are fixed-height regions; only
+   the main content scrolls. This means scrollbars never appear next to the
+   sidebar or header — they only appear inside the content area when the page
+   is taller than the viewport. */
+.kp-app {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  height: 100vh;             /* lock to viewport — NOT min-height */
+  overflow: hidden;          /* no scrollbars at the app level */
+  background: var(--kp-surface-canvas);
+}
+
+/* Sidebar lives in column 1 of the grid. It owns its own scroll if it ever
+   becomes taller than viewport (it doesn't today, but defensive). */
+.kp-app > .kp-sidebar {
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.kp-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;              /* prevent grid blowout from long content */
+  height: 100vh;
+  overflow: hidden;          /* main itself doesn't scroll; its child does */
+}
+
+/* The header is fixed-height; the content region beneath it is scrollable. */
+.kp-main > header,
+.kp-main > .kp-global-header {
+  flex-shrink: 0;
+}
+
+/* Whatever <Outlet /> renders becomes the scroll container. */
+.kp-main > :not(header):not(.kp-global-header) {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Mobile drawer backdrop (hidden until the drawer opens on small screens). */
+.kp-nav-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: var(--kp-z-overlay);
+  background: var(--kp-surface-overlay);
+}
+
+/* Mobile / tablet: sidebar becomes an overlay drawer; main fills the shell. */
+@media (max-width: 860px) {
+  .kp-app {
+    grid-template-columns: 1fr;
+  }
+
+  .kp-main {
+    grid-column: 1;
+  }
+
+  .kp-app.kp-nav-open .kp-nav-backdrop {
+    display: block;
+  }
+}
+
+/* Global keyboard shortcut listener hint */
+:global {
+  /* Ensure smooth color transitions when theme changes */
+  html, body, [data-theme] {
+    transition:
+      background-color var(--kp-duration) var(--kp-ease),
+      color var(--kp-duration) var(--kp-ease),
+      border-color var(--kp-duration) var(--kp-ease);
+  }
+}

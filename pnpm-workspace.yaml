@@ -1,0 +1,7 @@
+packages:
+  - 'server'
+  - 'web'
+  - 'packages/*'
+  # The editor packages are consumed as published npm releases (@echozedlabs/*),
+  # pinned in web/package.json. For local co-development against the sibling repo,
+  # add a pnpm override or temporarily re-add ../markdown-editor/packages/* here.

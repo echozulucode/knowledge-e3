@@ -1,0 +1,129 @@
+.AdminAuth__policyForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 460px;
+}
+
+.AdminAuth__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--kp-text-secondary);
+}
+
+.AdminAuth__field input {
+  width: 120px;
+  padding: 9px 12px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-primary);
+  font-size: 0.95rem;
+}
+
+.AdminAuth__field input:focus {
+  outline: none;
+  border-color: var(--kp-border-focus);
+  box-shadow: 0 0 0 2px var(--kp-accent-bg);
+}
+
+.AdminAuth__toggles {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.AdminAuth__toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.92rem;
+  color: var(--kp-text-primary);
+  cursor: pointer;
+}
+
+.AdminAuth__toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--kp-accent);
+}
+
+.AdminAuth__muted {
+  margin: 0;
+  color: var(--kp-text-secondary);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.AdminAuth__access {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.AdminAuth__accessOption {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  padding: 14px 16px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: 12px;
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-secondary);
+  cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.AdminAuth__accessOption strong {
+  color: var(--kp-text-primary);
+  font-size: 0.98rem;
+}
+
+.AdminAuth__accessOption:hover:not(:disabled) {
+  border-color: var(--kp-border-strong);
+}
+
+.AdminAuth__accessOption--active {
+  border-color: var(--kp-accent);
+  background: var(--kp-accent-bg);
+}
+
+.AdminAuth__accessOption--active strong {
+  color: var(--kp-accent);
+}
+
+.AdminAuth__accessOption:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.AdminAuth__accessOption:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+
+.AdminAuth__save {
+  align-self: flex-start;
+  padding: 9px 18px;
+  border: none;
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-accent);
+  color: var(--kp-accent-fg);
+  font-weight: 600;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: opacity 0.16s ease;
+}
+
+.AdminAuth__save:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

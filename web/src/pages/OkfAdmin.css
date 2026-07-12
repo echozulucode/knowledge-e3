@@ -1,0 +1,145 @@
+.OkfAdmin {
+  /* Fill the container with a consistent gutter so the admin tab row sits in the
+     same place on every admin page (matches AdminHome) and never wraps. */
+  max-width: none;
+  margin: 0;
+  padding: var(--kp-space-6) clamp(var(--kp-space-5), 2vw, var(--kp-space-8)) var(--kp-space-16);
+}
+
+.OkfAdmin__hero {
+  margin: 1rem 0 1.5rem;
+}
+
+.OkfAdmin__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+}
+
+.OkfAdmin__hero h1 {
+  margin: 0.4rem 0;
+}
+
+.OkfAdmin__hero p {
+  opacity: 0.85;
+  line-height: 1.5;
+}
+
+.OkfAdmin__panel {
+  border: 1px solid var(--border, #d0d0d0);
+  border-radius: 10px;
+  padding: 1.25rem 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+  background: var(--surface, #fff);
+}
+
+.OkfAdmin__panel h2 {
+  margin: 0 0 0.25rem;
+}
+
+.OkfAdmin__panel p {
+  margin: 0 0 1rem;
+  opacity: 0.8;
+}
+
+.OkfAdmin__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.OkfAdmin__field span {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.OkfAdmin__field input {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border, #cfcfcf);
+  border-radius: 7px;
+  font: inherit;
+}
+
+.OkfAdmin__panel button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid var(--border, #cfcfcf);
+  border-radius: 7px;
+  background: var(--accent-soft, #eef2ff);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.OkfAdmin__panel button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.OkfAdmin__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.OkfAdmin__table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.OkfAdmin__table th,
+.OkfAdmin__table td {
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border, #e5e5e5);
+  vertical-align: middle;
+}
+
+.OkfAdmin__table th {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.OkfAdmin__table input {
+  width: 100%;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--border, #cfcfcf);
+  border-radius: 6px;
+  font: inherit;
+}
+
+.OkfAdmin__muted {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.OkfAdmin__sectionList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.OkfAdmin__sectionLink {
+  text-decoration: none;
+  font-size: 1.05rem;
+}
+
+.OkfAdmin__success {
+  color: var(--success, #1a7f37);
+  font-weight: 600;
+}
+
+.OkfAdmin__error {
+  color: var(--danger, #cf222e);
+  font-weight: 600;
+}

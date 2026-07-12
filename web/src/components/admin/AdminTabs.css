@@ -1,0 +1,72 @@
+.AdminTabs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.AdminTabs__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-bottom: 1px solid var(--kp-border-subtle);
+  padding-bottom: 2px;
+}
+
+.AdminTabs__row--sub {
+  border-bottom: none;
+  padding-left: 2px;
+}
+
+.AdminTabs__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  color: var(--kp-text-secondary);
+  text-decoration: none;
+  font-size: 0.92rem;
+  font-weight: 600;
+  margin-bottom: -1px;
+  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.AdminTabs__tab:hover {
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-primary);
+}
+
+.AdminTabs__tab--active {
+  color: var(--kp-accent);
+  background: var(--kp-surface-base);
+  border-color: var(--kp-border-subtle);
+  border-bottom-color: var(--kp-surface-base);
+}
+
+.AdminTabs__tab:focus-visible,
+.AdminTabs__subtab:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+
+.AdminTabs__subtab {
+  padding: 6px 12px;
+  border-radius: 999px;
+  color: var(--kp-text-secondary);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.AdminTabs__subtab:hover {
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-primary);
+}
+
+.AdminTabs__subtab--active {
+  background: var(--kp-accent-bg);
+  color: var(--kp-accent);
+}

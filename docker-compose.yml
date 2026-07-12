@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # SQL Server database.
+  # NOTE (v0.1): the application does NOT yet talk to SQL Server — db.module.ts
+  # only wires the SQLite driver. This service is kept for future prod stand-up
+  # and manual experimentation; the `app` below runs on SQLite. See
+  # docs/plan.md (decision: SQLite is the supported v0.1 store).
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: knowledge-e3-mssql
+    environment:
+      ACCEPT_EULA: "Y"
+      # Provide MSSQL_SA_PASSWORD via a local .env file (see .env.example).
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?set MSSQL_SA_PASSWORD in .env}"
+    ports:
+      # Bind to loopback only — never expose SA-auth SQL Server on all interfaces.
+      - "127.0.0.1:1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -No -Q 'SELECT 1'",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # Mailhog for email testing
+  mailhog:
+    image: axllent/mailhog:latest
+    container_name: knowledge-e3-mailhog
+    ports:
+      - "127.0.0.1:1025:1025"  # SMTP port
+      - "127.0.0.1:8025:8025"  # Web UI port
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8025/api/v1/stats"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Knowledge Platform application (SQLite-backed in v0.1).
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: knowledge-e3-app
+    depends_on:
+      mailhog:
+        condition: service_healthy
+    environment:
+      NODE_ENV: "development"
+      PORT: "3000"
+      # SQLite file on a persistent named volume (see `kp_data` below).
+      DB_URL: "/data/kp.sqlite"
+      MAIL_HOST: "mailhog"
+      MAIL_PORT: "1025"
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      # Mount source for hot-reload during development (optional)
+      - ./server/src:/app/server/src:ro
+      - ./packages/codec/src:/app/packages/codec/src:ro
+      - kp_data:/data
+    command: npm run dev
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  mssql_data:
+    driver: local
+  kp_data:
+    driver: local

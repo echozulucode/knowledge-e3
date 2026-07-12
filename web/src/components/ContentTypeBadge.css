@@ -1,0 +1,43 @@
+/* Content-type chip. Color is driven by --group-fg (set per data-group); the
+   fill and border are mixed from it so light/dark stay DRY. */
+.kp-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-1);
+  padding: 2px 9px;
+  border-radius: var(--kp-radius-pill);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: var(--kp-tracking-snug);
+  line-height: 1.55;
+  white-space: nowrap;
+  vertical-align: middle;
+  color: var(--group-fg, var(--kp-text-secondary));
+  background: color-mix(in srgb, var(--group-fg, var(--kp-text-secondary)) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--group-fg, var(--kp-text-secondary)) 24%, transparent);
+}
+
+.kp-type-badge[data-size='sm'] {
+  padding: 1px 7px;
+  font-size: 10px;
+  gap: 3px;
+}
+
+.kp-type-badge__icon {
+  display: inline-flex;
+  font-size: 0.9em;
+  opacity: 0.95;
+}
+
+.kp-type-badge__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kp-type-badge[data-group='reference']  { --group-fg: var(--kp-type-reference); }
+.kp-type-badge[data-group='support']    { --group-fg: var(--kp-type-support); }
+.kp-type-badge[data-group='operations'] { --group-fg: var(--kp-type-operations); }
+.kp-type-badge[data-group='guides']     { --group-fg: var(--kp-type-guides); }
+.kp-type-badge[data-group='decisions']  { --group-fg: var(--kp-type-decisions); }
+.kp-type-badge[data-group='publishing'] { --group-fg: var(--kp-type-publishing); }
+.kp-type-badge[data-group='default']    { --group-fg: var(--kp-text-secondary); }

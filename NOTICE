@@ -1,0 +1,26 @@
+Knowledge E3 (open-core edition)
+Copyright 2026 EchoZed Labs
+
+This product is licensed under the Apache License, Version 2.0 (the
+"License"); see the LICENSE file in this repository for the full terms.
+
+------------------------------------------------------------------------
+
+This software implements the Open Knowledge Format (OKF), a specification
+published by Google (GoogleCloudPlatform/knowledge-catalog). OKF is a
+third-party specification; this attribution is informational and does not
+imply endorsement by, or affiliation with, Google.
+
+------------------------------------------------------------------------
+
+Third-party dependency notices:
+
+This distribution bundles or depends on third-party open-source software.
+A complete list of dependencies and their licenses will be recorded here
+after the dependency license audit (see the "dependency license
+compatibility" research task, R4). Until that audit is complete, treat
+this section as incomplete.
+
+Any dependency whose license requires attribution (e.g. BSD, MIT with a
+notice clause, or Apache-2.0 components shipping their own NOTICE) must
+have its required notice reproduced in this file before public release.

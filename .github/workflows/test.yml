@@ -1,0 +1,71 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+# Least privilege: the job only needs to read repo contents. This also caps the
+# scope of the GITHUB_TOKEN that untrusted PR code runs alongside.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      matrix:
+        node-version: [22]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Setup pnpm
+        # No `version:` here — the action reads `packageManager` from
+        # package.json (currently pnpm@9.15.0). Specifying both would error
+        # with ERR_PNPM_BAD_PM_VERSION.
+        uses: pnpm/action-setup@v4
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        # The editor packages (@echozedlabs/*) are now consumed from npm, so no
+        # cross-repo checkout is needed — a plain install resolves everything.
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages
+        # @echozedlabs/codec's package.json points main/types at ./dist, so consuming
+        # packages (server, web) need it built before their tsc can resolve
+        # `@echozedlabs/codec`. `pnpm -r build` walks workspace deps in topological order.
+        run: pnpm -r build
+
+      - name: Type check
+        run: pnpm -r typecheck
+
+      - name: Run tests
+        run: pnpm -r test

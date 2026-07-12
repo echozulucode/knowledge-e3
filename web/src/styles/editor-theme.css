@@ -1,0 +1,129 @@
+/**
+ * Make the embedded markdown editor (@echozedlabs/react) follow the site's
+ * light/dark theme by remapping its `--me-*` variables to the app's `--kp-*`
+ * design tokens. The `--kp-*` tokens already flip with `data-theme`, so this one
+ * mapping makes the editor adapt to light, dark, and system automatically.
+ *
+ * The `[data-theme]` attribute selector (always present on <html>) is more
+ * specific than the editor's own `.me-editor` defaults, so this wins regardless
+ * of stylesheet import order.
+ */
+/* Ensure WYSIWYG (Rich Text) list markers render. The rule also lives in the
+   editor package, but Vite does not HMR CSS from symlinked workspace deps, so we
+   restate it here (web-owned CSS) to guarantee bullets render in this app.
+   Element+class selectors also win over any generic `ul {}`/`li {}` reset. */
+.me-editor ul.me-wysiwyg-list { list-style: disc outside; }
+.me-editor ol.me-wysiwyg-list { list-style: decimal outside; }
+.me-editor ul.me-wysiwyg-list ul.me-wysiwyg-list { list-style-type: circle; }
+.me-editor ul.me-wysiwyg-list ul.me-wysiwyg-list ul.me-wysiwyg-list { list-style-type: square; }
+.me-editor .me-wysiwyg-list-item { margin: 0; }
+
+/* Preview-mode frontmatter properties table — restated web-side (via --kp
+   tokens) so it themes correctly even when the editor package CSS is stale in
+   this app. The 2-class selectors win over the package's single-class rules. */
+.me-editor .me-renderer-properties {
+  background: var(--kp-surface-muted);
+  border-color: var(--kp-border-subtle);
+}
+.me-editor .me-renderer-properties-table th,
+.me-editor .me-renderer-properties-table td {
+  border-bottom-color: var(--kp-border-subtle);
+}
+.me-editor .me-renderer-properties-table th { color: var(--kp-text-secondary); }
+.me-editor .me-renderer-properties-table td { color: var(--kp-text-primary); }
+
+/* Preview-mode Markdown typography — restated web-side.
+   Knowledge E3 loads Tailwind Preflight (`@tailwind base`), which resets
+   `h1..h6 { font-size: inherit; font-weight: inherit }` and `ul,ol { list-style: none }`.
+   The @echozedlabs preview renderer (.me-preview) styles spacing/color but ships no
+   type scale, so without this block rendered Markdown collapses into flat body text
+   (headings look like paragraphs, lists lose their markers). The two-token selectors
+   (`.me-preview <el>`) out-specify Preflight's single-element rules. Scale mirrors
+   ReadView (.kp-read-view) so read mode and edit-preview render identically. */
+.me-preview h1,
+.me-preview h2,
+.me-preview h3,
+.me-preview h4,
+.me-preview h5,
+.me-preview h6 {
+  color: var(--kp-text-primary);
+  font-weight: var(--kp-weight-bold);
+  line-height: var(--kp-leading-tight);
+  margin: 1.4em 0 0.5em;
+}
+.me-preview h1 { font-size: 1.75rem; letter-spacing: var(--kp-tracking-tight); }
+.me-preview h2 { font-size: 1.4rem; }
+.me-preview h3 { font-size: 1.2rem; font-weight: var(--kp-weight-semibold); }
+.me-preview h4 { font-size: 1.05rem; font-weight: var(--kp-weight-semibold); }
+.me-preview h5 { font-size: 1rem; font-weight: var(--kp-weight-semibold); }
+.me-preview h6 { font-size: 0.95rem; font-weight: var(--kp-weight-semibold); color: var(--kp-text-secondary); }
+/* First rendered block never adds a leading gap. */
+.me-preview > :first-child { margin-top: 0; }
+
+/* Restore the list markers Preflight stripped (package .me-renderer-list sets only
+   padding-left). Exclude task lists so their checkbox layout is preserved. */
+.me-preview ul:not(.me-renderer-task-list),
+.me-preview ol {
+  margin: 0.5em 0 1em;
+  padding-left: 1.45rem;
+}
+.me-preview ul:not(.me-renderer-task-list) { list-style: disc outside; }
+.me-preview ol { list-style: decimal outside; }
+.me-preview li { margin: 0.2em 0; }
+.me-preview li::marker { color: var(--kp-text-muted); }
+.me-preview ul:not(.me-renderer-task-list) ul { list-style-type: circle; }
+.me-preview ol ol { list-style-type: lower-alpha; }
+
+/* Emphasis + blockquote parity with read mode. */
+.me-preview strong { font-weight: var(--kp-weight-bold); color: var(--kp-text-primary); }
+.me-preview em { font-style: italic; }
+.me-preview blockquote {
+  margin: 1em 0;
+  padding-left: 1em;
+  border-left: 3px solid var(--kp-border-strong);
+  color: var(--kp-text-secondary);
+}
+
+[data-theme] .me-editor {
+  --me-surface: var(--kp-surface-base);
+  --me-surface-muted: var(--kp-surface-muted);
+  --me-surface-raised: var(--kp-surface-raised);
+  --me-code-bg: var(--kp-surface-sunken);
+  --me-callout-bg: var(--kp-accent-bg);
+  --me-error-bg: var(--kp-danger-bg);
+  --me-border: var(--kp-border-subtle);
+  --me-text: var(--kp-text-primary);
+  --me-muted: var(--kp-text-secondary);
+  --me-accent: var(--kp-accent);
+}
+
+/* CodeMirror (source / hybrid modes) renders with its own default light theme.
+ * Drive its surfaces/selection/cursor from the same tokens so it goes dark too. */
+[data-theme] .me-editor .cm-editor {
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+}
+[data-theme] .me-editor .cm-content {
+  caret-color: var(--kp-text-primary);
+  color: var(--kp-text-primary);
+}
+[data-theme] .me-editor .cm-cursor,
+[data-theme] .me-editor .cm-dropCursor {
+  border-left-color: var(--kp-text-primary);
+}
+[data-theme] .me-editor .cm-gutters {
+  background: var(--kp-surface-muted);
+  color: var(--kp-text-muted);
+  border-right-color: var(--kp-border-subtle);
+}
+[data-theme] .me-editor .cm-activeLine,
+[data-theme] .me-editor .cm-activeLineGutter {
+  background: color-mix(in srgb, var(--kp-accent) 8%, transparent);
+}
+[data-theme] .me-editor .cm-selectionBackground,
+[data-theme] .me-editor .cm-content ::selection {
+  background: var(--kp-accent-bg) !important;
+}
+[data-theme] .me-editor .cm-focused {
+  outline: none;
+}

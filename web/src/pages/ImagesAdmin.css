@@ -1,0 +1,65 @@
+.ImagesAdmin__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.ImagesAdmin__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.ImagesAdmin__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.9rem;
+}
+
+.ImagesAdmin__card {
+  border: 1px solid var(--border, #d0d0d0);
+  border-radius: 10px;
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--surface, #fff);
+}
+
+.ImagesAdmin__card--orphan {
+  border-color: var(--danger, #cf222e);
+}
+
+.ImagesAdmin__thumbWrap {
+  display: block;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--surface-sunken, #f2f2f2);
+}
+
+.ImagesAdmin__thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ImagesAdmin__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.78rem;
+}
+
+.ImagesAdmin__file {
+  font-family: var(--kp-font-mono, monospace);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

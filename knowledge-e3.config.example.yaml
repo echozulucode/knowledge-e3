@@ -1,0 +1,40 @@
+# Knowledge E3 — backend configuration (example)
+#
+# Copy to `knowledge-e3.config.yaml` (next to where the server runs) or point at it
+# with the KNOWLEDGE_E3_CONFIG environment variable. Every value here is optional —
+# the defaults shown make the typical setup work with no config at all.
+#
+# Precedence (lowest → highest): built-in defaults → this file → environment variables.
+# So env vars (DB_URL, GIT_MIRROR_ROOT, KNOWLEDGE_E3_AUTH_MODE, PORT, …) still override.
+
+server:
+  port: 3000
+
+auth:
+  # 'session' requires login; 'disabled' makes every request the local admin
+  # (handy for a single-user/local instance or a demo). Default: session.
+  mode: session
+
+database:
+  # SQLite file path. Default: ./data/kp.sqlite (':memory:' under test).
+  # Env DB_URL overrides this.
+  url: ./data/kp.sqlite
+
+git:
+  # Git-of-record mirror. On by default for normal runs (off under test).
+  enabled: true
+  # Base directory. The main repo is <root>/main; a topic bound to a dedicated
+  # repo lives at <root>/topics/<topic-slug>. Env GIT_MIRROR_ROOT overrides.
+  root: ./data/wiki
+  # Optional default remote for the main repo (topics without a dedicated repo
+  # push here). You can also set this per-instance in Admin → Repos.
+  # mainRemote: git@github.com:your-org/knowledge.git
+
+mcp:
+  # Per-user request budget for the MCP JSON-RPC surface (requests/minute).
+  rateLimit: 120
+
+readAccess:
+  # 'authenticated' = login required to read; 'public' = anonymous can read
+  # published content. Admins can also toggle this at runtime. Default: authenticated.
+  default: authenticated

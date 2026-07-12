@@ -1,0 +1,737 @@
+/**
+ * PageView Responsive Layout — Apple-professional redesign (Wave J-γ)
+ *
+ * Three-zone responsive grid:
+ * - Mobile (<640px): Full-bleed single column, editor fills width with responsive padding
+ * - Tablet (640px-1279px): Single column, editor fills with generous padding
+ * - Desktop (>=1280px): Three-pane layout
+ *   - Left rail: 280px (reserved for future ToC or search)
+ *   - Body: fills remaining space, editor expands to fill
+ *   - Right rail: 280px (search box + backlinks, collapsed by default)
+ *
+ * Key principles:
+ * - Editor always fills its container (no max-width cap on container itself)
+ * - Prose wrapping handled inside editor via typography (16px font, 1.55 line-height)
+ * - Off-white canvas background (#fafafa) vs white content surfaces
+ * - No card-style borders on editor; it IS the page surface
+ * - Backlinks collapsed by default; click header to expand inline (rail) or drawer (mobile)
+ */
+
+:root {
+  /* Right context pane width (mock v5 ~286px). */
+  --pageview-rail-width: 286px;
+}
+
+.kp-pageview {
+  display: flex;
+  flex-direction: column;
+  background: var(--kp-surface-canvas);
+  min-height: 100%;
+}
+
+.kp-pageview[data-mode='edit'] {
+  --kp-edit-savebar-space: 64px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* PageChrome renders above the grid; no special styles needed */
+
+.kp-pageview-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  align-items: start;
+  /* CRITICAL: align-content controls row distribution when grid has extra
+     vertical space. Default is 'normal' which can stretch rows; we want rows
+     packed at the top so the rail (row 2) sits directly under the body (row 1)
+     with no empty band between them. */
+  align-content: start;
+  /* No flex: 1. The grid sizes to its content; the canvas wrapper alone owns
+     the 100vh minimum so the page background fills the viewport. Stretching
+     the grid to viewport height was pushing the rail far below the editor. */
+}
+
+.kp-pageview-body {
+  grid-area: 1 / 1;
+  width: 100%;
+  max-width: none;
+  min-width: 0; /* Prevent overflow blowout from long lines */
+  background: var(--kp-surface-base);
+  overflow-x: hidden;
+}
+
+.kp-pageview[data-mode='edit'] .kp-pageview-grid {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.kp-pageview[data-mode='edit'] .kp-pageview-body {
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+  padding-bottom: var(--kp-edit-savebar-space);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.kp-pageview-rail {
+  display: none;
+}
+
+.kp-pageview[data-mode='read'] .kp-pageview-rail {
+  display: block;
+  grid-column: 1;
+  grid-row: 2;
+  width: 100%;
+  padding: 0;
+  background: var(--kp-surface-base);
+}
+
+/* Reading measure: wide but capped, left-aligned with thin margins (goals §reading). */
+.kp-pageview[data-mode='read'] .kp-page-hero,
+.kp-pageview[data-mode='read'] .kp-read-view {
+  max-width: var(--kp-article-width);
+  margin-left: 0;
+  margin-right: 0;
+}
+.kp-pageview[data-mode='read'] .kp-read-view {
+  padding: var(--kp-content-pad) var(--kp-content-pad) var(--kp-space-16);
+}
+
+/* FrontmatterStrip styling (when visible in edit mode) */
+.kp-pageview-frontmatter {
+  background: var(--kp-surface-base);
+}
+
+.kp-copyable-panel {
+  margin: 0 clamp(var(--kp-space-4), 3vw, var(--kp-space-8)) var(--kp-space-4);
+  padding: var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-lg);
+  background: var(--kp-surface-sunken);
+  box-shadow: var(--kp-shadow-xs);
+}
+
+.kp-copyable-panel-header {
+  display: grid;
+  gap: var(--kp-space-1);
+  margin-bottom: var(--kp-space-3);
+}
+
+.kp-copyable-panel-header h2,
+.kp-copyable-panel-header p {
+  margin: 0;
+}
+
+.kp-copyable-panel-header h2 {
+  color: var(--kp-text-primary);
+  font-family: var(--kp-font-ui);
+  font-size: var(--kp-text-lg);
+  font-weight: var(--kp-weight-semibold);
+}
+
+.kp-copyable-eyebrow {
+  color: var(--kp-accent);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: var(--kp-tracking-wide);
+  text-transform: uppercase;
+}
+
+.kp-copyable-list {
+  display: grid;
+  gap: var(--kp-space-2);
+}
+
+.kp-copyable-entry {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.45fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--kp-space-3);
+  width: 100%;
+  padding: var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-secondary);
+  cursor: pointer;
+  font-family: var(--kp-font-ui);
+  text-align: left;
+}
+
+.kp-copyable-entry:hover,
+.kp-copyable-entry:focus-visible {
+  border-color: var(--kp-accent);
+  background: var(--kp-accent-bg);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--kp-accent-bg);
+}
+
+.kp-copyable-entry-label {
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+}
+
+.kp-copyable-entry code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--kp-text-primary);
+  font-family: var(--kp-font-mono);
+  font-size: var(--kp-text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .kp-copyable-entry {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .kp-copyable-entry code {
+    grid-column: 1 / -1;
+  }
+}
+
+
+@media (max-width: 1179px) {
+  .kp-pageview-grid {
+    grid-template-columns: 1fr;
+  }
+  .kp-pageview-body {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  /* Below the two-column breakpoint, the context pane stacks below the article. */
+  .kp-pageview-rail {
+    display: none;
+  }
+
+  .kp-pageview[data-mode='read'] .kp-pageview-rail {
+    display: block;
+    border-top: 1px solid var(--kp-border-subtle);
+  }
+  /* Stacked: the context pane flows with the page (no fixed-height inner scroll). */
+  .kp-pageview[data-mode='read'] .kp-ctx {
+    height: auto;
+  }
+  .kp-pageview[data-mode='read'] .kp-ctx-body {
+    overflow: visible;
+  }
+}
+
+/* =========================================================================== */
+/* READING: two-column, independently-scrolling layout (>= 1180px)             */
+/* The reading view owns the viewport height; the article and the context pane  */
+/* each scroll on their own — never a shared/body scrollbar (goals doc §5).      */
+/* =========================================================================== */
+@media (min-width: 1180px) {
+  .kp-pageview[data-mode='read'] {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .kp-pageview[data-mode='read'] .kp-pageview-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    grid-template-columns: minmax(0, 1fr) var(--pageview-rail-width);
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+    transition: grid-template-columns var(--kp-duration) var(--kp-ease);
+  }
+  .kp-pageview[data-mode='read'] .kp-pageview-body {
+    grid-area: 1 / 1;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .kp-pageview[data-mode='read'] .kp-pageview-rail {
+    display: block;
+    grid-column: 2;
+    grid-row: 1;
+    height: 100%;
+    min-height: 0;
+    width: auto;
+    padding: 0;
+    overflow: hidden;
+    border-left: 1px solid var(--kp-border-subtle);
+    background: transparent;
+  }
+
+  /* Collapsed: the pane becomes a 44px icon strip and the article reclaims the space. */
+  .kp-pageview[data-mode='read'][data-rail-collapsed='true'] .kp-pageview-grid {
+    grid-template-columns: minmax(0, 1fr) 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .kp-pageview-rail {
+    padding: var(--kp-space-4);
+  }
+}
+
+/* =========================================================================== */
+/* DESKTOP (>= 1280px): Three-pane layout with sticky right rail */
+/* =========================================================================== */
+
+/* Edit title field: make the required title obvious and separate from generic YAML properties. */
+.kp-edit-titlebar {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--kp-space-2);
+  padding: var(--kp-space-4) clamp(var(--kp-space-4), 3vw, var(--kp-space-8)) var(--kp-space-3);
+  background: var(--kp-surface-base);
+  border-bottom: 1px solid var(--kp-border-subtle);
+}
+
+.kp-edit-shell-heading {
+  display: grid;
+  gap: var(--kp-space-1);
+  max-width: 760px;
+}
+
+.kp-edit-shell-heading h2 {
+  margin: 0;
+  color: var(--kp-text-primary);
+  font-family: var(--kp-font-ui);
+  font-size: var(--kp-text-xl);
+  font-weight: var(--kp-weight-bold);
+  letter-spacing: var(--kp-tracking-tight);
+}
+
+.kp-edit-shell-heading p {
+  margin: 0;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+}
+
+.kp-edit-shell-heading .kp-edit-shell-eyebrow {
+  color: var(--kp-accent);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: var(--kp-tracking-wide);
+  text-transform: uppercase;
+}
+
+.kp-edit-titlebar-label {
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: var(--kp-tracking-wide);
+  color: var(--kp-text-muted);
+  text-transform: uppercase;
+}
+
+.kp-edit-titlebar-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--kp-text-primary);
+  font-family: var(--kp-font-ui);
+  font-size: clamp(var(--kp-text-2xl), 4vw, var(--kp-text-4xl));
+  font-weight: var(--kp-weight-bold);
+  letter-spacing: var(--kp-tracking-tight);
+  line-height: var(--kp-leading-tight);
+}
+
+.kp-edit-titlebar-input::placeholder {
+  color: var(--kp-text-muted);
+}
+
+.kp-edit-titlebar-input:focus {
+  box-shadow: inset 0 -2px 0 var(--kp-accent);
+}
+
+.kp-edit-header-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--kp-space-2);
+  margin-top: calc(var(--kp-space-2) * -1);
+}
+
+.kp-edit-topic-select {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  min-height: 30px;
+  padding: 0 var(--kp-space-2) 0 var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-muted);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+}
+
+.kp-edit-topic-select span {
+  color: var(--kp-text-muted);
+  letter-spacing: var(--kp-tracking-wide);
+  text-transform: uppercase;
+}
+
+.kp-edit-topic-select select {
+  min-width: 11rem;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--kp-text-primary);
+  font: inherit;
+}
+
+.kp-edit-topic-select:focus-within {
+  border-color: var(--kp-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--kp-accent) 16%, transparent);
+}
+
+.kp-item-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  width: fit-content;
+  min-height: 28px;
+  padding: 0 var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-muted);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: var(--kp-tracking-wide);
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.kp-item-status-chip--published {
+  border-color: color-mix(in srgb, var(--kp-success, #198754) 32%, var(--kp-border-subtle));
+  background: color-mix(in srgb, var(--kp-success, #198754) 10%, var(--kp-surface-base));
+  color: color-mix(in srgb, var(--kp-success, #198754) 78%, var(--kp-text-primary));
+}
+
+.kp-item-status-chip--draft {
+  border-color: color-mix(in srgb, var(--kp-text-muted) 24%, var(--kp-border-subtle));
+  background: color-mix(in srgb, var(--kp-text-muted) 8%, var(--kp-surface-base));
+}
+
+.kp-item-status-chip-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.8;
+}
+
+.kp-properties-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--kp-space-2);
+  min-height: 32px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  padding: 0 var(--kp-space-3);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  cursor: pointer;
+}
+
+.kp-properties-toggle:hover,
+.kp-properties-toggle:focus-visible {
+  border-color: var(--kp-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--kp-accent) 14%, transparent);
+  outline: none;
+}
+
+.kp-item-properties-shell {
+  display: grid;
+  gap: var(--kp-space-3);
+  padding: var(--kp-space-3) clamp(var(--kp-space-4), 3vw, var(--kp-space-8));
+  background: var(--kp-surface-base);
+}
+
+.kp-item-properties-shell > .kp-properties-toggle {
+  width: fit-content;
+}
+
+.kp-item-properties-panel {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--kp-space-2) var(--kp-space-4);
+  margin: 0;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-lg);
+  padding: var(--kp-space-4);
+  background: var(--kp-surface-muted);
+}
+
+.kp-item-property-row {
+  display: contents;
+}
+
+.kp-item-property-row dt {
+  color: var(--kp-text-muted);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: var(--kp-tracking-wide);
+  text-transform: uppercase;
+}
+
+.kp-item-property-row dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--kp-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.kp-item-property-row--empty dd {
+  color: var(--kp-text-secondary);
+}
+
+.kp-taxonomy-pickers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--kp-space-3);
+  margin-top: var(--kp-space-3);
+  padding: var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-lg);
+  background: var(--kp-surface-base);
+}
+
+.kp-taxonomy-pickers label,
+.kp-taxonomy-token-field {
+  display: grid;
+  gap: var(--kp-space-2);
+  min-width: 0;
+}
+
+.kp-taxonomy-pickers label span,
+.kp-taxonomy-token-field > label {
+  color: var(--kp-text-muted);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: var(--kp-tracking-wide);
+  text-transform: uppercase;
+}
+
+.kp-taxonomy-pickers input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  padding: 0 var(--kp-space-3);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font: inherit;
+}
+
+.kp-taxonomy-pickers input:focus {
+  outline: none;
+  border-color: var(--kp-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--kp-accent) 18%, transparent);
+}
+
+.kp-taxonomy-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-2);
+}
+
+.kp-taxonomy-chip {
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  padding: 4px var(--kp-space-2);
+  background: var(--kp-surface-muted);
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-xs);
+  cursor: pointer;
+}
+
+.kp-taxonomy-chip:focus,
+.kp-taxonomy-chip:hover {
+  border-color: var(--kp-accent);
+}
+
+.kp-edit-metadata-summary {
+  margin: 0;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-xs);
+}
+
+.kp-edit-editor-frame {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--kp-space-4) clamp(var(--kp-space-4), 3vw, var(--kp-space-8));
+  background: var(--kp-surface-base);
+}
+
+.kp-edit-editor-frame .me-editor {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+}
+
+.kp-edit-editor-frame .me-editor-surface,
+.kp-edit-editor-frame .me-codemirror,
+.kp-edit-editor-frame .cm-editor,
+.kp-edit-editor-frame .me-preview,
+.kp-edit-editor-frame .me-wysiwyg {
+  min-height: 0;
+  height: 100%;
+}
+
+.kp-edit-editor-frame .cm-scroller {
+  overflow: auto;
+}
+
+.kp-edit-savebar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: var(--kp-sidebar-width-collapsed);
+  height: var(--kp-edit-savebar-space, 64px);
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kp-space-4);
+  padding: var(--kp-space-3) clamp(var(--kp-space-4), 3vw, var(--kp-space-8));
+  padding-bottom: calc(var(--kp-space-3) + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--kp-surface-base) 94%, transparent);
+  border-top: 1px solid var(--kp-border-subtle);
+  box-shadow: var(--kp-shadow-lg);
+  backdrop-filter: blur(14px);
+}
+
+.kp-edit-savebar-status {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kp-edit-savebar-status strong {
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-sm);
+}
+
+.kp-edit-savebar-status span,
+.kp-edit-savebar-status p {
+  margin: 0;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-xs);
+}
+
+.kp-edit-savebar--error .kp-edit-savebar-status p,
+.kp-edit-savebar--conflict .kp-edit-savebar-status p {
+  color: var(--kp-danger, #b42318);
+  font-weight: var(--kp-weight-semibold);
+}
+
+.kp-edit-savebar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.kp-edit-primary-action,
+.kp-edit-secondary-action {
+  height: 36px;
+  padding: 0 var(--kp-space-4);
+  border-radius: var(--kp-radius-pill);
+  font-family: var(--kp-font-ui);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--kp-space-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.kp-edit-primary-action {
+  border: 1px solid var(--kp-accent);
+  background: var(--kp-accent);
+  color: var(--kp-accent-fg);
+}
+
+.kp-edit-secondary-action {
+  border: 1px solid var(--kp-border-subtle);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-secondary);
+}
+
+.kp-edit-primary-action:disabled,
+.kp-edit-secondary-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.kp-local-notice {
+  position: fixed;
+  left: var(--kp-space-6);
+  bottom: var(--kp-space-6);
+  z-index: var(--kp-z-toast);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-3);
+  max-width: min(420px, calc(100vw - var(--kp-space-12)));
+  padding: var(--kp-space-3) var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-raised);
+  box-shadow: var(--kp-shadow-md);
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-sm);
+  pointer-events: auto;
+}
+
+.kp-local-notice button {
+  border: none;
+  background: transparent;
+  color: var(--kp-accent);
+  cursor: pointer;
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+}
+
+@media (max-width: 720px) {
+  .kp-edit-savebar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .kp-edit-savebar-actions {
+    justify-content: stretch;
+  }
+
+  .kp-edit-primary-action,
+  .kp-edit-secondary-action {
+    flex: 1 1 auto;
+  }
+}
+
+/* =========================================================================== */
+/* WIDE DESKTOP: keep the page body full-width.
+ *
+ * The previous wide-screen breakpoint reserved a right rail for backlinks. That
+ * created a noticeable empty/margin-like strip on the right side of the page at
+ * large viewport widths. Keep the single-column layout at all widths so the
+ * knowledge item surface fills the available content area consistently.
+ * =========================================================================== */

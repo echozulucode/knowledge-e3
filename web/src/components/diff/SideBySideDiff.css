@@ -1,0 +1,159 @@
+/**
+ * Side-by-side diff viewer styles.
+ * Uses design tokens for colors and typography.
+ */
+
+.kp-diff-container {
+  max-height: 60vh;
+  overflow: hidden;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+}
+
+.kp-diff-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 100%;
+}
+
+.kp-diff-left,
+.kp-diff-right {
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  border-right: 1px solid var(--kp-border-subtle);
+  min-height: 100%;
+}
+
+.kp-diff-right {
+  border-right: none;
+}
+
+.kp-diff-column-header {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  padding: var(--kp-space-3) var(--kp-space-4);
+  background: var(--kp-surface-sunken);
+  border-bottom: 1px solid var(--kp-border-subtle);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-secondary);
+  z-index: 10;
+}
+
+.kp-diff-column-title {
+  margin: 0;
+}
+
+.kp-diff-rows {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.kp-diff-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto;
+  min-height: 1.5em;
+  border-bottom: 1px solid var(--kp-border-subtle);
+}
+
+.kp-diff-row:last-child {
+  border-bottom: none;
+}
+
+.kp-diff-gutter {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: var(--kp-space-2) var(--kp-space-2);
+  background: var(--kp-surface-sunken);
+  border-right: 1px solid var(--kp-border-subtle);
+  min-width: 3.5em;
+  font-size: var(--kp-text-xs);
+  color: var(--kp-text-muted);
+  user-select: none;
+}
+
+.kp-diff-line-number {
+  display: block;
+  text-align: right;
+  font-family: var(--kp-font-mono);
+  line-height: 1.5;
+}
+
+.kp-diff-content {
+  overflow: hidden;
+}
+
+.kp-diff-code {
+  margin: 0;
+  padding: var(--kp-space-2) var(--kp-space-3);
+  font-family: var(--kp-font-mono);
+  font-size: var(--kp-text-xs);
+  line-height: 1.5;
+  color: var(--kp-text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: transparent;
+}
+
+/* Context rows: subtle, dimmed */
+.kp-diff-row-context .kp-diff-code {
+  color: var(--kp-text-secondary);
+}
+
+/* Delete rows: red background, left column only */
+.kp-diff-row-delete {
+  background: var(--kp-diff-del-bg);
+}
+
+.kp-diff-row-delete .kp-diff-code {
+  color: var(--kp-diff-del-text);
+  text-decoration: line-through;
+  text-decoration-color: var(--kp-danger);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* Insert rows: green background, right column only */
+.kp-diff-row-insert {
+  background: var(--kp-diff-add-bg);
+}
+
+.kp-diff-row-insert .kp-diff-code {
+  color: var(--kp-diff-add-text);
+  font-weight: var(--kp-weight-medium);
+}
+
+/* Empty rows: no background or gutter */
+.kp-diff-row-empty {
+  background: transparent;
+}
+
+.kp-diff-row-empty .kp-diff-gutter {
+  background: transparent;
+}
+
+.kp-diff-row-empty .kp-diff-content {
+  min-height: 1.5em;
+}
+
+/* Fallback for large documents */
+.kp-diff-fallback {
+  padding: var(--kp-space-6);
+  text-align: center;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  background: var(--kp-surface-sunken);
+  border-radius: var(--kp-radius-md);
+  border: 1px solid var(--kp-border-subtle);
+}
+
+.kp-diff-fallback p {
+  margin: 0;
+}

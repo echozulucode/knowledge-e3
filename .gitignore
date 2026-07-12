@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dist-tsc/
+build/
+*.tsbuildinfo
+.env
+.env.local
+*.log
+.DS_Store
+coverage/
+.vitest-cache/
+*.sqlite
+*.sqlite-*
+data/
+/reference/
+test-results/
+server/bench/results/

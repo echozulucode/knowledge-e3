@@ -1,0 +1,524 @@
+/**
+ * Design tokens — single source of truth for colors, typography, spacing.
+ *
+ * Wave J redesign foundation. All components read from these CSS variables.
+ * Three theme modes (system / light / dark) per user decision #3:
+ *   - :root holds light defaults
+ *   - [data-theme="dark"] overrides for explicit dark
+ *   - [data-theme="system"] inherits from prefers-color-scheme via @media query
+ *
+ * The ThemeProvider toggles `data-theme` on <html> based on user preference
+ * persisted in localStorage. System mode falls through to OS preference.
+ */
+
+:root {
+  /* ============================================================ */
+  /* COLOR PALETTE — light theme (default)                        */
+  /* ============================================================ */
+
+  /* Surface (backgrounds, layered from low → high) — warm parchment */
+  --kp-surface-canvas:   #fbfaf7;   /* page canvas / behind everything */
+  --kp-surface-base:     #fffdf9;   /* primary content surfaces */
+  --kp-surface-raised:   #fffdf9;   /* cards, modals, popovers */
+  --kp-surface-sunken:   #f8f3eb;   /* hover-swallow, subtle inset regions */
+  --kp-surface-muted:    #f0e8dc;   /* code blocks, input fills */
+  --kp-surface-overlay:  rgba(14, 17, 21, 0.38);  /* modal backdrop */
+
+  /* Text */
+  --kp-text-primary:     #22252b;   /* body, headings */
+  --kp-text-secondary:   #56616f;   /* metadata, secondary affordances */
+  --kp-text-muted:       #818995;   /* placeholders, disabled */
+  --kp-text-inverse:     #ffffff;
+
+  /* Borders / hairlines */
+  --kp-border-subtle:    #ded6ca;   /* default hairlines, dividers */
+  --kp-border-strong:    #c5b9a8;   /* hover borders */
+  --kp-border-focus:     #0d5263;   /* keyboard focus ring (teal) */
+
+  /* ============================================================ */
+  /* BRAND — deep teal, flat (no gradients)                        */
+  /* ============================================================ */
+  --kp-brand:            #0d5263;   /* deep teal — primary accent */
+  --kp-brand-strong:     #0a4250;   /* hover/pressed */
+  --kp-brand-soft:       #e4f0f2;   /* tinted fills */
+  --kp-brand-contrast:   #ffffff;   /* text on brand */
+  --kp-brand-ring:       rgba(13, 82, 99, 0.26);
+  /* Legacy "gradient" tokens now resolve to flat teal so older usages stay calm. */
+  --kp-brand-gradient:      var(--kp-brand);
+  --kp-brand-gradient-soft: var(--kp-brand-soft);
+  --kp-warm:             #8a541f;   /* warm ochre secondary */
+  --kp-warm-soft:        #fff0d8;
+
+  /* Accent — points at the brand so every component adopts it. */
+  --kp-accent:           var(--kp-brand);
+  --kp-accent-hover:     var(--kp-brand-strong);
+  --kp-accent-bg:        var(--kp-brand-soft);   /* selected nav, link hover bg */
+  --kp-accent-fg:        #ffffff;   /* text on accent */
+
+  /* Semantic — muted to match parchment */
+  --kp-success:          #28724f;
+  --kp-success-bg:       #dff0e6;
+  --kp-warning:          #8a5a00;
+  --kp-warning-bg:       #fbecca;
+  --kp-danger:           #a33a2a;
+  --kp-danger-bg:        #f7ddd6;
+  --kp-info:             #0d5263;
+  --kp-info-bg:          #e4f0f2;
+
+  /* ============================================================ */
+  /* CONTENT-TYPE GROUP COLORS (light) — calm, parchment-friendly  */
+  /* fg only; badge fills derive via color-mix so themes stay DRY */
+  /* ============================================================ */
+  --kp-type-reference:   #2b6b7a;   /* muted teal-blue */
+  --kp-type-support:     #8a541f;   /* warm ochre */
+  --kp-type-operations:  #3f7d5f;   /* muted green */
+  --kp-type-guides:      #6d5f8a;   /* muted violet */
+  --kp-type-decisions:   #5b6672;   /* slate */
+  --kp-type-publishing:  #96566e;   /* muted plum */
+
+  /* ============================================================ */
+  /* COMPAT ALIASES — mock v5 short token names → --kp-* tokens.   */
+  /* Defined once here; because they resolve var(--kp-*) at use    */
+  /* time, they automatically pick up the dark/system overrides.   */
+  /* ============================================================ */
+  --bg:             var(--kp-surface-canvas);
+  --bg-soft:        var(--kp-surface-sunken);
+  --surface:        var(--kp-surface-base);
+  --surface-2:      var(--kp-surface-sunken);
+  --surface-3:      var(--kp-surface-muted);
+  --surface-sunken: var(--kp-surface-sunken);
+  --text:           var(--kp-text-primary);
+  --muted:          var(--kp-text-secondary);
+  --subtle:         var(--kp-text-muted);
+  --inverse:        var(--kp-text-inverse);
+  --border:         var(--kp-border-subtle);
+  --border-soft:    var(--kp-border-subtle);
+  --border-strong:  var(--kp-border-strong);
+  --accent:         var(--kp-accent);
+  --accent-soft:    var(--kp-accent-bg);
+  --warm:           var(--kp-warm);
+  --warm-soft:      var(--kp-warm-soft);
+  --success:        var(--kp-success);
+  --warning:        var(--kp-warning);
+  --danger:         var(--kp-danger);
+
+  /* ============================================================ */
+  /* TYPOGRAPHY                                                   */
+  /* ============================================================ */
+  --kp-font-ui:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI Variable',
+    'Segoe UI',
+    system-ui,
+    sans-serif;
+  --kp-font-mono:
+    'JetBrains Mono',
+    'Cascadia Code',
+    'SF Mono',
+    Menlo,
+    Consolas,
+    'DejaVu Sans Mono',
+    monospace;
+
+  /* Type scale (modular ratio ≈ 1.2 minor third) */
+  --kp-text-xs:    11px;
+  --kp-text-sm:    13px;
+  --kp-text-base:  15px;
+  --kp-text-md:    17px;
+  --kp-text-lg:    20px;
+  --kp-text-xl:    24px;
+  --kp-text-2xl:   30px;
+  --kp-text-3xl:   38px;
+  --kp-text-4xl:   48px;
+
+  /* Line heights */
+  --kp-leading-tight:    1.2;
+  --kp-leading-snug:     1.4;
+  --kp-leading-normal:   1.55;
+  --kp-leading-relaxed:  1.7;
+
+  /* Weights */
+  --kp-weight-regular:   400;
+  --kp-weight-medium:    500;
+  --kp-weight-semibold:  600;
+  --kp-weight-bold:      700;
+
+  /* Letter spacing */
+  --kp-tracking-tight:   -0.02em;
+  --kp-tracking-snug:    -0.01em;
+  --kp-tracking-normal:  0;
+
+  /* ============================================================ */
+  /* SPACING — 4px grid                                            */
+  /* ============================================================ */
+  --kp-space-0:    0;
+  --kp-space-1:    4px;
+  --kp-space-2:    8px;
+  --kp-space-3:    12px;
+  --kp-space-4:    16px;
+  --kp-space-5:    20px;
+  --kp-space-6:    24px;
+  --kp-space-8:    32px;
+  --kp-space-10:   40px;
+  --kp-space-12:   48px;
+  --kp-space-16:   64px;
+  --kp-space-20:   80px;
+  --kp-space-24:   96px;
+
+  /* ============================================================ */
+  /* RADII                                                         */
+  /* ============================================================ */
+  --kp-radius-xs:  3px;     /* tiny pills, marker chips */
+  --kp-radius-sm:  6px;     /* buttons, inputs */
+  --kp-radius-md:  8px;     /* cards, surfaces */
+  --kp-radius-lg:  12px;    /* modals */
+  --kp-radius-pill: 999px;  /* pill chips, FAB */
+
+  /* ============================================================ */
+  /* SHADOWS — flat by default; real elevation only for overlays    */
+  /* ============================================================ */
+  --kp-shadow-xs:   0 1px 0 rgba(31, 35, 40, 0.04), 0 1px 2px rgba(31, 35, 40, 0.05);
+  --kp-shadow-sm:   0 1px 0 rgba(31, 35, 40, 0.04), 0 1px 2px rgba(31, 35, 40, 0.05);
+  --kp-shadow-md:   0 6px 22px rgba(31, 35, 40, 0.10);
+  --kp-shadow-lg:   0 18px 60px rgba(31, 35, 40, 0.16);
+  --kp-shadow-fab:  0 18px 60px rgba(31, 35, 40, 0.16);
+
+  /* ============================================================ */
+  /* MOTION                                                        */
+  /* ============================================================ */
+  --kp-ease:           cubic-bezier(0.4, 0, 0.2, 1);
+  --kp-ease-spring:    cubic-bezier(0.16, 1, 0.3, 1);
+  --kp-duration-fast:  120ms;
+  --kp-duration:       200ms;
+  --kp-duration-slow:  320ms;
+
+  /* ============================================================ */
+  /* LAYOUT — breakpoints + sizing                                */
+  /* ============================================================ */
+  --kp-sidebar-width:           264px;
+  --kp-sidebar-width-collapsed: 68px;
+  --kp-header-height:           58px;
+
+  /* Reading article measure — wide for technical content, capped on ultrawide. */
+  --kp-article-width:           116ch;
+  --kp-content-pad:             clamp(14px, 1.4vw, 26px);
+
+  /* Z-index scale */
+  --kp-z-dropdown:  20;
+  --kp-z-sticky:    30;
+  --kp-z-fab:       40;
+  --kp-z-overlay:   50;
+  --kp-z-modal:     60;
+  --kp-z-toast:     70;
+
+  /* ============================================================ */
+  /* SYNTAX HIGHLIGHTING — light theme                           */
+  /* ============================================================ */
+  --kp-syntax-attr:       #af00db;   /* attribute name: purple */
+  --kp-syntax-property:   #098658;   /* property/key: green */
+  --kp-syntax-selector:   #a31515;   /* selector: deep red */
+  --kp-syntax-function:   #795e26;   /* function: mustard */
+  --kp-syntax-keyword:    #0000ff;   /* keyword: blue */
+  --kp-syntax-string:     #a31515;   /* string: deep red */
+  --kp-syntax-comment:    #008000;   /* comment: green */
+  --kp-syntax-number:     #098658;   /* number: green */
+  --kp-syntax-punct:      var(--kp-text-secondary); /* punctuation: fallback to secondary */
+
+  /* ============================================================ */
+  /* FRONTMATTER GRADIENT — light theme                           */
+  /* ============================================================ */
+  --kp-frontmatter-bg: linear-gradient(to right, rgba(13, 82, 99, 0.05) 0%, rgba(13, 82, 99, 0.02) 100%);
+
+  /* ============================================================ */
+  /* EDITOR FOCUS SHADOW                                          */
+  /* ============================================================ */
+  --kp-editor-focus-shadow: inset 0 0 0 1px var(--kp-border-focus);
+
+  /* ============================================================ */
+  /* CONTENT MAX-WIDTH — for readable prose wrapping               */
+  /* ============================================================ */
+  /* Editing surfaces fill the column up to 1280px so medium screens
+     (1280–1600px) use the full canvas. Caps line length only on
+     ultra-wide displays (1800px+) where unbounded prose is unreadable. */
+  --kp-content-max-width: min(100%, 1280px);
+  /* Reading-only prose (e.g., ReadView preview) prefers a tighter cap. */
+  --kp-prose-max-width: min(100%, 78ch);
+
+  /* ============================================================ */
+  /* DIFF VIEW (added by ConflictDialog work)                      */
+  /* ============================================================ */
+  --kp-diff-add-bg:   rgba(34, 197, 94, 0.12);
+  --kp-diff-add-text: var(--kp-text-primary);
+  --kp-diff-del-bg:   rgba(239, 68, 68, 0.10);
+  --kp-diff-del-text: var(--kp-text-primary);
+}
+
+/* ============================================================ */
+/* DARK THEME (explicit)                                         */
+/* ============================================================ */
+[data-theme="dark"] {
+  --kp-surface-canvas:   #101214;
+  --kp-surface-base:     #181c20;
+  --kp-surface-raised:   #181c20;
+  --kp-surface-sunken:   #15191d;
+  --kp-surface-muted:    #20262d;
+  --kp-surface-overlay:  rgba(0, 0, 0, 0.55);
+
+  --kp-text-primary:     #edf1f5;
+  --kp-text-secondary:   #b6c0cc;
+  --kp-text-muted:       #8893a3;
+  --kp-text-inverse:     #101214;
+
+  --kp-border-subtle:    #303741;
+  --kp-border-strong:    #4a5563;
+  --kp-border-focus:     #9bd8e8;
+
+  /* Brand (dark) — soft teal, lifted for contrast */
+  --kp-brand:            #9bd8e8;
+  --kp-brand-strong:     #bfe8f2;
+  --kp-brand-soft:       #102a32;
+  --kp-brand-contrast:   #101214;
+  --kp-brand-ring:       rgba(155, 216, 232, 0.32);
+  --kp-brand-gradient:      var(--kp-brand);
+  --kp-brand-gradient-soft: var(--kp-brand-soft);
+  --kp-warm:             #f2b56b;
+  --kp-warm-soft:        #24180b;
+
+  --kp-accent:           var(--kp-brand);
+  --kp-accent-hover:     var(--kp-brand-strong);
+  --kp-accent-bg:        var(--kp-brand-soft);
+  --kp-accent-fg:        #101214;
+
+  --kp-success:          #7ed69d;
+  --kp-success-bg:       rgba(126, 214, 157, 0.15);
+  --kp-warning:          #f2c46d;
+  --kp-warning-bg:       rgba(242, 196, 109, 0.15);
+  --kp-danger:           #ff9a8c;
+  --kp-danger-bg:        rgba(255, 154, 140, 0.15);
+  --kp-info:             #9bd8e8;
+  --kp-info-bg:          rgba(155, 216, 232, 0.15);
+
+  /* Content-type group colors (dark) — lightened for legibility */
+  --kp-type-reference:   #7fc7db;
+  --kp-type-support:     #f2b56b;
+  --kp-type-operations:  #7fcea4;
+  --kp-type-guides:      #b3a6d6;
+  --kp-type-decisions:   #9aa6b4;
+  --kp-type-publishing:  #d69bb2;
+
+  --kp-shadow-xs:   0 1px 0 rgba(0, 0, 0, 0.22);
+  --kp-shadow-sm:   0 1px 0 rgba(0, 0, 0, 0.22);
+  --kp-shadow-md:   0 8px 26px rgba(0, 0, 0, 0.5);
+  --kp-shadow-lg:   0 24px 80px rgba(0, 0, 0, 0.54);
+  --kp-shadow-fab:  0 24px 80px rgba(0, 0, 0, 0.54);
+
+  /* ============================================================ */
+  /* SYNTAX HIGHLIGHTING — dark theme                            */
+  /* ============================================================ */
+  --kp-syntax-attr:       #c586c0;   /* attribute: light purple */
+  --kp-syntax-property:   #9cdcfe;   /* property: light cyan */
+  --kp-syntax-selector:   #ce9178;   /* selector: light orange */
+  --kp-syntax-function:   #dcdcaa;   /* function: light yellow */
+  --kp-syntax-keyword:    #569cd6;   /* keyword: light blue */
+  --kp-syntax-string:     #ce9178;   /* string: light orange */
+  --kp-syntax-comment:    #6a9955;   /* comment: gray-green */
+  --kp-syntax-number:     #b5cea8;   /* number: light green */
+  --kp-syntax-punct:      var(--kp-text-secondary); /* punctuation: fallback */
+
+  /* ============================================================ */
+  /* FRONTMATTER GRADIENT — dark theme                            */
+  /* ============================================================ */
+  --kp-frontmatter-bg: linear-gradient(to right, rgba(155, 216, 232, 0.10) 0%, rgba(155, 216, 232, 0.04) 100%);
+
+  /* ============================================================ */
+  /* DIFF VIEW — dark theme                                       */
+  /* ============================================================ */
+  --kp-diff-add-bg:   rgba(34, 197, 94, 0.18);
+  --kp-diff-add-text: var(--kp-text-primary);
+  --kp-diff-del-bg:   rgba(239, 68, 68, 0.18);
+  --kp-diff-del-text: var(--kp-text-primary);
+}
+
+/* ============================================================ */
+/* SYSTEM THEME (follows OS preference)                          */
+/* ============================================================ */
+@media (prefers-color-scheme: dark) {
+  [data-theme="system"] {
+    --kp-surface-canvas:   #101214;
+    --kp-surface-base:     #181c20;
+    --kp-surface-raised:   #181c20;
+    --kp-surface-sunken:   #15191d;
+    --kp-surface-muted:    #20262d;
+    --kp-surface-overlay:  rgba(0, 0, 0, 0.55);
+
+    --kp-text-primary:     #edf1f5;
+    --kp-text-secondary:   #b6c0cc;
+    --kp-text-muted:       #8893a3;
+    --kp-text-inverse:     #101214;
+
+    --kp-border-subtle:    #303741;
+    --kp-border-strong:    #4a5563;
+    --kp-border-focus:     #9bd8e8;
+
+    --kp-brand:            #9bd8e8;
+    --kp-brand-strong:     #bfe8f2;
+    --kp-brand-soft:       #102a32;
+    --kp-brand-contrast:   #101214;
+    --kp-brand-ring:       rgba(155, 216, 232, 0.32);
+    --kp-brand-gradient:      var(--kp-brand);
+    --kp-brand-gradient-soft: var(--kp-brand-soft);
+    --kp-warm:             #f2b56b;
+    --kp-warm-soft:        #24180b;
+
+    --kp-accent:           var(--kp-brand);
+    --kp-accent-hover:     var(--kp-brand-strong);
+    --kp-accent-bg:        var(--kp-brand-soft);
+    --kp-accent-fg:        #101214;
+
+    --kp-success:          #7ed69d;
+    --kp-success-bg:       rgba(126, 214, 157, 0.15);
+    --kp-warning:          #f2c46d;
+    --kp-warning-bg:       rgba(242, 196, 109, 0.15);
+    --kp-danger:           #ff9a8c;
+    --kp-danger-bg:        rgba(255, 154, 140, 0.15);
+    --kp-info:             #9bd8e8;
+    --kp-info-bg:          rgba(155, 216, 232, 0.15);
+
+    --kp-type-reference:   #7fc7db;
+    --kp-type-support:     #f2b56b;
+    --kp-type-operations:  #7fcea4;
+    --kp-type-guides:      #b3a6d6;
+    --kp-type-decisions:   #9aa6b4;
+    --kp-type-publishing:  #d69bb2;
+
+    --kp-shadow-xs:   0 1px 0 rgba(0, 0, 0, 0.22);
+    --kp-shadow-sm:   0 1px 0 rgba(0, 0, 0, 0.22);
+    --kp-shadow-md:   0 8px 26px rgba(0, 0, 0, 0.5);
+    --kp-shadow-lg:   0 24px 80px rgba(0, 0, 0, 0.54);
+    --kp-shadow-fab:  0 24px 80px rgba(0, 0, 0, 0.54);
+
+    /* ============================================================ */
+    /* SYNTAX HIGHLIGHTING — system dark theme                    */
+    /* ============================================================ */
+    --kp-syntax-attr:       #c586c0;
+    --kp-syntax-property:   #9cdcfe;
+    --kp-syntax-selector:   #ce9178;
+    --kp-syntax-function:   #dcdcaa;
+    --kp-syntax-keyword:    #569cd6;
+    --kp-syntax-string:     #ce9178;
+    --kp-syntax-comment:    #6a9955;
+    --kp-syntax-number:     #b5cea8;
+    --kp-syntax-punct:      var(--kp-text-secondary);
+
+    /* ============================================================ */
+    /* FRONTMATTER GRADIENT — system dark theme                   */
+    /* ============================================================ */
+    --kp-frontmatter-bg: linear-gradient(to right, rgba(155, 216, 232, 0.10) 0%, rgba(155, 216, 232, 0.04) 100%);
+
+    /* ============================================================ */
+    /* DIFF VIEW — dark theme                                      */
+    /* ============================================================ */
+    --kp-diff-add-bg:   rgba(34, 197, 94, 0.18);
+    --kp-diff-del-bg:   rgba(239, 68, 68, 0.18);
+  }
+}
+
+/* ============================================================ */
+/* GLOBAL BASELINE                                               */
+/* ============================================================ */
+html, body {
+  background: var(--kp-surface-canvas);
+  color: var(--kp-text-primary);
+  font-family: var(--kp-font-ui);
+  font-size: var(--kp-text-base);
+  line-height: var(--kp-leading-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Tell the browser which color scheme native controls (select option lists,
+   scrollbars, date/time pickers, inputs) should paint in, so they don't render
+   with light OS chrome in dark mode. */
+:root { color-scheme: light; }
+[data-theme='dark'] { color-scheme: dark; }
+@media (prefers-color-scheme: dark) {
+  [data-theme='system'] { color-scheme: dark; }
+}
+
+/* Explicitly theme native <select> option popups: some browsers paint the
+   option list with light OS chrome (white bg + the dark-mode white text =
+   unreadable) even with color-scheme set. <option> background IS styleable. */
+[data-theme='dark'] option,
+[data-theme='dark'] optgroup {
+  background-color: var(--kp-surface-sunken);
+  color: var(--kp-text-primary);
+}
+@media (prefers-color-scheme: dark) {
+  [data-theme='system'] option,
+  [data-theme='system'] optgroup {
+    background-color: var(--kp-surface-sunken);
+    color: var(--kp-text-primary);
+  }
+}
+
+/* Smooth color transitions when theme switches */
+html, body, [data-theme] {
+  transition:
+    background-color var(--kp-duration) var(--kp-ease),
+    color var(--kp-duration) var(--kp-ease),
+    border-color var(--kp-duration) var(--kp-ease);
+}
+
+/* Focus ring — keyboard only */
+:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+
+/* Text selection — readable in both themes (default light-blue + white is not). */
+::selection {
+  background: color-mix(in srgb, var(--kp-accent) 30%, transparent);
+  color: var(--kp-text-primary);
+}
+
+/* ============================================================ */
+/* SCROLLBARS — thin & quiet everywhere (calm, mock v5)          */
+/* ============================================================ */
+/* Invisible until you hover/focus the scroll region (mock .scrollable). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover,
+*:focus-within {
+  scrollbar-color: color-mix(in srgb, var(--kp-text-muted), transparent 46%) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*:hover::-webkit-scrollbar-thumb,
+*:focus-within::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--kp-text-muted), transparent 46%);
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--kp-text-muted), transparent 24%);
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}

@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest an improvement or new capability for the open core
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check the contribution triage in
+        [CONTRIBUTING.md](https://github.com/echozulucode/knowledge-e3/blob/main/CONTRIBUTING.md)
+        first — cloud/multi-tenant/billing/SSO features are out of scope for this
+        repository. When in doubt, open this issue to discuss.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What are you trying to do, and what's missing or hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This is open-core functionality (not cloud / multi-tenant / billing / SSO), per CONTRIBUTING.md
+          required: true

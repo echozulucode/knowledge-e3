@@ -1,0 +1,361 @@
+/**
+ * GlobalHeader styles
+ * 56px tall, sticky, with Cmd+K trigger pill and theme toggle
+ */
+
+.kp-header {
+  position: sticky;
+  top: 0;
+  height: var(--kp-header-height);
+  background: var(--kp-surface-base);
+  border-bottom: 1px solid var(--kp-border-subtle);
+  z-index: var(--kp-z-sticky);
+  transition: background-color var(--kp-duration) var(--kp-ease),
+              border-color var(--kp-duration) var(--kp-ease);
+}
+
+.kp-header-content {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 var(--kp-space-4);
+  gap: var(--kp-space-3);
+}
+
+/* Left section grows so search + controls sit flush right. */
+.kp-header-start {
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* Mobile controls: hidden on desktop, revealed at breakpoints. */
+.kp-header-hamburger,
+.kp-header-search-mobile {
+  display: none;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--kp-border-subtle);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  border-radius: var(--kp-radius-md);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.kp-header-hamburger:hover,
+.kp-header-search-mobile:hover {
+  background: var(--kp-surface-sunken);
+}
+.kp-header-hamburger:focus-visible,
+.kp-header-search-mobile:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 860px) {
+  .kp-header-hamburger {
+    display: inline-flex;
+  }
+}
+@media (max-width: 640px) {
+  .kp-header-search-mobile {
+    display: inline-flex;
+  }
+}
+
+.kp-hamburger {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--kp-text-primary);
+  cursor: pointer;
+  border-radius: var(--kp-radius-sm);
+  transition: background-color var(--kp-duration) var(--kp-ease),
+              color var(--kp-duration) var(--kp-ease);
+}
+
+.kp-hamburger:hover {
+  background: var(--kp-surface-sunken);
+}
+
+.kp-hamburger:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+
+.kp-logo {
+  font-size: var(--kp-text-md);
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-primary);
+  margin: 0;
+  letter-spacing: var(--kp-tracking-snug);
+}
+
+.kp-logo-button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: var(--kp-space-2) var(--kp-space-2);
+  border-radius: var(--kp-radius-sm);
+  font-family: var(--kp-font-ui);
+}
+
+.kp-logo-button:hover {
+  background: var(--kp-surface-sunken);
+}
+
+.kp-logo-button:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+
+.kp-logo-button {
+  display: inline-flex;
+  align-items: center;
+}
+
+.kp-logo-img {
+  height: 26px;
+  width: auto;
+  display: block;
+}
+
+/* Theme-swap the name logo: light asset for light/system-light, dark for dark. */
+.kp-logo-dark {
+  display: none;
+}
+[data-theme='dark'] .kp-logo-light {
+  display: none;
+}
+[data-theme='dark'] .kp-logo-dark {
+  display: block;
+}
+@media (prefers-color-scheme: dark) {
+  [data-theme='system'] .kp-logo-light {
+    display: none;
+  }
+  [data-theme='system'] .kp-logo-dark {
+    display: block;
+  }
+}
+
+/* Spacer — flex-grow to push right section to edge */
+.kp-header-spacer {
+  flex: 1;
+}
+
+/* Search trigger — flush right (the breadcrumb area takes the remaining space). */
+.kp-header-search {
+  flex: 0 1 420px;
+  max-width: 420px;
+  margin: 0;
+}
+
+/* Command palette trigger pill */
+.kp-palette-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  max-width: 320px;
+  padding: var(--kp-space-2) var(--kp-space-3);
+  background: var(--kp-surface-sunken);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-sm);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  cursor: pointer;
+  transition: background-color var(--kp-duration) var(--kp-ease),
+              border-color var(--kp-duration) var(--kp-ease),
+              color var(--kp-duration) var(--kp-ease);
+}
+
+.kp-palette-trigger:hover {
+  background: var(--kp-surface-muted);
+  border-color: var(--kp-border-strong);
+  color: var(--kp-text-primary);
+}
+
+.kp-palette-trigger:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+
+.kp-palette-trigger svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.kp-palette-trigger span:nth-of-type(1) {
+  flex: 1;
+}
+
+.kp-palette-trigger kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  background: var(--kp-surface-base);
+  border: 1px solid var(--kp-border-strong);
+  border-radius: 3px;
+  font-family: var(--kp-font-mono);
+  font-size: 11px;
+  font-weight: var(--kp-weight-medium);
+  color: var(--kp-text-muted);
+}
+
+/* Hide palette trigger on mobile */
+@media (max-width: 640px) {
+  .kp-palette-trigger {
+    display: none;
+  }
+}
+
+/* Theme toggle */
+.kp-theme-toggle {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--kp-text-primary);
+  cursor: pointer;
+  border-radius: var(--kp-radius-pill);
+  transition: background-color var(--kp-duration) var(--kp-ease),
+              color var(--kp-duration) var(--kp-ease);
+}
+
+.kp-theme-toggle:hover {
+  background: var(--kp-surface-sunken);
+}
+
+.kp-theme-toggle:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+
+.kp-theme-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* User menu container */
+.kp-user-menu-container {
+  position: relative;
+}
+
+/* User chip button */
+.kp-user-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  padding: var(--kp-space-1) var(--kp-space-2);
+  background: transparent;
+  border: none;
+  color: var(--kp-text-primary);
+  cursor: pointer;
+  border-radius: var(--kp-radius-sm);
+  font-size: var(--kp-text-sm);
+  transition: background-color var(--kp-duration) var(--kp-ease),
+              color var(--kp-duration) var(--kp-ease);
+}
+
+.kp-user-chip:hover {
+  background: var(--kp-surface-sunken);
+}
+
+.kp-user-chip:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+
+.kp-user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--kp-accent-bg);
+  color: var(--kp-accent);
+  font-weight: var(--kp-weight-bold);
+  font-size: var(--kp-text-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kp-user-name {
+  font-weight: var(--kp-weight-medium);
+}
+
+.kp-user-chip svg {
+  width: 16px;
+  height: 16px;
+  color: var(--kp-text-secondary);
+}
+
+/* User dropdown menu */
+.kp-user-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--kp-surface-raised);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  box-shadow: var(--kp-shadow-md);
+  z-index: var(--kp-z-dropdown);
+  min-width: 160px;
+  overflow: hidden;
+}
+
+.kp-user-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: var(--kp-space-3) var(--kp-space-4);
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-sm);
+  cursor: pointer;
+  transition: background-color var(--kp-duration) var(--kp-ease),
+              color var(--kp-duration) var(--kp-ease);
+}
+
+.kp-user-dropdown-item--icon {
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+}
+
+.kp-user-dropdown-item:hover:not(:disabled) {
+  background: var(--kp-surface-sunken);
+}
+
+.kp-user-dropdown-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.kp-header-cta {
+  padding: var(--kp-space-2) var(--kp-space-4);
+  background: var(--kp-accent);
+  color: var(--kp-accent-fg);
+  border: none;
+  border-radius: var(--kp-radius-sm);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-medium);
+  cursor: pointer;
+  transition: background-color var(--kp-duration) var(--kp-ease);
+}
+
+.kp-header-cta:hover {
+  background: var(--kp-accent-hover);
+}

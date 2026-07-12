@@ -1,0 +1,66 @@
+name: Bug report
+description: Report a problem with the open-core (self-hosted) edition
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug.
+
+        ⚠️ **Do not report security vulnerabilities here.** See the
+        [security policy](https://github.com/echozulucode/knowledge-e3/security/policy).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Release version or git commit SHA.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Server / API
+        - Web client / editor
+        - Codec (Markdown round-trip)
+        - OKF import/export
+        - Git-of-record mirror
+        - MCP server
+        - Search
+        - Docker / self-hosting
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node version, pnpm version, browser (if web), and how you run it (pnpm dev / Docker).
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / screenshots
+      render: shell
+    validations:
+      required: false

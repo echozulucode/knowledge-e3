@@ -1,0 +1,40 @@
+{
+  "name": "knowledge-e3",
+  "private": true,
+  "version": "0.1.0-dev",
+  "description": "Knowledge E3 — an OKF-native, git-backed, MCP-native knowledge platform (open-core edition)",
+  "license": "Apache-2.0",
+  "author": "EchoZed Labs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/echozulucode/knowledge-e3.git"
+  },
+  "homepage": "https://github.com/echozulucode/knowledge-e3#readme",
+  "bugs": {
+    "url": "https://github.com/echozulucode/knowledge-e3/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "test:codec": "pnpm --filter @echozedlabs/codec test",
+    "test:server": "pnpm --filter @echozedlabs/server test",
+    "test:web": "pnpm --filter @echozedlabs/web test",
+    "test:e2e": "pnpm --filter @echozedlabs/web test:e2e",
+    "test:e2e:install": "pnpm --filter @echozedlabs/web test:e2e:install",
+    "test:coverage": "pnpm -r test:coverage",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "dev:server": "pnpm --filter @echozedlabs/server dev",
+    "dev:web": "pnpm --filter @echozedlabs/web dev"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "@vitest/coverage-v8": "2.1.9",
+    "typescript": "^5.6.3"
+  }
+}

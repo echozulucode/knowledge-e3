@@ -1,0 +1,47 @@
+# Build artifacts and dependencies
+node_modules
+dist
+.pnpm-store
+.pnpm-virtual-store
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Development files
+.env
+.env.local
+.env.*.local
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary and cache files
+tmp
+temp
+.cache
+.next
+build-cache
+
+# Testing
+coverage
+.nyc_output
+
+# Project-specific
+derisk
+.claude
+*.md
+tests
+vitest.config.ts
