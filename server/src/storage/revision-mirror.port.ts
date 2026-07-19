@@ -35,4 +35,14 @@ export interface RevisionMirrorPort {
    * git adapters (used by backfill/sync-now and shutdown), absent on the no-op.
    */
   flush?(): Promise<void>;
+
+  /**
+   * Signal that bundle assets (images/attachments under `assets/`) changed, so a
+   * commit is scheduled even when no page edit is pending. Without this, an
+   * upload or delete with no concurrent page write never reaches git: the bytes
+   * are not durable (git is the only backup path on the cloud demo) and a
+   * deletion does not stick across a rebuild-from-git (ADR-0003, phase 2).
+   * Optional — the no-op adapter omits it (DB/local disk only).
+   */
+  notifyAssetsChanged?(): Promise<void>;
 }

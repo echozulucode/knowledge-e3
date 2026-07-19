@@ -1,0 +1,24 @@
+# Normalize text files to LF in the repository, regardless of a contributor's
+# core.autocrlf setting. Working trees still get native line endings on
+# checkout; what matters is that committed blobs are always LF so diffs stay
+# content-only — including diffs against the open-source repo (scripts/sync-oss.ps1).
+* text=auto
+
+# Shell scripts must stay LF in the working tree too — a CRLF shebang breaks in
+# Linux/Alpine containers.
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf
+
+# Binary assets: never munge.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.xcf binary
+*.tar.gz binary
+*.sqlite binary

@@ -25,6 +25,8 @@ export interface Page {
   version_token: number;
   created_at: string;
   updated_at: string;
+  /** First-published timestamp (null while a draft). Stable across edits. */
+  published_at?: string | null;
   deleted_at?: string | null;
   authors?: string[];
   tags?: string[];
@@ -294,6 +296,7 @@ export function usePages(filters?: {
   limit?: number;
   type?: string;
   space?: string;
+  sort?: 'updated' | 'published' | 'created' | 'title';
 }) {
   return useQuery({
     queryKey: ['pages', filters],
@@ -305,6 +308,7 @@ export function usePages(filters?: {
       if (filters?.limit) params.set('limit', String(filters.limit));
       if (filters?.type) params.set('type', filters.type);
       if (filters?.space) params.set('space', filters.space);
+      if (filters?.sort) params.set('sort', filters.sort);
 
       const path = `/pages${params.size ? '?' + params.toString() : ''}`;
       const res = await apiClient.get<{ items: Page[]; total: number }>(path);
@@ -692,6 +696,8 @@ export interface ImageAsset {
   mime: string;
   byte_size: number;
   alt: string | null;
+  /** Human-facing download name; null for legacy image rows. */
+  original_filename: string | null;
   created_at: string;
   used_by: number;
   orphan: boolean;
@@ -711,14 +717,25 @@ export function useUploadImage() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (file: File) => {
-      const query = file.name ? `?alt=${encodeURIComponent(file.name)}` : '';
+      // Pass the real filename so it becomes the download name (Content-Disposition);
+      // the stored name stays the opaque content-addressed one (ADR-0003).
+      const query = file.name ? `?filename=${encodeURIComponent(file.name)}` : '';
       const res = await fetch(`/api/v1/images${query}`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': file.type || 'application/octet-stream' },
         body: file,
       });
-      if (!res.ok) throw new Error(`Upload failed (${res.status}).`);
+      if (!res.ok) {
+        // Surface the server's reason (allowlist / signature / size) to the user.
+        let detail = '';
+        try {
+          detail = ((await res.json()) as { message?: string }).message ?? '';
+        } catch {
+          /* non-JSON error body */
+        }
+        throw new Error(detail || `Upload failed (${res.status}).`);
+      }
       return (await res.json()) as ImageAsset;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'images'] }),
@@ -737,7 +754,10 @@ export function useDeleteImage() {
 
 // Search
 
-export function useSearch(query?: string, filters?: { tag?: string; since?: string; sort?: string }) {
+export function useSearch(
+  query?: string,
+  filters?: { tag?: string; since?: string; sort?: string; limit?: number; includeDrafts?: boolean },
+) {
   return useQuery({
     queryKey: ['search', query, filters],
     queryFn: async () => {
@@ -750,6 +770,12 @@ export function useSearch(query?: string, filters?: { tag?: string; since?: stri
       if (filters?.tag) params.set('tag', filters.tag);
       if (filters?.since) params.set('since', filters.since);
       if (filters?.sort) params.set('sort', filters.sort);
+      // Include drafts (admins see all; the server still scopes non-admins to
+      // their own). Lets browse's server-backed query match the dump's visibility.
+      if (filters?.includeDrafts) params.set('include_drafts', '1');
+      // Ask for an explicit page size rather than inheriting the server default
+      // (25). Callers that report a total need to know what they asked for.
+      if (filters?.limit) params.set('limit', String(filters.limit));
 
       const res = await apiClient.get<{ results: SearchResult[] }>(`/search?${params.toString()}`);
       return res.results;

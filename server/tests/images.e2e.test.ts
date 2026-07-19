@@ -49,9 +49,12 @@ describe('Images e2e', () => {
     expect(a.url).toBe(`/assets/${a.file}`);
     expect(a.byte_size).toBe(PNG.length);
 
-    // Served bytes round-trip with the right content type.
+    // Served bytes round-trip with the right content type — fetched via the URL
+    // we actually STORE (`a.url`), which is what a rendered <img> requests. This
+    // previously fetched /api/v1/assets/<file> instead: a URL nothing embeds, so
+    // the suite passed while every image 404'd in production.
     const served = await request(app.getHttpServer())
-      .get(`/api/v1/assets/${a.file}`)
+      .get(a.url)
       .set('Cookie', cookie)
       .buffer()
       .parse((response, cb) => {
@@ -96,15 +99,59 @@ describe('Images e2e', () => {
     expect(list).toHaveLength(0);
   });
 
-  it('requires admin to manage; rejects non-images; blocks path traversal', async () => {
+  it('hides draft-only assets from anonymous visitors on a public instance', async () => {
+    await request(app.getHttpServer())
+      .put('/api/v1/admin/access')
+      .set('Cookie', cookie)
+      .send({ read_mode: 'public' })
+      .expect(200);
+
+    const img = await upload(PNG);
+
+    // Embedded only in a DRAFT: an anonymous visitor must not get the bytes,
+    // and the response must not be marked cacheable by shared proxies.
+    const draft = await items.create(adminId, {
+      title: 'Draft With Image',
+      body: `![shot](${img.url})`,
+      status: 'draft',
+    });
+    await request(app.getHttpServer()).get(img.url).expect(404);
+    const asAuthor = await request(app.getHttpServer()).get(img.url).set('Cookie', cookie).expect(200);
+    expect(asAuthor.headers['cache-control']).toContain('private');
+
+    // Once a PUBLISHED page embeds it, the same asset becomes public and
+    // shared-cacheable.
+    await items.create(adminId, {
+      title: 'Published With Image',
+      body: `![shot](${img.url})`,
+      status: 'published',
+    });
+    const anon = await request(app.getHttpServer()).get(img.url).expect(200);
+    expect(anon.headers['cache-control']).toContain('public');
+    expect(draft.id).toBeTruthy();
+  });
+
+  it('requires admin to manage; rejects off-allowlist and mislabelled files; blocks traversal', async () => {
     const alice = await seedUserAndLogin(app);
     await request(app.getHttpServer()).get('/api/v1/admin/images').set('Cookie', alice.cookie).expect(403);
+
+    // A type off the allowlist is rejected.
     await request(app.getHttpServer())
       .post('/api/v1/images')
       .set('Cookie', cookie)
-      .set('Content-Type', 'text/plain')
-      .send(Buffer.from('not an image'))
+      .set('Content-Type', 'application/x-msdownload')
+      .send(Buffer.from('MZ\x90\x00 executable'))
       .expect(400);
+
+    // A file CLAIMING to be an image but whose bytes are not — the signature
+    // check must refuse it rather than store a script as an inline "image".
+    await request(app.getHttpServer())
+      .post('/api/v1/images')
+      .set('Cookie', cookie)
+      .set('Content-Type', 'image/png')
+      .send(Buffer.from('<script>alert(1)</script>'))
+      .expect(400);
+
     await request(app.getHttpServer()).get('/api/v1/assets/..%2f..%2fkp.sqlite').set('Cookie', cookie).expect(404);
   });
 });

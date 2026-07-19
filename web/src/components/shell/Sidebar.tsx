@@ -5,8 +5,9 @@
  * Persists state to localStorage
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue.js';
 import { Icon, appIcons } from '../../icons.js';
 import './Sidebar.css';
 
@@ -44,6 +45,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapsed, 
   useEffect(() => {
     setSearchQuery(currentSearch.q ?? '');
   }, [currentSearch.q]);
+
+  // Navigate on a debounced value, and REPLACE rather than push: typing a query
+  // should cost exactly one history entry, not one per character. `typing`
+  // guards against the effect firing for URL-driven changes (Back, a link),
+  // which would otherwise re-navigate and fight the user's own navigation.
+  const debouncedQuery = useDebouncedValue(searchQuery, 250);
+  const typing = useRef(false);
+  useEffect(() => {
+    if (!typing.current) return;
+    typing.current = false;
+    if ((currentSearch.q ?? '') === debouncedQuery) return;
+    navigate({
+      to: '/browse',
+      search: { view: 'grouped', q: debouncedQuery || undefined } as any,
+      replace: true,
+    });
+  }, [debouncedQuery]);
 
   // Determine active route for each nav item.
   const isActive = (item: (typeof NAV_ITEMS)[number] | (typeof BOTTOM_ITEMS)[number]): boolean => {
@@ -148,9 +166,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapsed, 
             placeholder="Search..."
             value={searchQuery}
             onChange={(e) => {
-              const q = e.target.value;
-              setSearchQuery(q);
-              navigate({ to: '/browse', search: { view: 'grouped', q: q || undefined } as any });
+              typing.current = true;
+              setSearchQuery(e.target.value);
             }}
             className="kp-sidebar-search-input"
           />

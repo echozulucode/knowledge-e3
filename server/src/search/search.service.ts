@@ -9,6 +9,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { Kysely, sql } from 'kysely';
 import type { Database } from '../db/schema.js';
 import { KYSELY } from '../db/db.module.js';
+import { ANONYMOUS_ACTOR } from '../auth/auth-mode.js';
 import { FtsRecencyRanker, Ranker, RankedResult } from './ranker.js';
 import { parseSearchQuery } from './query-parser.js';
 
@@ -134,13 +135,19 @@ export class SearchService {
     // the draft results to owner_id below), so only short-circuit anonymous calls.
     if (effectiveOpts.status === 'draft' && !includeDrafts && !effectiveOpts.viewer_id) return [];
 
+    // Derived, never passed in: an unauthenticated visitor is exactly the caller
+    // whose viewer_id is the anonymous sentinel. Deriving it here means a new
+    // caller (REST, MCP, a future transport) cannot leak private spaces by
+    // forgetting to set a flag.
+    const anonymous = effectiveOpts.viewer_id === ANONYMOUS_ACTOR.id;
+
     if (!effectiveOpts.q || !effectiveOpts.q.trim() || sort !== 'relevance') {
-      return this.directList({ ...effectiveOpts, limit, sort, includeDrafts });
+      return this.directList({ ...effectiveOpts, limit, sort, includeDrafts, anonymous });
     }
-    return this.ftsSearch({ ...effectiveOpts, limit, includeDrafts });
+    return this.ftsSearch({ ...effectiveOpts, limit, includeDrafts, anonymous });
   }
 
-  private async directList(opts: SearchOptions & { limit: number; sort: SortMode; includeDrafts: boolean }): Promise<SearchHit[]> {
+  private async directList(opts: SearchOptions & { limit: number; sort: SortMode; includeDrafts: boolean; anonymous: boolean }): Promise<SearchHit[]> {
     let q = this.db
       .selectFrom('pages')
       .select(['id', 'slug', 'title', 'updated_at', 'status'])
@@ -159,7 +166,7 @@ export class SearchService {
     return this.enrichHits(rows.map((r) => ({ ...r, score: 0 })), opts.q, undefined, opts);
   }
 
-  private async ftsSearch(opts: SearchOptions & { limit: number; includeDrafts: boolean }): Promise<SearchHit[]> {
+  private async ftsSearch(opts: SearchOptions & { limit: number; includeDrafts: boolean; anonymous: boolean }): Promise<SearchHit[]> {
     const query = opts.q!.trim();
     const parsedQuery = parseSearchQuery(query);
     const matchExpr = ftsMatchExprFromParsed(parsedQuery);
@@ -236,7 +243,7 @@ export class SearchService {
   }
 
   private async taxonomyMatches(
-    opts: SearchOptions & { limit: number; includeDrafts: boolean },
+    opts: SearchOptions & { limit: number; includeDrafts: boolean; anonymous: boolean },
     excludeIds: Set<string>,
     limit: number,
   ): Promise<SearchHit[]> {
@@ -389,7 +396,7 @@ function withStableReferences(hit: SearchHit): SearchHit {
   };
 }
 
-function applyCommonFilters<T extends { where: (a: unknown, b?: unknown, c?: unknown) => T }>(q: T, opts: SearchOptions & { includeDrafts: boolean }): T {
+function applyCommonFilters<T extends { where: (a: unknown, b?: unknown, c?: unknown) => T }>(q: T, opts: SearchOptions & { includeDrafts: boolean; anonymous: boolean }): T {
   // Explicit status narrowing chosen by the caller.
   if (opts.status) q = q.where('status', '=', opts.status);
   // Visibility: unrestricted callers (includeDrafts) see all statuses; a
@@ -402,6 +409,22 @@ function applyCommonFilters<T extends { where: (a: unknown, b?: unknown, c?: unk
     } else {
       q = q.where('status', '=', 'published');
     }
+  }
+  // Space gate (anonymous only): private spaces are not searchable anonymously.
+  // Mirrors PagesService.isSpaceVisibleTo / list.
+  if (opts.anonymous) {
+    q = q.where((eb: any) =>
+      eb.or([
+        eb('pages.space_id', 'is', null),
+        eb.exists(
+          eb
+            .selectFrom('spaces')
+            .select('spaces.id')
+            .whereRef('spaces.id', '=', 'pages.space_id')
+            .where('spaces.visibility', '!=', 'private'),
+        ),
+      ]),
+    );
   }
   if (opts.since) q = q.where('updated_at', '>=', opts.since);
   if (opts.space) {
@@ -452,13 +475,21 @@ function applyCommonFilters<T extends { where: (a: unknown, b?: unknown, c?: unk
   return q;
 }
 
-function visibilitySql(opts: SearchOptions & { includeDrafts: boolean }) {
+function visibilitySql(opts: SearchOptions & { includeDrafts: boolean; anonymous: boolean }) {
   const statusClause = opts.status ? sql`AND p.status = ${opts.status}` : sql``;
-  if (opts.includeDrafts) return statusClause;
+  // Space gate (anonymous only) — the FTS path's equivalent of the space filter
+  // in applyCommonFilters. Kept adjacent to the status rule so the two can't
+  // drift apart: this and applyCommonFilters must always agree.
+  const spaceClause = opts.anonymous
+    ? sql`AND (p.space_id IS NULL OR EXISTS (
+        SELECT 1 FROM spaces s WHERE s.id = p.space_id AND s.visibility <> 'private'
+      ))`
+    : sql``;
+  if (opts.includeDrafts) return sql`${statusClause}${spaceClause}`;
   if (opts.viewer_id) {
-    return sql`${statusClause} AND (p.status = 'published' OR p.owner_id = ${opts.viewer_id})`;
+    return sql`${statusClause}${spaceClause} AND (p.status = 'published' OR p.owner_id = ${opts.viewer_id})`;
   }
-  return sql`${statusClause} AND p.status = 'published'`;
+  return sql`${statusClause}${spaceClause} AND p.status = 'published'`;
 }
 
 /**

@@ -65,6 +65,8 @@ export class GitRevisionMirrorAdapter implements RevisionMirrorPort, OnModuleDes
   private configuredRemote?: string;
 
   private readonly pending = new Map<string, Pending>();
+  /** Assets under `assets/` changed with no concurrent page edit; force a commit. */
+  private assetsDirty = false;
   private timer: NodeJS.Timeout | null = null;
   private firstEnqueueAt: number | null = null;
   /** Serializes git operations so overlapping timers/flushes never race. */
@@ -113,6 +115,17 @@ export class GitRevisionMirrorAdapter implements RevisionMirrorPort, OnModuleDes
       this.logger.warn(`git mirror write failed for ${event.slug}: ${errMessage(err)}`);
       await this.recordError(event.itemId, err).catch(() => undefined);
     }
+  }
+
+  /**
+   * An asset (image/attachment) was written to or removed from `assets/`.
+   * Schedule a commit so the change reaches git even when no page edit is
+   * pending — otherwise uploaded bytes never become durable and deletions never
+   * stick across a rebuild (ADR-0003, phase 2). Best-effort: never throws.
+   */
+  async notifyAssetsChanged(): Promise<void> {
+    this.assetsDirty = true;
+    this.scheduleCommit();
   }
 
   /** Point this repo at a remote (or clear it). Applied on the next commit/flush. */
@@ -200,7 +213,12 @@ export class GitRevisionMirrorAdapter implements RevisionMirrorPort, OnModuleDes
     this.clearTimer();
     this.firstEnqueueAt = null;
     const batch = [...this.pending.entries()];
-    if (batch.length === 0) return;
+    // Capture and clear the assets flag alongside the page batch, so a change
+    // arriving mid-commit re-arms rather than being lost. Nothing to do only
+    // when there is neither a page edit nor an asset change.
+    const assetsDirty = this.assetsDirty;
+    this.assetsDirty = false;
+    if (batch.length === 0 && !assetsDirty) return;
     this.pending.clear();
 
     try {
@@ -212,14 +230,19 @@ export class GitRevisionMirrorAdapter implements RevisionMirrorPort, OnModuleDes
       const identities = await this.resolveIdentities([...byActor.keys()]);
       const now = new Date().toISOString();
 
-      // Keep the repo a *conformant OKF bundle*: refresh the root index manifest
-      // up front so it travels atomically inside a content commit (folded into the
-      // first commit that lands), rather than as a noisy separate commit.
-      this.writeBundleIndex();
-      // Stage uploaded images so they ride the next content commit and land in
-      // the bundle (no-op when there's no assets dir, e.g. dedicated topic repos).
-      await this.git(['add', '--', 'assets']).catch(() => undefined);
-      let indexPending = true;
+      // The bundle index is derived from the concept files, so regenerate it
+      // only when concepts actually changed — an assets-only commit must not
+      // rewrite (or, on a fresh repo, create) index.md.
+      if (batch.length > 0) {
+        // Keep the repo a *conformant OKF bundle*: refresh the root index up
+        // front so it folds into the first content commit rather than a noisy
+        // separate one.
+        this.writeBundleIndex();
+        // Stage uploaded images so they ride the content commit and land in the
+        // bundle (no-op when there's no assets dir, e.g. dedicated topic repos).
+        await this.git(['add', '--', 'assets']).catch(() => undefined);
+      }
+      let indexPending = batch.length > 0;
       let committed = false;
 
       for (const [actorId, items] of byActor) {
@@ -256,11 +279,25 @@ export class GitRevisionMirrorAdapter implements RevisionMirrorPort, OnModuleDes
         }
       }
 
+      // Asset-only changes: an upload/delete with no concurrent page edit. When a
+      // page edit was present, its commit above already swept in the staged
+      // `assets/` (so this is a no-op then). Attribute to the system identity —
+      // assets are bundle files, not authored OKF concepts.
+      if (assetsDirty) {
+        await this.git(['add', '--all', '--', 'assets']).catch(() => undefined);
+        const status = (await this.git(['status', '--porcelain', '--', 'assets'])).trim();
+        if (status !== '') {
+          await this.git(['commit', '-m', 'knowledge-e3: update assets']);
+          committed = true;
+        }
+      }
+
       // Push to the backend repo after committing (ADR-0001 multi-repo). Best-effort.
       if (committed) await this.pushNow();
     } catch (err) {
       // Re-queue the batch so a later write/flush retries it; record the error.
       for (const [itemId, p] of batch) this.pending.set(itemId, p);
+      if (assetsDirty) this.assetsDirty = true; // re-arm the asset commit too
       this.logger.warn(`git mirror commit failed: ${errMessage(err)}`);
       for (const [itemId] of batch) await this.recordError(itemId, err).catch(() => undefined);
     }

@@ -6,10 +6,11 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import type { CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent, RefObject } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { usePages, useCreatePage, useTopics, usePrimaryCategories, useContentTypes, useMe, type Page, type TaxonomyCategory, type Topic } from '../queries.js';
+import { usePages, useSearch, useCreatePage, useTopics, usePrimaryCategories, useContentTypes, useMe, type Page, type SearchResult, type TaxonomyCategory, type Topic } from '../queries.js';
 import { extractCopyableEntries } from '../features/items/copyableContent.js';
 import { buildItemDraftMarkdown } from '../features/items/titleHeadingSync.js';
 import { TopicSwitcher } from '../features/topics/TopicSwitcher.js';
+import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
 import { ContentTypeBadge } from '../components/ContentTypeBadge.js';
 import {
   buildTopicDirectory,
@@ -139,33 +140,34 @@ function searchReasonsForPage(page: Page, query: string, topicLookup?: TopicLook
   return [...new Set(reasons)].slice(0, 5);
 }
 
-/**
- * Client-side relevance score mirroring the server's weighted-FTS ranker
- * (title ≫ tag ≫ space ≫ body) so queried Library results lead with the best
- * matches — "Top results" fall out of this ordering (search-strategy §3).
- */
-function scorePageForQuery(query: string, page: Page, topicLookup?: TopicLookup): number {
-  const q = query.trim().toLowerCase();
-  if (!q) return 0;
-  const terms = q.split(/\s+/).filter(Boolean);
-  const title = page.title.toLowerCase();
-  const body = (page.body_markdown ?? '').toLowerCase();
-  const tags = (page.tags ?? []).map((t) => t.toLowerCase());
-  const space = (topicForPage(page, topicLookup) ?? '').toLowerCase();
-  let s = 0;
-  if (title.includes(q)) s += 100;
-  else if (terms.some((t) => title.includes(t))) s += 75;
-  if (tags.some((tag) => terms.some((t) => tag.includes(t)))) s += 70;
-  if (space.includes(q) || terms.some((t) => space.includes(t))) s += 55;
-  if (terms.some((t) => body.includes(t))) s += 35;
-  if (terms.length > 1 && terms.every((t) => `${title} ${body} ${tags.join(' ')} ${space}`.includes(t))) s += 12;
-  const ageDays = Math.max(0, (Date.now() - new Date(page.updated_at).getTime()) / 86_400_000);
-  s += 6 * Math.exp(-ageDays / 365);
-  return s;
-}
+// NOTE: the former client-side ranker (scorePageForQuery) and matcher
+// (pageMatchesSearch) were removed when browse moved to the server search
+// pipeline — a query's membership and order now come from GET /search, so browse
+// and the palette can no longer diverge. searchReasonsForPage remains, purely to
+// annotate result cards with best-effort "why it matched" chips.
 
-function pageMatchesSearch(page: Page, query: string, topicLookup?: TopicLookup, categoryLookup?: CategoryLookup): boolean {
-  return searchReasonsForPage(page, query, topicLookup, categoryLookup).length > 0;
+/**
+ * Build a render-ready Page from a server SearchResult, for the rare case a hit
+ * isn't in the loaded page set (results beyond the loaded window). The server's
+ * snippet stands in for the body so previews still render. Normally a hit is
+ * hydrated from the full page set instead — see queryPages.
+ */
+function pageFromSearchHit(hit: SearchResult): Page {
+  return {
+    id: hit.id,
+    slug: hit.slug,
+    title: hit.title,
+    body_markdown: hit.snippet ?? '',
+    status: hit.status ?? 'published',
+    type: hit.type ?? null,
+    version_token: 0,
+    created_at: hit.updated_at,
+    updated_at: hit.updated_at,
+    tags: hit.tags ?? [],
+    categories: hit.categories ?? [],
+    groups: hit.groups ?? [],
+    frontmatter: hit.topic ? { topic: hit.topic } : {},
+  };
 }
 
 function searchWith(next: BrowseSearchParams): BrowseSearchParams {
@@ -263,6 +265,40 @@ function errorMessageFromUnknown(error: unknown): string {
   return 'Failed to create the draft. Please check the title and try again.';
 }
 
+/**
+ * How many rows were rendered for a given result window, remembered per
+ * filter-set for the life of the tab.
+ *
+ * The browse list grows by infinite scroll, but navigating to an item unmounts
+ * it — so returning via Back rebuilt the list at its initial size and threw away
+ * everything the user had scrolled through. Scroll restoration alone cannot fix
+ * that: the rows have to exist before there is anywhere to scroll to.
+ *
+ * sessionStorage (not localStorage): a stale window from days ago is noise, and
+ * this should not outlive the tab. Failures are ignored — a lost scroll window
+ * must never break browsing (Safari private mode throws on write).
+ */
+const SCROLL_WINDOW_PREFIX = 'e3:browse:window:';
+const SCROLL_WINDOW_DEFAULT = 24;
+
+function readScrollWindow(key: string): number {
+  try {
+    const raw = sessionStorage.getItem(SCROLL_WINDOW_PREFIX + key);
+    const parsed = raw ? parseInt(raw, 10) : NaN;
+    return Number.isFinite(parsed) && parsed >= SCROLL_WINDOW_DEFAULT ? parsed : SCROLL_WINDOW_DEFAULT;
+  } catch {
+    return SCROLL_WINDOW_DEFAULT;
+  }
+}
+
+function writeScrollWindow(key: string, count: number): void {
+  try {
+    sessionStorage.setItem(SCROLL_WINDOW_PREFIX + key, String(count));
+  } catch {
+    /* storage unavailable or full — the window is a convenience, not state we own */
+  }
+}
+
 export function PageList() {
   const navigate = useNavigate();
   const createPage = useCreatePage();
@@ -332,30 +368,60 @@ export function PageList() {
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
   const [activeGroupId, setActiveGroupId] = useState<string>('');
   // Library infinite scroll: how many flat results are currently rendered.
-  const LIBRARY_PAGE = 24;
-  const [visibleCount, setVisibleCount] = useState(LIBRARY_PAGE);
+  const LIBRARY_PAGE = SCROLL_WINDOW_DEFAULT;
+  const [searchInput, setSearchInput] = useState(routeQuery ?? '');
+  const searchTypingRef = useRef(false);
+  const debouncedSearchInput = useDebouncedValue(searchInput, 250);
+  // Identity of the current result window: same filters => same scroll window.
+  const scrollWindowKey = useMemo(
+    () =>
+      JSON.stringify([
+        queryText, routeType, routeStatus, routeTopic, routeSpace,
+        routeCategory, routeTag, routeGroup, sortKey, activeView,
+      ]),
+    [queryText, routeType, routeStatus, routeTopic, routeSpace, routeCategory, routeTag, routeGroup, sortKey, activeView],
+  );
+  const [visibleCount, setVisibleCount] = useState(() => readScrollWindow(scrollWindowKey));
   const scrollSentinelRef = useRef<HTMLDivElement>(null);
 
   // Load a generous page set so browse/group/filter operate on the full library
   // rather than the server's default 50. (Proper pagination is a follow-up.)
-  const { data: pages = [], isLoading } = usePages({ limit: 1000 });
+  const { data: pages = [], isLoading: pagesLoading } = usePages({ limit: 1000 });
+  // When a query is active, membership AND ranking come from the SERVER search —
+  // the one pipeline the palette also uses — so the two never disagree. Browse's
+  // own facet filters (status/topic/category/tag/group/type) are applied to the
+  // hydrated result set below; ordering is the server's relevance order.
+  const isAdmin = currentUser?.role === 'admin';
+  const { data: searchHits = [], isLoading: searchLoading } = useSearch(
+    queryText ? routeQuery?.trim() : undefined,
+    { limit: 100, includeDrafts: isAdmin },
+  );
+  const isLoading = pagesLoading || (queryText.length > 0 && searchLoading);
   const { data: topics = [] } = useTopics();
   const { data: primaryCategories = [] } = usePrimaryCategories();
   const { data: contentTypes = [] } = useContentTypes();
   const topicLookup = useMemo(() => buildTopicLookup(topics), [topics]);
+  // Hydrate server hits to full pages (for previews/fields), preserving the
+  // server's order; fall back to the snippet-only shape for out-of-window hits.
+  const pagesById = useMemo(() => new Map(pages.map((p) => [p.id, p])), [pages]);
+  const queryPages = useMemo(() => {
+    if (!queryText) return null;
+    return searchHits.map((hit) => pagesById.get(hit.id) ?? pageFromSearchHit(hit));
+  }, [queryText, searchHits, pagesById]);
   const categoryLookup = useMemo(() => buildCategoryLookup(primaryCategories), [primaryCategories]);
   const listRef = useRef<HTMLElement>(null);
   const scrollspyNavRef = useRef<HTMLElement>(null);
   const groupsScrollerRef = useRef<HTMLDivElement>(null);
 
   // Filter pages by status / route-level nav view / sidebar search.
+  // When a query is active the base set is the server's ranked matches
+  // (queryPages); otherwise it's the full loaded library. The facet filters
+  // below apply either way. Note: no client query-matching here anymore — the
+  // server decided membership, so browse and the palette can't diverge.
   const filteredPages = useMemo(() => {
-    let list = pages;
+    let list = queryText ? (queryPages ?? []) : pages;
     if (statusFilters.size > 0) {
       list = list.filter(p => statusFilters.has(p.status as StatusFilter));
-    }
-    if (queryText) {
-      list = list.filter((page) => pageMatchesSearch(page, queryText, topicLookup, categoryLookup));
     }
     if (topicCandidates.length > 0) {
       list = list.filter((p) => topicMatchesFilter(p, topicCandidates, topicLookup));
@@ -376,7 +442,7 @@ export function PageList() {
       list = list.filter((p) => (p.type ?? '').toLowerCase() === t);
     }
     return list;
-  }, [categoryCandidates, categoryLookup, groupCandidates, pages, queryText, topicCandidates, topicLookup, statusFilters, tagCandidates, routeType]);
+  }, [categoryCandidates, categoryLookup, groupCandidates, pages, queryPages, queryText, topicCandidates, topicLookup, statusFilters, tagCandidates, routeType]);
 
   // Content-type facet counts (over the whole library) — the mock's key facet.
   const typeFacets = useMemo(() => {
@@ -388,15 +454,13 @@ export function PageList() {
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
   }, [pages]);
 
-  // Sort pages. When a query is present, rank by relevance (Top results first);
-  // otherwise honor the chosen sort.
+  // Sort pages. When a query is present, PRESERVE the server's relevance order
+  // (filteredPages already came from queryPages in rank order); otherwise honor
+  // the chosen sort.
   const sortedPages = useMemo(() => {
     const list = [...filteredPages];
     if (queryText) {
-      return list
-        .map((p) => ({ p, s: scorePageForQuery(queryText, p, topicLookup) }))
-        .sort((a, b) => b.s - a.s || new Date(b.p.updated_at).getTime() - new Date(a.p.updated_at).getTime())
-        .map((x) => x.p);
+      return list; // server-ranked; facet filters above kept the order stable
     }
     switch (sortKey) {
       case 'created_desc':
@@ -407,14 +471,37 @@ export function PageList() {
       default:
         return list.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
     }
-  }, [filteredPages, sortKey, queryText, topicLookup]);
+  }, [filteredPages, sortKey, queryText]);
 
   const activeTopic = useMemo(() => describeActiveTopicFilter({ topic: routeTopic, space: routeSpace }, topicLookup), [routeTopic, routeSpace, topicLookup]);
 
-  // Infinite scroll: reset the window whenever the result set or view changes.
+  // --- main search box: local value, debounced + replacing navigation ---
+  // The field is driven by local state rather than the URL so keystrokes stay
+  // instant, then a debounced effect pushes the settled value into the URL with
+  // `replace`. `searchTypingRef` distinguishes the user typing from the URL
+  // changing underneath us (Back, a link, a cleared filter) — without it the
+  // effect would re-navigate in response to Back and fight the user.
   useEffect(() => {
-    setVisibleCount(LIBRARY_PAGE);
-  }, [queryText, routeType, routeStatus, routeTopic, routeSpace, routeCategory, routeTag, routeGroup, sortKey, activeView]);
+    if (!searchTypingRef.current) setSearchInput(routeQuery ?? '');
+  }, [routeQuery]);
+
+  useEffect(() => {
+    if (!searchTypingRef.current) return;
+    searchTypingRef.current = false;
+    if ((routeQuery ?? '') === debouncedSearchInput) return;
+    updateBrowseSearch({ view: 'grouped', q: debouncedSearchInput || undefined }, { replace: true });
+  }, [debouncedSearchInput]);
+
+  // Infinite scroll: reset the window whenever the result set or view changes —
+  // but RESTORE it when returning to a window we have seen before (Back), so a
+  // click on result #200 doesn't dump you back at the top with 24 rows.
+  useEffect(() => {
+    setVisibleCount(readScrollWindow(scrollWindowKey));
+  }, [scrollWindowKey]);
+
+  useEffect(() => {
+    writeScrollWindow(scrollWindowKey, visibleCount);
+  }, [scrollWindowKey, visibleCount]);
 
   // Grow the window when the sentinel scrolls into view. Works for cards/list
   // (page-level scroll) AND the grouped view (its own nested scroll container).
@@ -683,7 +770,7 @@ export function PageList() {
         e.preventDefault();
         const page = sortedPages[focusedIndex];
         if (!page) return; // noUncheckedIndexedAccess: focusedIndex is guarded above, but TS can't see it
-        void navigate({ to: '/items/$id', params: { id: page.id } });
+        void navigate({ to: '/p/$slug', params: { slug: page.slug } });
         return;
       } else {
         return;
@@ -774,13 +861,16 @@ export function PageList() {
         frontmatter,
       });
       setIsComposerOpen(false);
-      void navigate({ to: '/items/$id', params: { id: page.id }, search: { edit: '1' } });
+      void navigate({ to: '/p/$slug', params: { slug: page.slug }, search: { edit: '1' } });
     } catch (error) {
       setComposerError(errorMessageFromUnknown(error));
     }
   };
 
-  const updateBrowseSearch = (next: Partial<BrowseSearchParams>) => {
+  const updateBrowseSearch = (
+    next: Partial<BrowseSearchParams>,
+    opts: { replace?: boolean } = {},
+  ) => {
     setFocusedIndex(-1);
     void navigate({
       to: '/browse',
@@ -789,6 +879,9 @@ export function PageList() {
         view: activeView,
         ...next,
       }) as any,
+      // Typing-driven updates replace, so refining a query costs ONE history
+      // entry rather than one per keystroke.
+      replace: opts.replace ?? false,
     });
   };
 
@@ -823,12 +916,12 @@ export function PageList() {
   };
 
   const handleRowClick = (page: Page) => {
-    navigate({ to: '/items/$id', params: { id: page.id } });
+    navigate({ to: '/p/$slug', params: { slug: page.slug } });
   };
 
   const handleEditClick = (event: MouseEvent, page: Page) => {
     event.stopPropagation();
-    navigate({ to: '/items/$id', params: { id: page.id }, search: { edit: '1' } });
+    navigate({ to: '/p/$slug', params: { slug: page.slug }, search: { edit: '1' } });
   };
 
   const handleCopyClick = async (event: MouseEvent, command: string) => {
@@ -1329,8 +1422,11 @@ export function PageList() {
               <input
                 data-main-search-input="true"
                 aria-label="Search items on this page"
-                value={routeQuery ?? ''}
-                onChange={(event) => updateBrowseSearch({ view: 'grouped', q: event.target.value || undefined })}
+                value={searchInput}
+                onChange={(event) => {
+                  searchTypingRef.current = true;
+                  setSearchInput(event.target.value);
+                }}
                 placeholder="Filter items, spaces, tags, categories…"
               />
             </label>

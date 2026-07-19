@@ -44,6 +44,10 @@ export class SessionGuard implements CanActivate {
       ctx.getHandler(),
       ctx.getClass(),
     ]);
+    const isPublicRpc = this.reflector.getAllAndOverride<boolean>('publicRpc', [
+      ctx.getHandler(),
+      ctx.getClass(),
+    ]);
 
     const req = ctx.switchToHttp().getRequest();
 
@@ -65,6 +69,14 @@ export class SessionGuard implements CanActivate {
       // @PublicRead when the instance is in `public` read mode. The anonymous
       // actor is a non-admin sentinel, so services return published items only.
       if (isPublicRead && req.method === 'GET' && (await this.config.getReadAccessMode()) === 'public') {
+        req.user = ANONYMOUS_ACTOR;
+        req.sessionId = undefined;
+        return true;
+      }
+      // Read-only RPC whose transport requires POST (MCP over Streamable HTTP).
+      // Same public-mode condition and same anonymous sentinel; the handler is
+      // responsible for refusing writes. See @PublicRpc.
+      if (isPublicRpc && req.method === 'POST' && (await this.config.getReadAccessMode()) === 'public') {
         req.user = ANONYMOUS_ACTOR;
         req.sessionId = undefined;
         return true;

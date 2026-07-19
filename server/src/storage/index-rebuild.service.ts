@@ -12,10 +12,14 @@ import { slugify } from '../common/slug.js';
 import {
   ensureSpaceForFrontmatterInTx,
   serializeFromParts,
+  explicitPublishedAt,
 } from '../pages/pages.service.js';
 import { toE3Frontmatter } from '../okf/okf-import.service.js';
 import { syncTaxonomyInTx, taxonomyFromFrontmatter } from '../pages/taxonomy.js';
+import { syncImageLinksInTx } from '../pages/image-links.js';
 import { WikiService } from '../wiki/wiki.service.js';
+import { AssetsService } from '../images/assets.service.js';
+import type { AssetDescriptor } from '../images/asset-descriptor.js';
 
 const RESERVED = new Set(['index.md', 'log.md']);
 
@@ -37,6 +41,8 @@ export interface RebuildReport {
   /** Total page_versions rows reconstructed (> pages when history is replayed). */
   versions: number;
   links: number;
+  /** Media assets reindexed from git-tracked sidecar descriptors. */
+  images: number;
   /** Files that referenced an owner who no longer exists; reassigned to the rebuild actor. */
   reassignedOwners: number;
 }
@@ -84,6 +90,7 @@ export class IndexRebuildService {
   constructor(
     @Inject(KYSELY) private readonly db: Kysely<Database>,
     private readonly wiki: WikiService,
+    private readonly assets: AssetsService,
   ) {}
 
   /** Rebuild the derived index from every concept file under a git working tree. */
@@ -94,7 +101,8 @@ export class IndexRebuildService {
         ? gitFileRevisions(dir, f.path, f.content)
         : [{ content: f.content }],
     }));
-    return this.load(recovered, opts.actorId);
+    // Media descriptors live in the working tree's assets dir, beside concepts.
+    return this.load(recovered, opts.actorId, this.assets.readDescriptors(join(dir, 'assets')));
   }
 
   /** Rebuild the derived index from an in-memory set of OKF concept files (current state only). */
@@ -106,16 +114,21 @@ export class IndexRebuildService {
       slug: slugFromPath(f.path),
       revisions: [{ content: f.content }],
     }));
-    return this.load(recovered, opts.actorId);
+    // No working tree here; reindex from the instance's own assets dir.
+    return this.load(recovered, opts.actorId, this.assets.readDescriptors());
   }
 
-  private async load(recovered: RecoveredFile[], actorId: string): Promise<RebuildReport> {
+  private async load(
+    recovered: RecoveredFile[],
+    actorId: string,
+    descriptors: AssetDescriptor[],
+  ): Promise<RebuildReport> {
     const userRows = await this.db.selectFrom('users').select(['id', 'email']).execute();
     const knownUsers = new Set(userRows.map((u) => u.id));
     const emailToUser = new Map(
       userRows.filter((u) => u.email).map((u) => [u.email, u.id] as const),
     );
-    const report: RebuildReport = { pages: 0, versions: 0, links: 0, reassignedOwners: 0 };
+    const report: RebuildReport = { pages: 0, versions: 0, links: 0, images: 0, reassignedOwners: 0 };
 
     // SQLite ignores PRAGMA foreign_keys inside a transaction, so toggle it at the
     // connection level around the bulk load — the standard pattern for a restore.
@@ -124,6 +137,10 @@ export class IndexRebuildService {
     try {
       await this.db.transaction().execute(async (tx) => {
         await wipeDerivedTables(tx);
+        // Repopulate the media index from the git-tracked sidecar descriptors
+        // BEFORE reconstructing pages, so per-page image_links can resolve
+        // against it (ADR-0003; closes the rebuild-reindex gap).
+        report.images = await reindexImages(tx, descriptors, actorId, knownUsers);
         for (const file of recovered) {
           const written = await this.reconstructItem(tx, file, actorId, knownUsers, emailToUser);
           report.pages += 1;
@@ -197,6 +214,10 @@ export class IndexRebuildService {
     const reassignedOwner = owner.reassigned;
     const createdAt = revisions[0]!.dateIso ?? latestItem.createdAt ?? nowIso();
     const updatedAt = latest.dateIso ?? latestItem.updatedAt ?? createdAt;
+    // Publish date from the file's frontmatter; for a published item that predates
+    // the field, fall back to its creation time so the feed still orders sensibly.
+    const publishedAt =
+      explicitPublishedAt(latestParsed.frontmatter) ?? (status === 'published' ? createdAt : null);
 
     await tx
       .insertInto('pages')
@@ -209,6 +230,7 @@ export class IndexRebuildService {
         space_id: spaceId,
         created_at: createdAt,
         updated_at: updatedAt,
+        published_at: publishedAt,
         deleted_at: null,
         version_token: revisions.length,
         current_version_id: versionIds[versionIds.length - 1]!,
@@ -221,6 +243,11 @@ export class IndexRebuildService {
     const links = extractItemLinks(latestParsed);
     await this.wiki.indexInTx(tx, pageId, links);
     await indexFts(tx, pageId, latestItem.title, latestParsed.body, taxonomy.tags);
+    // Rebuild this page's image references from its body (derived from
+    // `![](/assets/<file>)`), matching a live save. Resolves against the images
+    // reindexed above; a reference to an asset with no descriptor is simply not
+    // linked (no dangling row), which the integrity check then tolerates.
+    await syncImageLinksInTx(tx, pageId, latestParsed.body);
 
     return { versions: revisions.length, links: links.length, reassignedOwner };
   }
@@ -264,8 +291,49 @@ function resolveAuthor(
   return resolveOwner(item, actorId, knownUsers).ownerId;
 }
 
+/**
+ * Repopulate the `images` index from the git-tracked sidecar descriptors — the
+ * media half of "the database is disposable" (ADR-0003). Bytes are addressed by
+ * the descriptor; this only reconstructs the derived rows.
+ *
+ * `created_by` carries an FK to users.id. On a foreign instance the descriptor's
+ * author may not exist, so it is resolved to a known user (else the rebuild
+ * actor) — otherwise the post-rebuild foreign_key_check would fail.
+ */
+async function reindexImages(
+  tx: Kysely<Database>,
+  descriptors: AssetDescriptor[],
+  actorId: string,
+  knownUsers: Set<string>,
+): Promise<number> {
+  let count = 0;
+  for (const d of descriptors) {
+    const createdBy = knownUsers.has(d.created_by) ? d.created_by : actorId;
+    const result = await tx
+      .insertInto('images')
+      .values({
+        id: newId(),
+        file: d.file,
+        mime: d.mime,
+        byte_size: d.byte_size,
+        sha256: d.sha256,
+        alt: d.alt,
+        original_filename: d.original_filename,
+        created_at: d.created_at,
+        created_by: createdBy,
+      })
+      // `file` and `sha256` are unique; a duplicated descriptor is a no-op.
+      .onConflict((oc) => oc.doNothing())
+      .executeTakeFirst();
+    if (Number(result?.numInsertedOrUpdatedRows ?? 0) > 0) count += 1;
+  }
+  return count;
+}
+
 /** Delete every table whose contents are derived from the canonical files. */
 async function wipeDerivedTables(tx: Kysely<Database>): Promise<void> {
+  await tx.deleteFrom('image_links').execute();
+  await tx.deleteFrom('images').execute();
   await tx.deleteFrom('page_groups').execute();
   await tx.deleteFrom('page_tags').execute();
   await tx.deleteFrom('page_categories').execute();

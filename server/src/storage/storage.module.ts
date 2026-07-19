@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { WikiModule } from '../wiki/wiki.module.js';
 import { ItemsModule } from '../items/items.module.js';
 import { OkfModule } from '../okf/okf.module.js';
+import { ImagesModule } from '../images/images.module.js';
 import { IndexRebuildService } from './index-rebuild.service.js';
 import { RepoConfigService } from './repo-config.service.js';
 import { RepoPullService } from './repo-pull.service.js';
@@ -14,7 +15,7 @@ import { ReposController } from './repos.controller.js';
  * ItemsModule.
  */
 @Module({
-  imports: [WikiModule, ItemsModule, OkfModule],
+  imports: [WikiModule, ItemsModule, OkfModule, ImagesModule],
   controllers: [ReposController],
   providers: [IndexRebuildService, RepoConfigService, RepoPullService],
   exports: [IndexRebuildService, RepoConfigService, RepoPullService],

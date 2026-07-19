@@ -28,6 +28,7 @@ import {
   type ParsedPage,
 } from '@echozedlabs/codec';
 import type { Database } from '../db/schema.js';
+import { ANONYMOUS_ACTOR } from '../auth/auth-mode.js';
 import { KYSELY } from '../db/db.module.js';
 import { newId, nowIso } from '../common/ids.js';
 import { slugify } from '../common/slug.js';
@@ -58,6 +59,8 @@ export interface PageView {
   space_id: string | null;
   created_at: string;
   updated_at: string;
+  /** First-published timestamp; null while a draft. See PagesTable.published_at. */
+  published_at: string | null;
   version_token: number;
   current_version_id: string | null;
   body_markdown: string;
@@ -115,14 +118,19 @@ export class PagesService {
     const id = newId();
     const versionId = newId();
     const now = nowIso();
-    const frontmatter = {
+    const frontmatter: Record<string, unknown> = {
       ...(input.frontmatter ?? {}),
       title,
       status,
       ...(input.tags && input.tags.length ? { tags: input.tags } : {}),
     };
+    // Stamp the publish date into frontmatter (git-of-record) before serializing,
+    // so it travels with the file and survives a rebuild.
+    const stampedPublishedAt = resolvePublishedAt(frontmatter, status, null, now);
+    if (stampedPublishedAt) frontmatter['published_at'] = stampedPublishedAt;
     const raw = input.raw ?? serializeFromParts(frontmatter, input.body);
     const parsed = parse(raw);
+    const publishedAt = resolvePublishedAt(parsed.frontmatter, status, null, now);
 
     await this.db.transaction().execute(async (tx) => {
       const spaceId = await ensureSpaceForFrontmatterInTx(tx, parsed.frontmatter);
@@ -139,6 +147,7 @@ export class PagesService {
           space_id: spaceId,
           created_at: now,
           updated_at: now,
+          published_at: publishedAt,
           deleted_at: null,
           version_token: 1,
           current_version_id: versionId,
@@ -191,6 +200,7 @@ export class PagesService {
     if (!page) return null;
     if (page.deleted_at && !options.includeDeleted) return null;
     if (!isVisibleTo(page, options.actor)) return null;
+    if (!(await this.isSpaceVisibleTo(page.space_id, options.actor))) return null;
     return this.hydrate(page);
   }
 
@@ -203,7 +213,27 @@ export class PagesService {
       .executeTakeFirst();
     if (!page) return null;
     if (!isVisibleTo(page, actor)) return null;
+    if (!(await this.isSpaceVisibleTo(page.space_id, actor))) return null;
     return this.hydrate(page);
+  }
+
+  /**
+   * Space gate: a `private` space is invisible to ANONYMOUS visitors. Kept
+   * orthogonal to isVisibleTo (which rules on status/ownership) — both must
+   * pass, and neither subsumes the other. Signed-in users are deliberately
+   * unaffected: this control narrows public exposure, it is not a per-user ACL.
+   */
+  private async isSpaceVisibleTo(spaceId: string | null, actor?: ReadActor): Promise<boolean> {
+    if (!actor) return true; // trusted internal caller (hydration, post-write reads)
+    if (actor.role === 'admin') return true;
+    if (!isAnonymousActor(actor)) return true;
+    if (!spaceId) return true; // page belongs to no space; nothing to gate on
+    const row = await this.db
+      .selectFrom('spaces')
+      .select('visibility')
+      .where('id', '=', spaceId)
+      .executeTakeFirst();
+    return row?.visibility !== 'private';
   }
 
   /** Lightweight slug list for render-time wiki-link resolution (red-links). */
@@ -225,6 +255,7 @@ export class PagesService {
       .executeTakeFirst();
     if (!page) return null;
     if (!isVisibleTo(page, actor)) return null;
+    if (!(await this.isSpaceVisibleTo(page.space_id, actor))) return null;
     return this.hydrate(page);
   }
 
@@ -239,6 +270,12 @@ export class PagesService {
       space?: string;
       /** Restrict to a single concept kind (OKF `type`) — the "section" filter. */
       type?: string;
+      /**
+       * Ordering. Default `updated` (recently-edited first). `published` powers a
+       * chronological blog feed: published items by publish date, newest first,
+       * with unpublished drafts after (their published_at is null).
+       */
+      sort?: 'updated' | 'published' | 'created' | 'title';
     } = {},
     actor?: ReadActor,
   ): Promise<PageView[]> {
@@ -302,7 +339,38 @@ export class PagesService {
       );
     }
 
-    q = q.orderBy('updated_at', 'desc').limit(opts.limit ?? 50);
+    // Space gate (anonymous only): private spaces drop out entirely. Pages with
+    // no space are unaffected. Mirrors isSpaceVisibleTo for the list path.
+    if (isAnonymousActor(actor)) {
+      q = q.where((eb) =>
+        eb.or([
+          eb('pages.space_id', 'is', null),
+          eb.exists(
+            eb
+              .selectFrom('spaces')
+              .select('spaces.id')
+              .whereRef('spaces.id', '=', 'pages.space_id')
+              .where('spaces.visibility', '!=', 'private'),
+          ),
+        ]),
+      );
+    }
+
+    switch (opts.sort) {
+      case 'published':
+        // Newest publish date first; NULLs (drafts) sort last in SQLite DESC.
+        q = q.orderBy('published_at', 'desc').orderBy('updated_at', 'desc');
+        break;
+      case 'created':
+        q = q.orderBy('created_at', 'desc');
+        break;
+      case 'title':
+        q = q.orderBy('title', 'asc');
+        break;
+      default:
+        q = q.orderBy('updated_at', 'desc');
+    }
+    q = q.limit(opts.limit ?? 50);
     const rows = await q.execute();
     return Promise.all(rows.map((r) => this.hydrate(r)));
   }
@@ -365,6 +433,11 @@ export class PagesService {
         throw new BadRequestException('invalid status');
       }
 
+      // Stamp/carry the publish date into frontmatter before the raw is built, so
+      // the shouldRewriteRaw check below sees it and the file stays authoritative.
+      const stampedPublishedAt = resolvePublishedAt(nextFrontmatter, status, current.published_at, now);
+      if (stampedPublishedAt) nextFrontmatter['published_at'] = stampedPublishedAt;
+
       let raw: string;
       if (input.raw !== undefined) {
         const rawParsed = parse(input.raw);
@@ -379,6 +452,7 @@ export class PagesService {
       }
 
       const parsed = parse(raw);
+      const publishedAt = resolvePublishedAt(parsed.frontmatter, status, current.published_at, now);
       const spaceId = await ensureSpaceForFrontmatterInTx(tx, parsed.frontmatter);
       await assertTitleAvailableInSpace(tx, nextTitle, spaceId, id);
 
@@ -405,6 +479,7 @@ export class PagesService {
           type: typeFromFrontmatter(parsed.frontmatter),
           space_id: spaceId,
           updated_at: now,
+          published_at: publishedAt,
           version_token: current.version_token + 1,
           current_version_id: newVersionId,
         })
@@ -756,6 +831,7 @@ export class PagesService {
       space_id: row.space_id,
       created_at: row.created_at,
       updated_at: row.updated_at,
+      published_at: row.published_at,
       version_token: row.version_token,
       current_version_id: row.current_version_id,
       body_markdown: ver?.body_markdown ?? '',
@@ -814,6 +890,11 @@ function isVisibleTo(
   return page.owner_id === actor.id;
 }
 
+/** The unauthenticated visitor bound by SessionGuard on a public instance. */
+export function isAnonymousActor(actor?: ReadActor): boolean {
+  return actor?.id === ANONYMOUS_ACTOR.id;
+}
+
 /**
  * v0.1 mutation rule: only the page owner or an admin may modify a page
  * (update, rename, soft-delete, restore). When `actor` is omitted the caller is
@@ -842,6 +923,44 @@ function assertCanMutate(
  */
 function typeFromFrontmatter(frontmatter: Record<string, unknown>): string | null {
   return canonicalTypeLabel(frontmatter['type'] as string | undefined);
+}
+
+/** An explicit publish date from frontmatter (`published_at`, then OKF `timestamp`), or null. */
+export function explicitPublishedAt(frontmatter: Record<string, unknown>): string | null {
+  const raw = frontmatter['published_at'] ?? frontmatter['date'];
+  const iso = coerceIso(raw);
+  if (iso) return iso;
+  return null;
+}
+
+/**
+ * Resolve an item's publish date (ADR: git-of-record blog dates).
+ *
+ * Precedence: an explicit frontmatter date always wins; otherwise stamp `now` on
+ * the first draft->published transition; once set it is never auto-rewritten
+ * (editing a published post must not re-date it). Unpublishing keeps the date so
+ * re-publishing preserves the original — matching how blogs behave.
+ */
+export function resolvePublishedAt(
+  frontmatter: Record<string, unknown>,
+  status: 'draft' | 'published',
+  current: string | null,
+  now: string,
+): string | null {
+  const explicit = explicitPublishedAt(frontmatter);
+  if (explicit) return explicit;
+  if (current) return current;
+  return status === 'published' ? now : null;
+}
+
+/** Coerce a YAML date value to an ISO string; YAML may parse a bare date to a Date. */
+function coerceIso(value: unknown): string | null {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  if (typeof value === 'string' && value.trim()) {
+    const d = new Date(value.trim());
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  return null;
 }
 
 export function serializeFromParts(frontmatter: Record<string, unknown>, body: string): string {
@@ -888,6 +1007,13 @@ export async function ensureSpaceForFrontmatterInTx(
       created_at: now,
       updated_at: now,
       archived_at: null,
+      // Auto-created from frontmatter (`space`/`topic`), which includes the
+      // repo-pull path. Public by default, matching the column default and the
+      // behaviour before this column existed. NOTE: that means pulling a repo
+      // into a brand-new topic makes its PUBLISHED items anonymously readable on
+      // a public instance as soon as the pull lands — set the topic to private
+      // first if that is not wanted.
+      visibility: 'public',
     })
     .onConflict((oc) => oc.column('id').doNothing())
     .execute();

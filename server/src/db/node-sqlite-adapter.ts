@@ -40,8 +40,17 @@ export class NodeSqliteAdapter implements SqliteDatabaseLike {
 
   constructor(filename: string) {
     this.db = new DatabaseSyncCtor(filename);
-    this.db.exec('PRAGMA journal_mode = WAL');
+    // Journal mode is configurable. WAL is best on a local disk (default), but it
+    // does NOT work on network file systems (Azure Files / SMB, NFS) because the
+    // WAL shared-memory index is unsupported there — you get "disk I/O error" /
+    // "database is locked". Set SQLITE_JOURNAL_MODE=DELETE for SMB-mounted storage.
+    const requested = (process.env['SQLITE_JOURNAL_MODE'] ?? 'WAL').toUpperCase();
+    const allowed = ['WAL', 'DELETE', 'TRUNCATE', 'PERSIST', 'MEMORY', 'OFF'];
+    const journalMode = allowed.includes(requested) ? requested : 'WAL';
+    this.db.exec(`PRAGMA journal_mode = ${journalMode}`);
     this.db.exec('PRAGMA foreign_keys = ON');
+    // Wait for a briefly-held lock instead of failing instantly (helps on slower FS).
+    this.db.exec('PRAGMA busy_timeout = 5000');
   }
 
   prepare(sql: string): SqliteStatementLike {

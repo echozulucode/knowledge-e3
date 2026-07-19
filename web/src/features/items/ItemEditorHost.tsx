@@ -85,7 +85,9 @@ export function ItemEditorHost({
       propertySchema={propertySchema ?? knowledgeItemPropertySchema}
       frontmatterDisplay={frontmatterDisplay}
       hostServices={hostServices}
-      hostServiceToolbar={false}
+      // Host-service toolbar (page-link search + image upload) while editing; the
+      // upload button calls hostServices.uploadAsset (uploadImageAsset). Off in read-only.
+      hostServiceToolbar={!readOnly}
       modeIcons={itemEditorModeIcons}
       wysiwygToolbarIcons={itemEditorToolbarIcons}
       features={{

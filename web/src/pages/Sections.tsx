@@ -10,6 +10,7 @@
 import { Link, useParams } from '@tanstack/react-router';
 import { useSections, usePages, useContentTypes, type Section, type Page } from '../queries.js';
 import { ContentTypeBadge, resolveContentTypeMeta } from '../components/ContentTypeBadge.js';
+import { authorsOf, coverImageOf, displayDateOf, formatDate, readingTimeMinutes } from '../features/blog/blogMeta.js';
 import { Icon, appIcons, iconByKey } from '../icons.js';
 import './Sections.css';
 
@@ -56,12 +57,16 @@ export function SectionView() {
   const { data: sections = [] } = useSections();
   const { data: contentTypes = [] } = useContentTypes();
   const section = sections.find((s) => s.slug === params.slug);
+  const meta = resolveContentTypeMeta(section?.type, contentTypes);
+  const layout = layoutFor(meta?.groupKey, meta?.label);
 
   const { data: items = [], isLoading } = usePages({
     type: section?.type,
     space: section?.space,
     status: 'published',
     limit: 200,
+    // A blog-style card grid reads as a chronological feed; order by publish date.
+    sort: layout === 'cards' ? 'published' : undefined,
   });
 
   if (!section) {
@@ -72,9 +77,6 @@ export function SectionView() {
       </main>
     );
   }
-
-  const meta = resolveContentTypeMeta(section.type, contentTypes);
-  const layout = layoutFor(meta?.groupKey, meta?.label);
 
   return (
     <main className="Sections" aria-labelledby="section-view-title">
@@ -111,16 +113,30 @@ export function SectionView() {
         </div>
       ) : layout === 'cards' ? (
         <div className="Sections__cardsGrid">
-          {items.map((item) => (
-            <Link key={item.id} to="/p/$slug" params={{ slug: item.slug }} className="Sections__article">
-              <div className="Sections__articleMeta">
-                {item.type ? <ContentTypeBadge type={item.type} size="sm" /> : null}
-                <span className="Sections__articleDate">{new Date(item.updated_at).toLocaleDateString()}</span>
-              </div>
-              <h2 className="Sections__articleTitle">{item.title}</h2>
-              <p className="Sections__articleExcerpt">{previewOf(item)}</p>
-            </Link>
-          ))}
+          {items.map((item) => {
+            const cover = coverImageOf(item);
+            const authors = authorsOf(item);
+            const date = formatDate(displayDateOf(item));
+            return (
+              <Link key={item.id} to="/p/$slug" params={{ slug: item.slug }} className="Sections__article">
+                {cover ? (
+                  <span className="Sections__articleCover" aria-hidden="true">
+                    <img src={cover} alt="" loading="lazy" />
+                  </span>
+                ) : null}
+                <div className="Sections__articleMeta">
+                  {item.type ? <ContentTypeBadge type={item.type} size="sm" /> : null}
+                  {date ? <span className="Sections__articleDate">{date}</span> : null}
+                </div>
+                <h2 className="Sections__articleTitle">{item.title}</h2>
+                <p className="Sections__articleExcerpt">{previewOf(item)}</p>
+                <div className="Sections__articleByline">
+                  {authors.length ? <span>{authors.join(', ')}</span> : null}
+                  <span>{readingTimeMinutes(item.body_markdown)} min read</span>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       ) : (
         <ul className="Sections__list">

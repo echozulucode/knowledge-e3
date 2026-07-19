@@ -36,6 +36,8 @@ import { ItemsService } from './items.service.js';
       inject: [KYSELY],
     },
   ],
-  exports: [ItemsService],
+  // REVISION_MIRROR is exported so other modules (e.g. images) can signal
+  // asset changes to the same mirror instance for git durability.
+  exports: [ItemsService, REVISION_MIRROR],
 })
 export class ItemsModule {}

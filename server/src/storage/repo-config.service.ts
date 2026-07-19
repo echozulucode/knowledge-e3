@@ -25,6 +25,8 @@ export interface SpaceRepoView {
   remote_url: string;
   branch: string | null;
   enabled: boolean;
+  /** Import default for items with no lifecycle state; null = instance fallback. */
+  default_status: 'draft' | 'published' | null;
   updated_at: string;
 }
 
@@ -32,6 +34,7 @@ export interface RepoUpsertInput {
   remote_url: string;
   branch?: string | null;
   enabled?: boolean;
+  default_status?: 'draft' | 'published' | null;
 }
 
 export interface ConnectionResult {
@@ -57,6 +60,7 @@ export class RepoConfigService {
         'r.remote_url',
         'r.branch',
         'r.enabled',
+        'r.default_status',
         'r.updated_at',
         's.slug as space_slug',
         's.name as space_name',
@@ -69,6 +73,7 @@ export class RepoConfigService {
       remote_url: r.remote_url,
       branch: r.branch,
       enabled: r.enabled === 1,
+      default_status: r.default_status,
       updated_at: r.updated_at,
     }));
   }
@@ -79,6 +84,7 @@ export class RepoConfigService {
     const now = nowIso();
     const branch = input.branch?.trim() || null;
     const enabled = input.enabled === false ? 0 : 1;
+    const defaultStatus = input.default_status ?? null;
     await this.db
       .insertInto('space_repos')
       .values({
@@ -86,11 +92,14 @@ export class RepoConfigService {
         remote_url: remote,
         branch,
         enabled,
+        default_status: defaultStatus,
         created_at: now,
         updated_at: now,
       })
       .onConflict((oc) =>
-        oc.column('space_id').doUpdateSet({ remote_url: remote, branch, enabled, updated_at: now }),
+        oc
+          .column('space_id')
+          .doUpdateSet({ remote_url: remote, branch, enabled, default_status: defaultStatus, updated_at: now }),
       )
       .execute();
   }

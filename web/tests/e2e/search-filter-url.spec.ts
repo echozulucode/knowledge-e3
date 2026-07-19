@@ -31,7 +31,7 @@ test.describe('browse filter URLs', () => {
       },
     });
 
-    await signedInPage.goto('/?view=all&q=URL%20Filter&status=published&space=Research%20workspace&category=decision-record&tag=url-state&group=editor-experience&sort=title_asc');
+    await signedInPage.goto('/browse?view=grouped&q=URL%20Filter&status=published&space=Research%20workspace&category=decision-record&tag=url-state&group=editor-experience&sort=title_asc');
 
     await expect(signedInPage.getByLabel('Active browse filters')).toContainText('Search: URL Filter');
     await expect(signedInPage.getByLabel('Active browse filters')).toContainText('Topic: Research workspace');
@@ -49,7 +49,7 @@ test.describe('browse filter URLs', () => {
 
     await signedInPage.goBack();
     await expect(signedInPage).toHaveURL((url) => {
-      return url.pathname === '/'
+      return url.pathname === '/browse'
         && url.searchParams.get('q') === 'URL Filter'
         && url.searchParams.get('status') === 'published'
         && url.searchParams.get('space') === 'Research workspace'
@@ -71,16 +71,18 @@ test.describe('browse filter URLs', () => {
       frontmatter: { categories: ['runbook'], groups: ['ops'], space: 'Default space' },
     });
 
-    await signedInPage.goto('/?view=all&tag=clearable&status=published&sort=created_desc');
+    await signedInPage.goto('/browse?view=grouped&tag=clearable&status=published&sort=created_desc');
     await expect(cardForTitle(signedInPage, 'Clear Filter Target')).toBeVisible({ timeout: 15_000 });
     await signedInPage.getByRole('button', { name: /clear filters/i }).click();
 
-    await expect(signedInPage).toHaveURL((url) => url.pathname === '/' && url.searchParams.get('view') === 'all' && !url.searchParams.has('tag') && !url.searchParams.has('status'));
-    await expect(signedInPage.getByRole('heading', { name: 'All pages' })).toBeVisible();
+    await expect(signedInPage).toHaveURL((url) => url.pathname === '/browse' && url.searchParams.get('view') === 'grouped' && !url.searchParams.has('tag') && !url.searchParams.has('status'));
+    await expect(signedInPage.getByRole('heading', { name: 'Grouped by space' })).toBeVisible();
     await expect(cardForTitle(signedInPage, 'Clear Filter Target')).toBeVisible();
 
-    await signedInPage.goto('/?view=not-a-view&status=archived&sort=sideways&space=unknown-space');
-    await expect(signedInPage.getByRole('heading', { name: 'All pages' })).toBeVisible({ timeout: 15_000 });
+    // Malformed params must fall back rather than blank the page: `view` falls
+    // back to the default view, whose heading is 'Library'.
+    await signedInPage.goto('/browse?view=not-a-view&status=archived&sort=sideways&space=unknown-space');
+    await expect(signedInPage.getByRole('heading', { name: 'Library' })).toBeVisible({ timeout: 15_000 });
     await expect(signedInPage.locator('.PageList')).toBeVisible();
   });
 });

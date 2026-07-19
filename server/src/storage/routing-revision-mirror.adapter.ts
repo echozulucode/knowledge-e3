@@ -56,6 +56,14 @@ export class RoutingRevisionMirror implements RevisionMirrorPort, OnModuleDestro
     await repo.enqueue(event, target.conceptDir);
   }
 
+  /**
+   * Assets are shared and content-addressed, so they live in the main repo's
+   * `assets/` dir regardless of topic. Route the signal there.
+   */
+  async notifyAssetsChanged(): Promise<void> {
+    await this.repoFor(this.mainDir).notifyAssetsChanged();
+  }
+
   /** Flush every repo (shutdown, or before a backfill assertion). */
   async flush(): Promise<void> {
     for (const repo of this.repos.values()) {

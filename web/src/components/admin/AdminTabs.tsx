@@ -20,7 +20,7 @@ const PRIMARY_TABS = [
   { to: '/admin/data', label: 'Data', icon: appIcons.floppyDisk, exact: false },
   { to: '/admin/sections', label: 'Sections', icon: appIcons.list, exact: false },
   { to: '/admin/repos', label: 'Repos', icon: appIcons.sliders, exact: false },
-  { to: '/admin/images', label: 'Images', icon: appIcons.image, exact: false },
+  { to: '/admin/images', label: 'Files', icon: appIcons.image, exact: false },
 ] as const;
 
 const TAXONOMY_TABS = [

@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
 import { AdminOnly, CurrentUser } from '../auth/auth.decorators.js';
 import type { AuthedUser } from '../auth/auth.service.js';
 import { ItemsService } from '../items/items.service.js';
@@ -10,6 +10,12 @@ class RepoUpsertDto {
   @IsString() remote_url!: string;
   @IsOptional() @IsString() branch?: string;
   @IsOptional() @IsBoolean() enabled?: boolean;
+  /**
+   * Status for pulled items whose frontmatter declares no lifecycle state.
+   * Omit to defer to the instance fallback. Set 'published' for a repo whose
+   * content is ready to read as-is (the common case for a curated bundle).
+   */
+  @IsOptional() @IsIn(['draft', 'published']) default_status?: 'draft' | 'published';
 }
 
 class MainRemoteDto {

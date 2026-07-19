@@ -18,6 +18,9 @@ interface CommandPaletteProps {
 
 export const COMMAND_PALETTE_SCOPE_HINT = 'Searches all Topics. Use browse filters for scoped search.';
 
+/** Rows the palette renders before deferring to the full results page. */
+const PALETTE_LIMIT = 8;
+
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, onOpenKeyboardHelp }) => {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -30,8 +33,18 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
     return () => clearTimeout(timer);
   }, [query]);
 
-  // Search for pages
-  const { data: results = [] } = useSearch(debouncedQuery);
+  // The palette shows the top few matches and hands off to /browse for the rest.
+  // Ask for one more than we render so "N+ results" can be honest without
+  // implying a total we never requested.
+  const { data: results = [] } = useSearch(debouncedQuery, { limit: PALETTE_LIMIT + 1 });
+  const shown = results.slice(0, PALETTE_LIMIT);
+  const hasMore = results.length > PALETTE_LIMIT;
+
+  /** Hand the query to the canonical results page — the palette is a jump list. */
+  const seeAllResults = () => {
+    navigate({ to: '/browse', search: { view: 'grouped', q: debouncedQuery } as any });
+    onClose();
+  };
 
   // Reset selection when results change
   useEffect(() => {
@@ -45,7 +58,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
       // keyboard-shortcuts row when the query is empty). At most 8 results are
       // shown, so navigation and Enter both operate on that same 0..lastIndex
       // range — keeping the highlighted row and the Enter target identical.
-      const lastIndex = query.length === 0 ? 0 : Math.min(results.length, 8) - 1;
+      const lastIndex = query.length === 0 ? 0 : shown.length - 1;
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
@@ -61,8 +74,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
             // Keyboard shortcuts row
             onOpenKeyboardHelp?.();
             onClose();
-          } else if (query.length > 0 && results[selectedIndex]) {
-            navigate({ to: `/p/${results[selectedIndex].slug}` });
+          } else if (query.length > 0 && shown[selectedIndex]) {
+            navigate({ to: `/p/${shown[selectedIndex].slug}` });
             onClose();
           }
           break;
@@ -102,7 +115,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
             className="kp-palette-input"
           />
           {query.length > 0 ? (
-            <span className="kp-palette-count">{Math.min(results.length, 8)} of {results.length}</span>
+            <span className="kp-palette-count">
+              {hasMore ? `top ${PALETTE_LIMIT}` : `${shown.length} ${shown.length === 1 ? 'result' : 'results'}`}
+            </span>
           ) : null}
         </div>
 
@@ -129,9 +144,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
             <div className="kp-palette-empty">
               <div>No matches for '{query}'</div>
               <div>Try a broader term, a related acronym, or search by Topic, tag, category, group, command text, or decision wording.</div>
+              <button type="button" className="kp-palette-seeall" onClick={seeAllResults}>
+                Search all items for '{query}'
+              </button>
             </div>
           ) : (
-            results.slice(0, 8).map((result, index) => (
+            shown.map((result, index) => (
               <button
                 key={result.id}
                 className={`kp-palette-item ${index === selectedIndex ? 'selected' : ''}`}
@@ -166,6 +184,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
               </button>
             ))
           )}
+          {query.length > 0 && shown.length > 0 ? (
+            <button type="button" className="kp-palette-seeall" onClick={seeAllResults}>
+              {hasMore ? `See all results for '${query}'` : `Open '${query}' in Browse`}
+            </button>
+          ) : null}
         </div>
 
         {/* Keyboard hint footer */}

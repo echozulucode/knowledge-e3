@@ -42,6 +42,12 @@ export default defineConfig({
     // force these singleton packages to resolve from the Knowledge E3 app graph.
     dedupe: singletonPackages,
   },
+  build: {
+    // Emit build output under /static/, NOT the default /assets/. `/assets/<file>`
+    // is the bundle-relative URL space for USER content (images, attachments)
+    // served by the API — Vite's build output must not squat on it.
+    assetsDir: 'static',
+  },
   server: {
     port,
     strictPort: false,
@@ -50,11 +56,13 @@ export default defineConfig({
         target: apiTarget,
         changeOrigin: true,
       },
-      // Bundle-relative image refs (`/assets/<file>`) are served by the API.
+      // Bundle-relative user assets (`/assets/<file>`) are served by the API.
+      // Deliberately NO rewrite here: the server maps /assets -> /api/v1/assets
+      // itself, so dev exercises the same code path as production. (A dev-only
+      // rewrite is exactly what let the prod 404 go unnoticed.)
       '/assets': {
         target: apiTarget,
         changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/assets/, '/api/v1/assets'),
       },
     },
   },

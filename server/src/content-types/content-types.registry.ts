@@ -350,7 +350,10 @@ export const CONTENT_TYPES: ContentTypeDef[] = [
       { key: 'series', label: 'Series', type: 'text', description: 'Series slug this post belongs to, if any.' },
       { key: 'canonical_concepts', label: 'Canonical concepts', type: 'tags', description: 'Durable concept pages this article is grounded in.' },
     ],
-    defaultFrontmatter: { published: false },
+    // `status` is the real lifecycle gate (draft|published); a new blog post
+    // starts as a draft. (The old `published: false` boolean here was read by
+    // nothing — the item's visibility has always been driven by `status`.)
+    defaultFrontmatter: { status: 'draft' },
     template: BLOG_TEMPLATE,
   },
   {

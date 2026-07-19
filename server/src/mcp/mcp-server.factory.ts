@@ -98,7 +98,9 @@ export function createMcpServer(deps: McpServerDeps, ctx: McpToolContext): Serve
   const actor = ctx.user ? { id: ctx.user.id, role: ctx.user.role as 'user' | 'admin' } : undefined;
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: deps.mcp.listTools().map((d) => ({
+    // Context-aware: anonymous callers on a public instance see the read-only
+    // subset. McpService.callToolByName still enforces it.
+    tools: deps.mcp.listTools(ctx).map((d) => ({
       name: d.name,
       title: d.title,
       description: d.description,

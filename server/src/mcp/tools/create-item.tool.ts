@@ -71,6 +71,7 @@ export class CreateItemTool implements McpTool<McpCreateItemInput & { actor_id?:
   readonly descriptor: McpToolDescriptor = {
     name: 'knowledge.create_item',
     title: 'Create a draft knowledge item',
+    write: true,
     description:
       'Create a validated draft knowledge item from an MCP client. Returns canonical id first, slug/title display metadata, id-based path, legacy slug URL, version token, indexing status, validation warnings, duplicate-title diagnostics, and idempotency replay metadata.',
     inputSchema: {

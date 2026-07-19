@@ -1,7 +1,7 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { AuthService } from '../auth/auth.service.js';
 import { ItemsService, type ItemView } from '../items/items.service.js';
-import type { McpTool, McpToolContext, McpToolDescriptor } from './tools/schemas.js';
+import { isAnonymousContext, type McpTool, type McpToolContext, type McpToolDescriptor } from './tools/schemas.js';
 import { CreateItemTool as McpCreateItemTool, type McpCreateItemInput } from './tools/create-item.tool.js';
 import { ExportOkfTool } from './tools/export-okf.tool.js';
 import { ImportOkfTool } from './tools/import-okf.tool.js';
@@ -49,14 +49,17 @@ export class McpService {
     const id = request.id ?? null;
     try {
       if (request.jsonrpc !== '2.0') return this.error(id, -32600, 'Invalid JSON-RPC version');
-      if (request.method === 'tools/list') return this.result(id, { tools: this.listTools() });
+      if (request.method === 'tools/list') return this.result(id, { tools: this.listTools(context) });
       if (request.method === 'tools/call') {
         const params = request.params ?? {};
         const name = typeof params['name'] === 'string' ? params['name'] : '';
         const args = isRecord(params['arguments']) ? params['arguments'] : {};
+        // Resolve here only to keep this surface's established -32602 for an
+        // unknown name; the call itself goes through callToolByName so the
+        // anonymous write gate applies to this legacy path too.
         const tool = this.tools.find((candidate) => candidate.descriptor.name === name);
         if (!tool) return this.error(id, -32602, `Unknown tool: ${name}`);
-        return this.result(id, await tool.call(args, context));
+        return this.result(id, await this.callToolByName(name, args, context));
       }
       return this.error(id, -32601, `Method not found: ${request.method ?? ''}`);
     } catch (err) {
@@ -85,8 +88,16 @@ export class McpService {
     return this.error(id, -32603, 'Internal error');
   }
 
-  listTools(): McpToolDescriptor[] {
-    return this.tools.map((tool) => tool.descriptor);
+  /**
+   * Tools visible to this caller. Anonymous visitors on a public instance get
+   * the read-only subset — but hiding a tool is presentation, not enforcement;
+   * `callToolByName` is the actual gate.
+   */
+  listTools(context: McpToolContext = {}): McpToolDescriptor[] {
+    const anonymous = isAnonymousContext(context);
+    return this.tools
+      .map((tool) => tool.descriptor)
+      .filter((descriptor) => !(anonymous && descriptor.write));
   }
 
   /**
@@ -98,6 +109,14 @@ export class McpService {
   async callToolByName(name: string, args: Record<string, unknown>, context: McpToolContext = {}): Promise<unknown> {
     const tool = this.tools.find((candidate) => candidate.descriptor.name === name);
     if (!tool) throw new HttpException({ message: `Unknown tool: ${name}` }, 404);
+    // Enforce read-only for anonymous callers HERE, not just by filtering
+    // listTools: a client can call any name it likes without ever listing.
+    if (tool.descriptor.write && isAnonymousContext(context)) {
+      throw new HttpException(
+        { message: `${name} requires sign-in: this instance is public for reading only.` },
+        403,
+      );
+    }
     return tool.call(args, context);
   }
 

@@ -15,7 +15,12 @@ const E3_EXT_KEYS = [
   'e3_created_at',
 ];
 /** E3 frontmatter keys we reconstruct from dedicated fields. */
-const MAPPED_KEYS = ['status', 'categories', 'groups', 'space', 'topic', 'summary'];
+// Keys consumed into E3 fields rather than preserved verbatim. `state` joins
+// `status` here so a resolved lifecycle value is represented exactly once, under
+// E3's canonical `status` key (see toE3Frontmatter) — otherwise a file could
+// carry `state: released` AND a generated `status: published`, which silently
+// diverge the moment someone edits only one of them.
+const MAPPED_KEYS = ['status', 'state', 'categories', 'groups', 'space', 'topic', 'summary'];
 
 const RESERVED = new Set(['index.md', 'log.md']);
 
@@ -53,7 +58,7 @@ export function conceptToImport(content: string): OkfImportItem {
   const e3Id = str(fm['e3_id']);
   const slug = str(fm['e3_slug']);
   const title = str(fm['title']) ?? slugToTitle(slug) ?? 'Untitled';
-  const status = normStatus(fm['e3_status'] ?? fm['status']);
+  const { status, unrecognized: unrecognizedStatus } = resolveStatus(fm);
   const tags = arr(fm['tags']);
   const categories = arr(fm['e3_categories'] ?? fm['categories']);
   const groups = arr(fm['e3_groups'] ?? fm['groups']);
@@ -77,6 +82,7 @@ export function conceptToImport(content: string): OkfImportItem {
   if (createdAt) item.createdAt = createdAt;
   if (updatedAt) item.updatedAt = updatedAt;
   if (status) item.status = status;
+  if (unrecognizedStatus) item.unrecognizedStatus = unrecognizedStatus;
   if (space) item.space = space;
   if (description) item.description = description;
   return item;
@@ -113,8 +119,52 @@ function arr(value: unknown): string[] {
   return value.filter((v): v is string => typeof v === 'string');
 }
 
-function normStatus(value: unknown): 'draft' | 'published' | undefined {
-  return value === 'draft' || value === 'published' ? value : undefined;
+/**
+ * Vocabulary a hand-authored bundle may use for lifecycle state.
+ *
+ * E3 itself only has `draft` | `published`, but bundles are written by humans
+ * and other tools, which reach for words like `released` or `wip`. Previously
+ * anything outside the two exact strings was silently discarded and the item
+ * fell back to the import default — so `state: released` imported as a draft and
+ * simply never appeared. Unrecognised values still fall back, but the caller is
+ * told (see statusOf), rather than the information vanishing.
+ */
+const STATUS_SYNONYMS: Record<string, 'draft' | 'published'> = {
+  published: 'published',
+  release: 'published',
+  released: 'published',
+  live: 'published',
+  final: 'published',
+  stable: 'published',
+  draft: 'draft',
+  wip: 'draft',
+  'in-progress': 'draft',
+  in_progress: 'draft',
+  unreleased: 'draft',
+  unpublished: 'draft',
+};
+
+export interface StatusResolution {
+  status?: 'draft' | 'published';
+  /** The raw value we could not interpret, when there was one. */
+  unrecognized?: string;
+}
+
+/**
+ * Resolve lifecycle state from frontmatter, in precedence order:
+ * `e3_status` (what E3 writes on export) → `status` → `state`.
+ * Matching is case- and whitespace-insensitive.
+ */
+export function resolveStatus(fm: Record<string, unknown>): StatusResolution {
+  for (const key of ['e3_status', 'status', 'state']) {
+    const raw = fm[key];
+    if (raw === undefined || raw === null || raw === '') continue;
+    const normalized = String(raw).trim().toLowerCase();
+    const mapped = STATUS_SYNONYMS[normalized];
+    if (mapped) return { status: mapped };
+    return { unrecognized: String(raw) };
+  }
+  return {};
 }
 
 function slugToTitle(slug: string | undefined): string | undefined {

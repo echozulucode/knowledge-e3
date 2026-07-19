@@ -1,5 +1,5 @@
 /**
- * Wave C performance benchmark script.
+ * Performance benchmark script.
  *
  * Bootstraps a NestJS app with in-memory SQLite, seeds N pages, and measures:
  *   1. Search query latencies (p50/p95/p99)
@@ -61,7 +61,7 @@ interface BenchmarkResults {
 }
 
 async function main() {
-  console.log('\n=== Knowledge Platform Benchmark ===\n');
+  console.log('\n=== Knowledge E3 Benchmark ===\n');
   console.log(`Configuration:`);
   console.log(`  Pages to seed: ${NUM_PAGES}`);
   console.log(`  Search queries: ${BENCH_QUERIES.length}`);

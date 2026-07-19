@@ -108,6 +108,13 @@ export interface OkfImportItem {
   updatedAt?: string;
   title: string;
   status?: 'draft' | 'published';
+  /**
+   * A lifecycle value present in frontmatter that we could not interpret (e.g.
+   * `status: kinda-done`). The item falls back to the import default, but the
+   * raw value is carried so the importer can REPORT it instead of the
+   * information disappearing.
+   */
+  unrecognizedStatus?: string;
   /** Body markdown with bundle links restored to E3 `[[wiki-links]]`. */
   body: string;
   tags: string[];

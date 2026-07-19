@@ -254,3 +254,25 @@
     font-size: var(--kp-text-base);
   }
 }
+
+/* Handoff to the canonical results page (/browse?q=). The palette shows only
+   the top few matches, so it must always offer a way through to the rest
+   rather than dead-ending in a dropdown. */
+.kp-palette-seeall {
+  display: block;
+  width: 100%;
+  padding: var(--kp-space-3) var(--kp-space-4);
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--kp-border-subtle, var(--kp-border));
+  text-align: left;
+  color: var(--kp-accent, var(--kp-text-primary));
+  font-size: var(--kp-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.kp-palette-seeall:hover,
+.kp-palette-seeall:focus-visible {
+  background: var(--kp-surface-hover, rgba(127, 127, 127, 0.08));
+}

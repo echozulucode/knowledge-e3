@@ -25,6 +25,7 @@ export class ImportOkfTool implements McpTool<McpImportOkfInput> {
   readonly descriptor: McpToolDescriptor = {
     name: 'knowledge.import_okf',
     title: 'Import an OKF bundle',
+    write: true,
     description:
       'Import an Open Knowledge Format (OKF v0.1) bundle: an array of { path, content } Markdown concept files. Concepts are matched to existing items by their embedded e3_id, then by exact title, so re-importing updates rather than duplicates; unmatched concepts are created. Reserved files (index.md, log.md) are ignored. Returns counts, the new/updated ids, and a conformance report for the input.',
     inputSchema: {

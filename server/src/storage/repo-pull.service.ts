@@ -35,7 +35,7 @@ export class RepoPullService {
   async pullIntoTopic(spaceId: string, actor: ReadActor): Promise<OkfImportResult> {
     const repo = await this.db
       .selectFrom('space_repos')
-      .select(['remote_url', 'branch'])
+      .select(['remote_url', 'branch', 'default_status'])
       .where('space_id', '=', spaceId)
       .executeTakeFirst();
     if (!repo) {
@@ -60,10 +60,18 @@ export class RepoPullService {
       }
 
       const files = readConceptFiles(tmp);
-      // Force the destination topic so the repo's content lands under this topic.
-      const result = await this.okfImport.importBundleFiles(actor, files, { space: space.slug });
+      // Force the destination topic so the repo's content lands under this topic,
+      // and apply the binding's import default for files that declare no state.
+      const result = await this.okfImport.importBundleFiles(actor, files, {
+        space: space.slug,
+        ...(repo.default_status ? { defaultStatus: repo.default_status } : {}),
+      });
       this.logger.log(
-        `pulled ${repo.remote_url} into topic ${space.slug}: ${result.created} created, ${result.updated} updated`,
+        `pulled ${repo.remote_url} into topic ${space.slug}: ${result.created} created, ` +
+          `${result.updated} updated, ${result.defaulted} defaulted to ${result.default_status}` +
+          (result.unrecognized_status.length
+            ? `, ${result.unrecognized_status.length} with an unrecognized status value`
+            : ''),
       );
       return result;
     } finally {

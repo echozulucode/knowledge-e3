@@ -45,3 +45,10 @@ derisk
 *.md
 tests
 vitest.config.ts
+
+# Runtime data — never belongs in the build context. `data/` holds the SQLite
+# index and the git-of-record mirror at runtime (see the /data volume in the
+# Dockerfile); a populated working tree here can add tens of MB to every build.
+data
+**/data
+server/data

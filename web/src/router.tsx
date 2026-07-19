@@ -45,12 +45,17 @@ const browseRoute = new Route({
   component: PageList,
 });
 
+// `/p/$slug` is the CANONICAL, shareable item URL — all internal navigation
+// links here.
 const pageRoute = new Route({
   getParentRoute: () => rootRoute,
   path: '/p/$slug',
   component: PageView,
 });
 
+// `/items/$id` is retained as a stable-id deep link: the id is immutable while a
+// slug changes on rename, so id-based references (and any legacy/external links)
+// keep resolving. Not used for internal navigation anymore.
 const itemRoute = new Route({
   getParentRoute: () => rootRoute,
   path: '/items/$id',
@@ -143,7 +148,12 @@ const helpRoute = new Route({
 
 const routeTree = rootRoute.addChildren([loginRoute, indexRoute, browseRoute, pageRoute, itemRoute, adminRoute, adminUsersRoute, adminAuthRoute, primaryCategoryAdminRoute, tagGroupAdminRoute, topicAdminRoute, okfAdminRoute, sectionsAdminRoute, reposAdminRoute, imagesAdminRoute, sectionsRoute, sectionViewRoute, profileRoute, helpRoute]);
 
-export const router = new Router({ routeTree });
+export const router = new Router({
+  routeTree,
+  // Restore scroll position on Back. Without this, clicking a result deep in a
+  // list and pressing Back returns you to the top of the list.
+  scrollRestoration: true,
+});
 
 declare module '@tanstack/react-router' {
   interface Register {

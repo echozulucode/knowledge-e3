@@ -39,7 +39,10 @@ export async function uploadImageAsset(
   file: File,
   signal?: AbortSignal,
 ): Promise<{ url: string; alt?: string }> {
-  const query = file.name ? `?alt=${encodeURIComponent(file.name)}` : '';
+  // Pass the real filename as the download name (Content-Disposition); the
+  // stored name stays content-addressed. The editor derives the inline alt from
+  // the filename itself, so we don't also send ?alt=.
+  const query = file.name ? `?filename=${encodeURIComponent(file.name)}` : '';
   const res = await fetch(`/api/v1/images${query}`, {
     method: 'POST',
     credentials: 'include',
@@ -47,7 +50,15 @@ export async function uploadImageAsset(
     body: file,
     signal,
   });
-  if (!res.ok) throw new Error(`Image upload failed (${res.status}).`);
+  if (!res.ok) {
+    let detail = '';
+    try {
+      detail = ((await res.json()) as { message?: string }).message ?? '';
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(detail || `Image upload failed (${res.status}).`);
+  }
   const data = (await res.json()) as { url: string; alt?: string | null };
   return { url: data.url, alt: data.alt ?? undefined };
 }

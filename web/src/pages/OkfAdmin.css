@@ -83,6 +83,12 @@
   cursor: not-allowed;
 }
 
+.OkfAdmin__panel button.OkfAdmin__dangerBtn {
+  background: var(--kp-danger-bg, #fdecec);
+  border-color: var(--kp-danger, #cf222e);
+  color: var(--kp-danger, #cf222e);
+}
+
 .OkfAdmin__actions {
   display: flex;
   flex-wrap: wrap;

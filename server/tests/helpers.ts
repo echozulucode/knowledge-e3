@@ -1,10 +1,8 @@
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
-import { ValidationPipe } from '@nestjs/common';
-import cookieParser from 'cookie-parser';
-import express from 'express';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
+import { configureApp } from '../src/bootstrap.js';
 import { AuthService } from '../src/auth/auth.service.js';
 
 export async function makeApp(): Promise<INestApplication> {
@@ -12,18 +10,11 @@ export async function makeApp(): Promise<INestApplication> {
   process.env['DB_URL'] = ':memory:';
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication();
-  // Match bootstrap: a high-limit parser scoped to OKF imports, a raw parser for
-  // image uploads, plus a global parser for every other route. (Registering any
-  // json parser makes Nest skip its own auto-registered one, so the global
-  // parser here must be explicit.)
-  app.use('/api/v1/okf/import', express.json({ limit: '50mb' }));
-  app.use('/api/v1/images', express.raw({ type: () => true, limit: '25mb' }));
-  app.use(express.json());
-  app.use(cookieParser());
-  app.setGlobalPrefix('api/v1');
-  app.useGlobalPipes(
-    new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }),
-  );
+  // Use the SAME wiring the server ships (parsers, /assets mapping, prefix,
+  // validation) rather than re-declaring it here — a hand-maintained copy of
+  // this stack is what hid the production /assets 404 from these very tests.
+  // SPA serving is off: tests exercise the API, not the built client.
+  configureApp(app, { webDist: null });
   await app.init();
   return app;
 }

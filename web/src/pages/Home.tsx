@@ -7,9 +7,9 @@
  *
  * Scope-aware, source-backed, calm. Backed by real pages/topics/types.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useMe, usePages, useTopics, useContentTypes, type Page } from '../queries.js';
 import { ContentTypeBadge } from '../components/ContentTypeBadge.js';
 import { Icon, appIcons } from '../icons.js';
@@ -43,7 +43,13 @@ export function Home() {
   const { data: pages = [], isLoading } = usePages({ limit: 1000 });
   const { data: topics = [] } = useTopics();
   const { data: contentTypes = [] } = useContentTypes();
-  const [query, setQuery] = useState('');
+  // Seed from the URL so pressing Back from /browse?q=… returns to a hero that
+  // still shows what was searched, instead of an empty box.
+  const routeQuery = useRouterState({
+    select: (state) => (state.location.search as { q?: string }).q ?? '',
+  });
+  const [query, setQuery] = useState(routeQuery);
+  useEffect(() => setQuery(routeQuery), [routeQuery]);
 
   const topicName = useMemo(() => {
     const byId = new Map(topics.map((t) => [t.id, t.name]));
@@ -77,7 +83,7 @@ export function Home() {
   };
 
   const DocCard = ({ page }: { page: Page }) => (
-    <Link to="/items/$id" params={{ id: page.id }} className="Home__card">
+    <Link to="/p/$slug" params={{ slug: page.slug }} className="Home__card">
       <div className="Home__cardHead">
         {page.type ? <ContentTypeBadge type={page.type} size="sm" /> : <span />}
         <StatusBadge status={page.status} />
@@ -185,7 +191,7 @@ export function Home() {
           </div>
           <div className="Home__rows">
             {recent.slice(0, 6).map((p) => (
-              <Link key={p.id} to="/items/$id" params={{ id: p.id }} className="Home__row">
+              <Link key={p.id} to="/p/$slug" params={{ slug: p.slug }} className="Home__row">
                 <div className="Home__rowMain">
                   <div className="Home__rowBadges">
                     {p.type ? <ContentTypeBadge type={p.type} size="sm" /> : null}

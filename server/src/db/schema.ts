@@ -67,7 +67,15 @@ export interface SpacesTable {
   created_at: string;
   updated_at: string;
   archived_at: string | null;
+  /**
+   * 'private' = not exposed to ANONYMOUS visitors. Signed-in users are
+   * unaffected; this narrows public exposure, it is not a per-user ACL.
+   * ANDs with the instance read mode and with per-item `status`.
+   */
+  visibility: SpaceVisibility;
 }
+
+export type SpaceVisibility = 'public' | 'private';
 
 export interface PagesTable {
   id: string;
@@ -81,6 +89,12 @@ export interface PagesTable {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  /**
+   * When the item was first published (stamped on draft->published, settable
+   * from frontmatter). NULL while a draft. Stable across edits so a chronological
+   * feed does not reshuffle on a typo fix. Derived from frontmatter.
+   */
+  published_at: string | null;
   /** Application-managed monotonic counter — semantic of SQL Server rowversion. */
   version_token: number;
   current_version_id: string | null;
@@ -131,6 +145,12 @@ export interface SpaceReposTable {
   branch: string | null;
   /** SQLite stores booleans as 0/1. When 0, the mapping exists but is not pushed. */
   enabled: number;
+  /**
+   * Status applied to imported items whose frontmatter declares no lifecycle
+   * state. NULL defers to KNOWLEDGE_E3_IMPORT_DEFAULT_STATUS. Per-repo because
+   * "content from this source is ready to publish" is a fact about the source.
+   */
+  default_status: 'draft' | 'published' | null;
   created_at: string;
   updated_at: string;
 }
@@ -196,6 +216,8 @@ export interface ImagesTable {
   byte_size: number;
   sha256: string;
   alt: string | null;
+  /** Human-facing download name; null for images uploaded before attachments. */
+  original_filename: string | null;
   created_at: string;
   created_by: string;
 }

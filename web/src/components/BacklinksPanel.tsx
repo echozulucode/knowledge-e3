@@ -133,13 +133,13 @@ interface BacklinkCardProps {
 }
 
 function BacklinkCard({ backlink }: BacklinkCardProps) {
-  const sourceId = backlink.source_item_id || backlink.source_page_id;
+  const sourceSlug = backlink.source_item_slug || backlink.source_slug;
   const sourceTitle = backlink.source_item_title || backlink.source_title;
 
   return (
     <Link
-      to="/items/$id"
-      params={{ id: sourceId }}
+      to="/p/$slug"
+      params={{ slug: sourceSlug }}
       className="backlinks-card"
     >
       <div className="backlinks-card-title">

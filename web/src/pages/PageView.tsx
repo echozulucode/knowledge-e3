@@ -31,7 +31,9 @@ import { ConflictDialog } from '../components/ConflictDialog.js';
 import { RenameDialog } from '../components/RenameDialog.js';
 import { BacklinksPanel } from '../components/BacklinksPanel.js';
 import { ReadView, headingSlug } from '../components/ReadView.js';
-import { ContentTypeBadge } from '../components/ContentTypeBadge.js';
+import { ContentTypeBadge, resolveContentTypeMeta } from '../components/ContentTypeBadge.js';
+import { useContentTypes } from '../queries.js';
+import { authorsOf, coverImageOf, displayDateOf, formatDate, readingTimeMinutes, seriesOf } from '../features/blog/blogMeta.js';
 import { RightContextPane, type TocEntry, type PaneProperty } from '../components/RightContextPane.js';
 import { extractCopyableEntries } from '../features/items/copyableContent.js';
 import { syncFirstHeadingWithTitle } from '../features/items/titleHeadingSync.js';
@@ -654,6 +656,10 @@ export function PageView() {
     }
   }, [pushToast]);
 
+  // Content types drive the blog-vs-plain header decision below. Called here,
+  // with the other hooks and BEFORE any early return, so hook order is stable
+  // across renders (Rules of Hooks).
+  const { data: contentTypes = [] } = useContentTypes();
 
   if (pageLoading) {
     return <div className="text-center text-slate-500">Loading...</div>;
@@ -672,6 +678,28 @@ export function PageView() {
     ?? '';
   const propertyEntries = visiblePropertyEntries(visibleFrontmatter);
   const statusTone = visibleStatus === 'published' ? 'published' : 'draft';
+
+  // Blog-style presentation for publishing-group types (blog-post, series,
+  // release-note), or any item that carries a cover/author. Such items get an
+  // article header — cover banner + "By X · date · N min read" — instead of the
+  // plain "Updated <date>" line. (contentTypes is fetched above the early
+  // returns — see the hook near pageLoading — to satisfy the Rules of Hooks.)
+  const blogLike = {
+    body_markdown: page.body_markdown,
+    updated_at: page.updated_at,
+    published_at: page.published_at,
+    authors: page.authors,
+    frontmatter: visibleFrontmatter as Record<string, unknown>,
+    type: page.type,
+  };
+  const cover = coverImageOf(blogLike);
+  const articleAuthors = authorsOf(blogLike);
+  const articleSeries = seriesOf(blogLike);
+  const isArticle =
+    resolveContentTypeMeta(page.type, contentTypes)?.groupKey === 'publishing' ||
+    Boolean(cover) ||
+    articleAuthors.length > 0;
+  const articleDate = formatDate(displayDateOf(blogLike));
 
   // Table of contents for the right context pane — parsed from the body's
   // headings (H1–H3 in source; ids match ReadView's rendered heading anchors).
@@ -761,6 +789,21 @@ export function PageView() {
                 background: 'var(--kp-surface-base)',
               }}
             >
+              {isArticle && cover ? (
+                <img
+                  src={cover}
+                  alt=""
+                  loading="lazy"
+                  style={{
+                    width: '100%',
+                    maxHeight: '340px',
+                    objectFit: 'cover',
+                    borderRadius: 'var(--kp-radius-lg)',
+                    marginBottom: 'var(--kp-space-4)',
+                    background: 'var(--kp-surface-sunken)',
+                  }}
+                />
+              ) : null}
               {(page.type || visibleTopic) && (
                 <div
                   style={{
@@ -828,7 +871,16 @@ export function PageView() {
                 >
                   {statusTone === 'published' ? 'Published' : 'Draft'}
                 </span>
-                {page.updated_at && <span>· Updated {new Date(page.updated_at).toLocaleDateString()}</span>}
+                {isArticle ? (
+                  <>
+                    {articleSeries ? <span>· Series: {articleSeries}</span> : null}
+                    {articleAuthors.length ? <span>· By {articleAuthors.join(', ')}</span> : null}
+                    {articleDate ? <span>· {articleDate}</span> : null}
+                    <span>· {readingTimeMinutes(page.body_markdown)} min read</span>
+                  </>
+                ) : (
+                  page.updated_at && <span>· Updated {new Date(page.updated_at).toLocaleDateString()}</span>
+                )}
               </div>
             </div>
           ) : null}

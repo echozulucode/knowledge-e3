@@ -13,6 +13,41 @@
   font-size: 0.85rem;
 }
 
+.ImagesAdmin__toolbarRight {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* File-type glyph for non-image attachments (PDF/zip/data). */
+.ImagesAdmin__fileGlyph {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  height: 100%;
+  color: var(--kp-text-muted, #6a6a6a);
+  font-size: 1.9rem;
+}
+
+.ImagesAdmin__fileGlyphExt {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.ImagesAdmin__sub {
+  color: var(--kp-text-muted, #6a6a6a);
+}
+
+.ImagesAdmin__download {
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
 .ImagesAdmin__grid {
   list-style: none;
   margin: 0;

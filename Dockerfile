@@ -1,69 +1,80 @@
-# Knowledge Platform v0.1 - Multi-stage Docker build
-# Stage 1: Dependencies
+# Knowledge E3 — self-hosted production image.
+# Single container serving BOTH the JSON API and the built web UI.
+#
+# Runtime data lives under /data — mount a volume there to persist it:
+#   - /data/kp.sqlite   the derived index (DB)   [DB_URL]
+#   - /data/wiki        the git-of-record mirror [GIT_MIRROR_ROOT]
+#
+# Per ADR-0001 the Markdown in git is the source of truth and the database is a
+# derived, rebuildable index — so /data/wiki is the valuable half of that volume.
+# SQLite is the supported store (Postgres/SQL Server are not wired — see ADR-0002).
+#
+# Quick start:
+#   docker build -t knowledge-e3 .
+#   docker run -p 3000:3000 -v knowledge-e3-data:/data knowledge-e3
+#   # then seed the first admin (once):
+#   docker exec -it <container> node server/dist/seed.js
+
+# ---------- Stage 1: install workspace dependencies ----------
 FROM node:22-alpine AS deps
 RUN npm install -g pnpm@9
-
 WORKDIR /build
 
-# Copy workspace and package files
-COPY pnpm-workspace.yaml .npmrc ./
-COPY package.json pnpm-lock.yaml ./
+# Only the manifests, so this layer caches until a dependency changes.
+# .npmrc is required, not incidental: it sets node-linker=hoisted, which decides
+# the node_modules layout the runtime stage below inherits wholesale.
+COPY pnpm-workspace.yaml .npmrc package.json pnpm-lock.yaml ./
 COPY packages/codec/package.json ./packages/codec/
+COPY packages/okf/package.json ./packages/okf/
 COPY server/package.json ./server/
-
-# Install dependencies with frozen lockfile (ensures consistency across environments)
+COPY web/package.json ./web/
 RUN pnpm install --frozen-lockfile
 
-# Stage 2: Build
+# ---------- Stage 2: build codec, okf, server, and the web UI ----------
 FROM node:22-alpine AS builder
 RUN npm install -g pnpm@9
-
 WORKDIR /build
-
-# Copy from deps stage
 COPY --from=deps /build .
-
-# Copy source code for codec and server
-COPY packages/codec/ ./packages/codec/
+COPY tsconfig.base.json ./
+COPY packages/ ./packages/
 COPY server/ ./server/
+COPY web/ ./web/
+# Topological order: codec -> okf -> server (imports both) ; codec -> web.
+RUN pnpm --filter @echozedlabs/codec build \
+ && pnpm --filter @echozedlabs/okf build \
+ && pnpm --filter @echozedlabs/server build \
+ && pnpm --filter @echozedlabs/web build
 
-# Build codec (shared library) and server
-RUN pnpm --filter @echozedlabs/codec build && \
-    pnpm --filter @echozedlabs/server build
-
-# Stage 3: Runtime
+# ---------- Stage 3: runtime ----------
 FROM node:22-alpine AS runtime
-
+# git is required, not optional: the git-of-record mirror and rebuild-from-git
+# shell out to it.
+RUN apk add --no-cache git ca-certificates
 WORKDIR /app
 
-# Set production environment.
-# DB_URL points at a SQLite file under /data — mount a volume there to persist
-# data across restarts. We deliberately do NOT default to :memory: (that would
-# silently lose every write on restart); the app also refuses to boot in
-# production if DB_URL is unset. SQL Server is not yet wired (see db.module.ts);
-# SQLite is the supported v0.1 store.
 ENV NODE_ENV=production \
     PORT=3000 \
-    DB_URL=/data/kp.sqlite
+    HOME=/home/node \
+    DB_URL=/data/kp.sqlite \
+    WEB_DIST=/app/web/dist \
+    GIT_MIRROR_ROOT=/data/wiki
 
-# Copy dist and node_modules from builder
-COPY --from=builder --chown=node:node /build/server/dist ./server/dist
-COPY --from=builder --chown=node:node /build/node_modules ./node_modules
-COPY --from=builder --chown=node:node /build/packages/codec/dist ./packages/codec/dist
+# Copy the whole built tree so the workspace node_modules layout produced by the
+# builder stays intact. Bigger image, but correct and simple.
+COPY --from=builder --chown=node:node /build /app
+COPY --chown=node:node docker-entrypoint.sh /app/docker-entrypoint.sh
 
-# Persistent data directory for the SQLite database, owned by the runtime user.
-RUN mkdir -p /data && chown node:node /data
+# Persistent data dir (SQLite + git mirror) + a writable HOME for gitconfig.
+RUN chmod +x /app/docker-entrypoint.sh \
+ && mkdir -p /data /home/node \
+ && chown node:node /data /home/node
 VOLUME ["/data"]
 
-# Use non-root user for security
 USER node
-
-# Expose the API port
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3000/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/api/v1/healthz',(r)=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
 
-# Start the application
-CMD ["node", "server/dist/main.js"]
+# Configures git identity/auth from the environment, then execs the server.
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

@@ -65,9 +65,14 @@ export class PagesController {
     @Query('limit') limit?: string,
     @Query('space') space?: string,
     @Query('type') type?: string,
+    @Query('sort') sort?: string,
   ) {
     if (status && status !== 'draft' && status !== 'published') {
       throw new BadRequestException('invalid status filter');
+    }
+    const SORTS = ['updated', 'published', 'created', 'title'] as const;
+    if (sort && !SORTS.includes(sort as (typeof SORTS)[number])) {
+      throw new BadRequestException('invalid sort');
     }
     const items = await this.pages.list(
       {
@@ -78,6 +83,7 @@ export class PagesController {
         limit: limit ? parseInt(limit, 10) : undefined,
         space,
         type,
+        sort: sort as 'updated' | 'published' | 'created' | 'title' | undefined,
       },
       user,
     );

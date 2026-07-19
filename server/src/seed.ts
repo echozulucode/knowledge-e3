@@ -192,6 +192,7 @@ export async function seedFirstMvpCorpus(db: Kysely<Database>, ownerId: string):
         created_at: now,
         updated_at: now,
         archived_at: null,
+        visibility: 'public',
       })
       .onConflict((oc) => oc.column('slug').doUpdateSet({ name: space.name, description: space.description, updated_at: now }))
       .execute();

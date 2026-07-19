@@ -1,15 +1,24 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import { SpacesService } from './spaces.service.js';
 import { RepoConfigService } from '../storage/repo-config.service.js';
 import { RepoPullService } from '../storage/repo-pull.service.js';
 import { AdminOnly, CurrentUser, PublicRead } from '../auth/auth.decorators.js';
 import type { AuthedUser } from '../auth/auth.service.js';
+import { isAnonymousActor } from '../pages/pages.service.js';
+import type { SpaceVisibility } from '../db/schema.js';
 
 class CreateTopicDto {
   @IsOptional() @IsString() @MaxLength(100) slug?: string;
   @IsString() @MaxLength(200) name!: string;
   @IsOptional() @IsString() @MaxLength(1000) description?: string;
+  /**
+   * 'private' keeps the topic off the anonymous surface. Settable at creation
+   * so a topic bound to a repo can be closed BEFORE its first pull lands —
+   * creating it public and flipping it afterwards would expose the content in
+   * between.
+   */
+  @IsOptional() @IsIn(['public', 'private']) visibility?: SpaceVisibility;
   /** Optional dedicated backend repo for this topic (else it lives in the main repo). */
   @IsOptional() repo?: { remote_url: string; branch?: string; pull?: boolean };
 }
@@ -17,6 +26,7 @@ class CreateTopicDto {
 class UpdateTopicDto {
   @IsOptional() @IsString() @MaxLength(200) name?: string;
   @IsOptional() @IsString() @MaxLength(1000) description?: string;
+  @IsOptional() @IsIn(['public', 'private']) visibility?: SpaceVisibility;
 }
 
 class CreatePrimaryCategoryDto {
@@ -47,29 +57,29 @@ export class TaxonomyController {
 
   @PublicRead()
   @Get('topics')
-  async listTopics() {
-    const topics = await this.spaces.listWithCounts();
+  async listTopics(@CurrentUser() user: AuthedUser) {
+    const topics = await this.spaces.listWithCounts({ anonymousViewer: isAnonymousActor(user) });
     return { topics, total: topics.length };
   }
 
   @PublicRead()
   @Get('spaces')
-  async listSpaces() {
-    const spaces = await this.spaces.list();
+  async listSpaces(@CurrentUser() user: AuthedUser) {
+    const spaces = await this.spaces.list({ anonymousViewer: isAnonymousActor(user) });
     return { spaces, total: spaces.length };
   }
 
   @PublicRead()
   @Get('taxonomy/tags')
-  async listTags(@Query('q') q?: string) {
-    const tags = await this.spaces.listTags(q);
+  async listTags(@CurrentUser() user: AuthedUser, @Query('q') q?: string) {
+    const tags = await this.spaces.listTags(q, { anonymousViewer: isAnonymousActor(user) });
     return { tags, total: tags.length };
   }
 
   @PublicRead()
   @Get('taxonomy/categories')
-  async listCategories(@Query('q') q?: string) {
-    const categories = await this.spaces.listCategories(q);
+  async listCategories(@CurrentUser() user: AuthedUser, @Query('q') q?: string) {
+    const categories = await this.spaces.listCategories(q, { anonymousViewer: isAnonymousActor(user) });
     return { categories, total: categories.length };
   }
 
@@ -97,8 +107,8 @@ export class TaxonomyController {
 
   @PublicRead()
   @Get('taxonomy/groups')
-  async listGroups(@Query('q') q?: string) {
-    const groups = await this.spaces.listGroups(q);
+  async listGroups(@CurrentUser() user: AuthedUser, @Query('q') q?: string) {
+    const groups = await this.spaces.listGroups(q, { anonymousViewer: isAnonymousActor(user) });
     return { groups, total: groups.length };
   }
 
@@ -118,6 +128,7 @@ export class TaxonomyController {
       slug: body.slug,
       name: body.name,
       description: body.description,
+      visibility: body.visibility,
     });
     // Optionally bind a dedicated backend repo at creation time; otherwise the
     // topic lives in the main repo as a subtree (no binding needed).

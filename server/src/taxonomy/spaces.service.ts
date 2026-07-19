@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Kysely } from 'kysely';
 import { KYSELY } from '../db/db.module.js';
-import type { Database } from '../db/schema.js';
+import type { Database, SpaceVisibility } from '../db/schema.js';
 import { nowIso } from '../common/ids.js';
 import { slugify } from '../common/slug.js';
 
@@ -18,6 +18,8 @@ export interface SpaceView {
   created_at: string;
   updated_at: string;
   archived_at: string | null;
+  /** 'private' = not exposed to anonymous visitors. See SpacesTable.visibility. */
+  visibility: SpaceVisibility;
 }
 
 export interface SpaceWithCountsView extends SpaceView {
@@ -34,11 +36,13 @@ export interface CreateSpaceInput {
   slug?: string;
   name: string;
   description?: string | null;
+  visibility?: SpaceVisibility;
 }
 
 export interface UpdateSpaceInput {
   name?: string;
   description?: string | null;
+  visibility?: SpaceVisibility;
 }
 
 export interface CreatePrimaryCategoryInput {
@@ -77,19 +81,27 @@ export interface TaxonomyCountView {
 export class SpacesService {
   constructor(@Inject(KYSELY) private readonly db: Kysely<Database>) {}
 
-  async list(): Promise<SpaceView[]> {
-    return this.db
-      .selectFrom('spaces')
-      .selectAll()
-      .where('archived_at', 'is', null)
-      .orderBy('slug', 'asc')
-      .execute();
+  /**
+   * @param opts.anonymousViewer when true, private topics are omitted entirely.
+   * A private topic's NAME and description are themselves not public — listing
+   * them would advertise exactly what an admin marked as not-for-the-internet.
+   */
+  async list(opts: { anonymousViewer?: boolean } = {}): Promise<SpaceView[]> {
+    let q = this.db.selectFrom('spaces').selectAll().where('archived_at', 'is', null);
+    if (opts.anonymousViewer) q = q.where('visibility', '!=', 'private');
+    return q.orderBy('slug', 'asc').execute();
   }
 
-  async listWithCounts(): Promise<SpaceWithCountsView[]> {
-    const rows = await this.db
+  async listWithCounts(opts: { anonymousViewer?: boolean } = {}): Promise<SpaceWithCountsView[]> {
+    const anonymousViewer = Boolean(opts.anonymousViewer);
+    let rowsQuery = this.db
       .selectFrom('spaces')
-      .leftJoin('pages', (join) => join.onRef('pages.space_id', '=', 'spaces.id').on('pages.deleted_at', 'is', null))
+      // For anonymous callers the item count must reflect only what they can
+      // see; otherwise the count itself reveals how much unpublished work exists.
+      .leftJoin('pages', (join) => {
+        const j = join.onRef('pages.space_id', '=', 'spaces.id').on('pages.deleted_at', 'is', null);
+        return anonymousViewer ? j.on('pages.status', '=', 'published') : j;
+      })
       .select(({ fn }) => [
         'spaces.id as id',
         'spaces.slug as slug',
@@ -98,19 +110,23 @@ export class SpacesService {
         'spaces.created_at as created_at',
         'spaces.updated_at as updated_at',
         'spaces.archived_at as archived_at',
+        'spaces.visibility as visibility',
         fn.count<number>('pages.id').as('items_count'),
       ])
-      .where('spaces.archived_at', 'is', null)
-      .groupBy(['spaces.id', 'spaces.slug', 'spaces.name', 'spaces.description', 'spaces.created_at', 'spaces.updated_at', 'spaces.archived_at'])
+      .where('spaces.archived_at', 'is', null);
+    // A private topic's very existence is not public — omit it entirely.
+    if (anonymousViewer) rowsQuery = rowsQuery.where('spaces.visibility', '!=', 'private');
+    const rows = await rowsQuery
+      .groupBy(['spaces.id', 'spaces.slug', 'spaces.name', 'spaces.description', 'spaces.created_at', 'spaces.updated_at', 'spaces.archived_at', 'spaces.visibility'])
       .orderBy('spaces.slug', 'asc')
       .execute();
 
-    const statuses = await this.db
+    let statusesQuery = this.db
       .selectFrom('pages')
       .select(({ fn }) => ['space_id', 'status', fn.count<number>('id').as('count')])
-      .where('deleted_at', 'is', null)
-      .groupBy(['space_id', 'status'])
-      .execute();
+      .where('deleted_at', 'is', null);
+    if (anonymousViewer) statusesQuery = statusesQuery.where('status', '=', 'published');
+    const statuses = await statusesQuery.groupBy(['space_id', 'status']).execute();
     const statusCounts = new Map<string, { published: number; draft: number }>();
     for (const row of statuses) {
       const key = row.space_id ?? '';
@@ -129,6 +145,7 @@ export class SpacesService {
         created_at: row.created_at,
         updated_at: row.updated_at,
         archived_at: row.archived_at,
+        visibility: row.visibility,
         color: null,
         icon: null,
         counts: { items: Number(row.items_count), published: counts.published, draft: counts.draft },
@@ -155,6 +172,10 @@ export class SpacesService {
           created_at: now,
           updated_at: now,
           archived_at: null,
+          // New topics are public by default — matching the column default and
+          // the pre-existing behaviour (any published page was anonymously
+          // readable on a public instance). Admins opt a topic out afterwards.
+          visibility: input.visibility ?? 'public',
         })
         .execute();
     } catch (err) {
@@ -174,6 +195,7 @@ export class SpacesService {
       .set({
         name: nextName,
         description: input.description !== undefined ? input.description : existing.description,
+        visibility: input.visibility ?? existing.visibility,
         updated_at: nowIso(),
       })
       .where('id', '=', id)
@@ -196,13 +218,36 @@ export class SpacesService {
     return (await this.getById(id))!;
   }
 
-  async listTags(query?: string): Promise<TaxonomyCountView[]> {
-    const rows = await this.db
+  /**
+   * Page ids an anonymous visitor may see: published, not deleted, and not in a
+   * private topic. Used to scope derived vocabulary (tags/categories/groups) so
+   * a label that exists ONLY inside private or unpublished content is not
+   * advertised — the vocabulary leaks the shape of the content otherwise.
+   *
+   * Deliberately anonymous-only. Signed-in callers keep the existing counts
+   * (which do include drafts and deleted pages); correcting those is a separate
+   * change with its own blast radius, tracked in the wave plan.
+   */
+  private anonymousVisiblePages() {
+    return this.db
+      .selectFrom('pages')
+      .leftJoin('spaces', 'spaces.id', 'pages.space_id')
+      .select('pages.id')
+      .where('pages.deleted_at', 'is', null)
+      .where('pages.status', '=', 'published')
+      .where((eb) =>
+        eb.or([eb('pages.space_id', 'is', null), eb('spaces.visibility', '!=', 'private')]),
+      );
+  }
+
+  async listTags(query?: string, opts: { anonymousViewer?: boolean } = {}): Promise<TaxonomyCountView[]> {
+    let q = this.db
       .selectFrom('page_tags')
-      .select(({ fn }) => ['tag as name', 'tag as slug', fn.count<number>('page_id').as('count')])
-      .groupBy('tag')
-      .orderBy('tag', 'asc')
-      .execute();
+      .select(({ fn }) => ['tag as name', 'tag as slug', fn.count<number>('page_id').as('count')]);
+    if (opts.anonymousViewer) {
+      q = q.where('page_id', 'in', this.anonymousVisiblePages());
+    }
+    const rows = await q.groupBy('tag').orderBy('tag', 'asc').execute();
     return this.filterTaxonomy(rows.map((row) => ({
       id: `tag_${slugify(row.slug)}`,
       name: row.name,
@@ -214,19 +259,24 @@ export class SpacesService {
     })), query);
   }
 
-  async listCategories(query?: string): Promise<TaxonomyCountView[]> {
+  async listCategories(query?: string, opts: { anonymousViewer?: boolean } = {}): Promise<TaxonomyCountView[]> {
+    // The catalog (primary_categories) is admin-curated vocabulary, not derived
+    // from page content, so it stays visible either way. Only USAGE is scoped:
+    // a category used solely inside private/unpublished pages must not surface
+    // through its usage row.
+    let usageQuery = this.db
+      .selectFrom('page_categories')
+      .select(({ fn }) => ['category as name', 'category as slug', fn.count<number>('page_id').as('count')]);
+    if (opts.anonymousViewer) {
+      usageQuery = usageQuery.where('page_id', 'in', this.anonymousVisiblePages());
+    }
     const [catalogRows, usageRows] = await Promise.all([
       this.db
         .selectFrom('primary_categories')
         .select(['slug', 'name'])
         .where('archived_at', 'is', null)
         .execute(),
-      this.db
-        .selectFrom('page_categories')
-        .select(({ fn }) => ['category as name', 'category as slug', fn.count<number>('page_id').as('count')])
-        .groupBy('category')
-        .orderBy('category', 'asc')
-        .execute(),
+      usageQuery.groupBy('category').orderBy('category', 'asc').execute(),
     ]);
     const categories = new Map<string, TaxonomyCountView>();
     for (const row of catalogRows) {
@@ -298,10 +348,19 @@ export class SpacesService {
     return { id: `category_${slugify(slug)}`, name: existing.name, slug, count: await this.categoryUsageCount(slug), color: null, icon: null, scope: { type: 'global', space_id: null, space_slug: null } };
   }
 
-  async listGroups(q?: string): Promise<TaxonomyCountView[]> {
+  async listGroups(q?: string, opts: { anonymousViewer?: boolean } = {}): Promise<TaxonomyCountView[]> {
+    const anonymousViewer = Boolean(opts.anonymousViewer);
     let query = this.db
       .selectFrom('groups')
-      .leftJoin('page_groups', 'page_groups.group_id', 'groups.id')
+      // Count only pages the caller may see (anonymous), so the join itself is
+      // narrowed rather than the outer WHERE — a plain WHERE would turn this
+      // LEFT JOIN into an inner one and drop empty groups entirely.
+      .leftJoin('page_groups', (join) => {
+        const j = join.onRef('page_groups.group_id', '=', 'groups.id');
+        return anonymousViewer
+          ? j.on('page_groups.page_id', 'in', this.anonymousVisiblePages())
+          : j;
+      })
       .leftJoin('spaces', 'spaces.id', 'groups.space_id')
       .select(({ fn }) => [
         'groups.id as id',
@@ -312,6 +371,13 @@ export class SpacesService {
         fn.count<number>('page_groups.page_id').as('count'),
       ])
       .where('groups.archived_at', 'is', null);
+    // A group SCOPED to a private topic is itself private — its name would
+    // otherwise advertise the topic it belongs to.
+    if (anonymousViewer) {
+      query = query.where((eb) =>
+        eb.or([eb('groups.space_id', 'is', null), eb('spaces.visibility', '!=', 'private')]),
+      );
+    }
     if (q?.trim()) {
       const term = `%${q.trim()}%`;
       query = query.where((eb) =>
@@ -372,6 +438,7 @@ export class SpacesService {
         slug: DEFAULT_SPACE_SLUG,
         name: 'Default',
         description: 'Default local knowledge topic',
+        visibility: 'public',
         created_at: now,
         updated_at: now,
         archived_at: null,

@@ -79,6 +79,22 @@ export async function migrateSqlite(db: Kysely<Database>): Promise<void> {
   // application writes can rely on the canonical schema without deleting data.
   await ensureColumn(db, 'pages', 'space_id', `ALTER TABLE pages ADD COLUMN space_id TEXT`);
   await sql`UPDATE pages SET space_id = 'space_default' WHERE space_id IS NULL`.execute(db);
+
+  // Space visibility: 'public' | 'private', where private means "not exposed to
+  // anonymous visitors". Signed-in users are unaffected by it — this composes
+  // with the instance-wide read mode rather than duplicating it, so an admin can
+  // open the instance to the internet while keeping named spaces off it.
+  //
+  // Defaults to 'public' on purpose: before this column existed, EVERY published
+  // page was anonymously readable on a public instance, so 'public' is what the
+  // data already means. Defaulting to 'private' would silently hide live content
+  // on upgrade. Admins opt spaces out; nothing opts in behind their back.
+  await ensureColumn(
+    db,
+    'spaces',
+    'visibility',
+    `ALTER TABLE spaces ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public'`,
+  );
   // `type` (OKF concept kind) drives "sections" (blogs, FAQs, best practices…),
   // mirrored from frontmatter into a column so it is cheaply filterable.
   await ensureColumn(db, 'pages', 'type', `ALTER TABLE pages ADD COLUMN type TEXT`);
@@ -212,6 +228,42 @@ export async function migrateSqlite(db: Kysely<Database>): Promise<void> {
     .addColumn('image_id', 'text', (c) => c.notNull().references('images.id'))
     .addPrimaryKeyConstraint('image_links_pk', ['page_id', 'image_id'])
     .execute();
+  // Per-repo import default for items whose frontmatter declares no lifecycle
+  // state. Trust is a property of the SOURCE REPO, not of the instance, so this
+  // belongs here rather than only in KNOWLEDGE_E3_IMPORT_DEFAULT_STATUS (which
+  // remains the instance-wide fallback). NULL = defer to that fallback.
+  await ensureColumn(
+    db,
+    'space_repos',
+    'default_status',
+    `ALTER TABLE space_repos ADD COLUMN default_status TEXT`,
+  );
+
+  // Human-facing download name for an attachment. The stored `file` is an opaque
+  // content-addressed name (ADR-0003); this is what a download is presented as.
+  // NULL for pre-existing image rows (uploaded before attachments existed).
+  await ensureColumn(
+    db,
+    'images',
+    'original_filename',
+    `ALTER TABLE images ADD COLUMN original_filename TEXT`,
+  );
+
+  // Publish date, stamped on the first draft->published transition and settable
+  // from frontmatter (git-of-record). Distinct from updated_at so editing a
+  // published post does not re-date or reorder it in a chronological feed (blogs).
+  // Derived from frontmatter like every other column; NULL while unpublished.
+  await ensureColumn(db, 'pages', 'published_at', `ALTER TABLE pages ADD COLUMN published_at TEXT`);
+  // Backfill: existing published pages get their creation time as a sensible
+  // first date, so a blog feed has something to order by immediately.
+  await sql`UPDATE pages SET published_at = created_at WHERE published_at IS NULL AND status = 'published'`.execute(db);
+  await db.schema
+    .createIndex('idx_pages_published')
+    .ifNotExists()
+    .on('pages')
+    .columns(['deleted_at', 'status', 'published_at desc'])
+    .execute();
+
   await db.schema
     .createIndex('idx_image_links_image')
     .ifNotExists()
