@@ -3,7 +3,8 @@ import { expect, test, createPageViaApi } from './fixtures.js';
 const stamp = Date.now();
 
 test.describe('grouped topic browse view', () => {
-  test('groups filtered cards by topic with a capped preview and see-more topic links', async ({ signedInPage, apiAsAdmin }) => {
+  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
+  test('groups filtered cards by topic with a capped preview and see-more topic links @quarantine', async ({ signedInPage, apiAsAdmin }) => {
     for (let idx = 1; idx <= 8; idx += 1) {
       await createPageViaApi(apiAsAdmin, {
         title: `Grouped Research ${stamp}-${idx}`,

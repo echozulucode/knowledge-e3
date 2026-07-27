@@ -4,7 +4,8 @@
  * Both UI (page list search box) and API (recency-weighted ranker behaviour
  * which is hard to drive purely through the UI).
  */
-import { test, expect, createPageViaApi } from './fixtures.js';
+import { test, expect, createPageViaApi, createUserApiContext } from './fixtures.js';
+import playwright from '@playwright/test';
 
 test.describe('search — UI', () => {
   test.skip('typing in the search box surfaces matching pages', async () => {
@@ -39,26 +40,29 @@ test.describe('search — API and ranker behaviour', () => {
     expect(titles).not.toContain('Fresh But Off-Topic');
   });
 
-  test('drafts are excluded by default; admin can include them', async ({ apiAsAdmin }) => {
-    await createPageViaApi(apiAsAdmin, { title: 'Pub Doc', body: 'retries here', status: 'published' });
-    await createPageViaApi(apiAsAdmin, { title: 'Drf Doc', body: 'retries here', status: 'draft' });
+  test("another user's drafts are excluded by default; admin can include them", async ({ apiAsAdmin }) => {
+    // The visibility contract: a viewer sees published items plus their OWN
+    // drafts; other people's drafts appear only with include_drafts (admin).
+    // So the draft here is created by a SEPARATE user, not the admin searcher.
+    const other = await createUserApiContext(playwright, apiAsAdmin, { username: 'drafter-05search' });
+    await createPageViaApi(apiAsAdmin, { title: 'Pub Zebra', body: 'zebracorpus here', status: 'published' });
+    await createPageViaApi(other, { title: 'Drf Zebra', body: 'zebracorpus here', status: 'draft' });
+    await other.dispose();
 
-    const def = await apiAsAdmin.get('/api/v1/search?q=retries');
-    const defBody = await def.json();
-    const defTitles = (defBody.results as { title: string }[]).map((r) => r.title);
-    expect(defTitles).toContain('Pub Doc');
-    expect(defTitles).not.toContain('Drf Doc');
+    const def = await apiAsAdmin.get('/api/v1/search?q=zebracorpus');
+    const defTitles = ((await def.json()).results as { title: string }[]).map((r) => r.title);
+    expect(defTitles).toContain('Pub Zebra');
+    expect(defTitles).not.toContain('Drf Zebra');
 
-    const inc = await apiAsAdmin.get('/api/v1/search?q=retries&include_drafts=1');
-    const incBody = await inc.json();
-    const incTitles = (incBody.results as { title: string }[]).map((r) => r.title).sort();
-    expect(incTitles).toEqual(expect.arrayContaining(['Drf Doc', 'Pub Doc']));
+    const inc = await apiAsAdmin.get('/api/v1/search?q=zebracorpus&include_drafts=1');
+    const incTitles = ((await inc.json()).results as { title: string }[]).map((r) => r.title).sort();
+    expect(incTitles).toEqual(expect.arrayContaining(['Drf Zebra', 'Pub Zebra']));
   });
 
   test('tag filter narrows results', async ({ apiAsAdmin }) => {
-    await createPageViaApi(apiAsAdmin, { title: 'RA', body: 'retries', status: 'published', tags: ['runbook'] });
-    await createPageViaApi(apiAsAdmin, { title: 'RefA', body: 'retries', status: 'published', tags: ['reference'] });
-    const res = await apiAsAdmin.get('/api/v1/search?q=retries&tag=runbook');
+    await createPageViaApi(apiAsAdmin, { title: 'RA', body: 'tagnarrowcorpus', status: 'published', tags: ['runbook'] });
+    await createPageViaApi(apiAsAdmin, { title: 'RefA', body: 'tagnarrowcorpus', status: 'published', tags: ['reference'] });
+    const res = await apiAsAdmin.get('/api/v1/search?q=tagnarrowcorpus&tag=runbook');
     const body = await res.json();
     const titles = (body.results as { title: string }[]).map((r) => r.title);
     expect(titles).toContain('RA');

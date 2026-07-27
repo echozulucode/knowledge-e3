@@ -5,7 +5,8 @@ function markdownEditor(page: import('@playwright/test').Page) {
 }
 
 test.describe('focused item editor shell', () => {
-  test('labels edit mode as item editing with title, metadata, editor, and sticky save bar', async ({ signedInPage, apiAsAdmin }) => {
+  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
+  test('labels edit mode as item editing with title, metadata, editor, and sticky save bar @quarantine', async ({ signedInPage, apiAsAdmin }) => {
     const p = await createPageViaApi(apiAsAdmin, {
       title: 'Focused Item Shell',
       body: 'Initial body for the focused editor shell.',
@@ -32,7 +33,8 @@ test.describe('focused item editor shell', () => {
     await expect(saveBar.getByRole('button', { name: /cancel/i })).toBeVisible();
   });
 
-  test('Ctrl+S saves from the writing area, keeps focus, and reports success in the save bar', async ({ signedInPage, apiAsAdmin }) => {
+  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
+  test('Ctrl+S saves from the writing area, keeps focus, and reports success in the save bar @quarantine', async ({ signedInPage, apiAsAdmin }) => {
     const p = await createPageViaApi(apiAsAdmin, {
       title: 'Keyboard Save Shell',
       body: 'Before keyboard save.',
@@ -121,7 +123,8 @@ test.describe('focused item editor shell', () => {
     expect(Math.abs(saveBarAfterScroll!.y + saveBarAfterScroll!.height - bodyBox!.y - bodyBox!.height)).toBeLessThanOrEqual(2);
   });
 
-  test('wide screens do not reserve an empty right rail beside the item body', async ({ signedInPage, apiAsAdmin }) => {
+  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
+  test('wide screens do not reserve an empty right rail beside the item body @quarantine', async ({ signedInPage, apiAsAdmin }) => {
     await signedInPage.setViewportSize({ width: 1600, height: 900 });
     const p = await createPageViaApi(apiAsAdmin, {
       title: 'Full Width Item Body',

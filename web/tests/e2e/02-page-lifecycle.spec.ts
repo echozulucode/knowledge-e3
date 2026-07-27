@@ -12,7 +12,7 @@ test.describe('page lifecycle — UI', () => {
     void page; // Use the signedInPage fixture; the bare page is unused here.
     // Explicit goto so first-load Vite transpilation is fully done before
     // we look for the button.
-    await signedInPage.goto('/');
+    await signedInPage.goto('/browse');
     // New item creation now uses an in-app composer rather than browser prompt().
     signedInPage.on('dialog', (dialog) => {
       throw new Error(`Page creation should not open a browser ${dialog.type()} dialog.`);
@@ -38,12 +38,13 @@ test.describe('page lifecycle — UI', () => {
   test('page list shows status filter pills and renders both draft and published pages', async ({ signedInPage, apiAsAdmin }) => {
     await createPageViaApi(apiAsAdmin, { title: 'A Public Doc', status: 'published' });
     await createPageViaApi(apiAsAdmin, { title: 'A Draft Doc', status: 'draft' });
-    await signedInPage.goto('/');
-    // The redesigned page list replaced status section headings with filter
-    // pills (buttons). Both pills are present, and unfiltered the list shows
-    // every page regardless of status.
-    await expect(signedInPage.getByRole('button', { name: 'Published', exact: true })).toBeVisible();
-    await expect(signedInPage.getByRole('button', { name: 'Draft', exact: true })).toBeVisible();
+    await signedInPage.goto('/browse');
+    // Status filtering lives in the "Filters" facet sidebar. Each facet button's
+    // accessible name is "<label> <count>" (label + count spans), so match on a
+    // prefix rather than an exact string.
+    const filters = signedInPage.getByRole('complementary', { name: 'Filters' });
+    await expect(filters.getByRole('button', { name: /^Published\b/ })).toBeVisible();
+    await expect(filters.getByRole('button', { name: /^Draft\b/ })).toBeVisible();
     // Page rows are now `<li role="button">` clickable rows (not anchor tags).
     // The accessible name is the page title.
     await expect(signedInPage.locator('.PageList__Card').filter({ has: signedInPage.locator('.PageList__CardTitle', { hasText: 'A Public Doc' }) })).toBeVisible();
@@ -80,20 +81,41 @@ test.describe('page lifecycle — UI', () => {
       body: 'This is the body content.',
       status: 'published',
     });
-    await signedInPage.goto('/');
-    // PageList rows are <li role="button"> in the redesigned UI.
-    await signedInPage.locator('.PageList__Card').filter({ has: signedInPage.locator('.PageList__CardTitle', { hasText: 'Readable Page' }) }).click();
+    await signedInPage.goto('/browse');
+    // The card is a semantic container with an inner "Open <title>" button as
+    // its primary action (see list-card-semantics.spec.ts) — the card element
+    // itself is no longer the click target.
+    const card = signedInPage.locator('.PageList__Card').filter({ has: signedInPage.locator('.PageList__CardTitle', { hasText: 'Readable Page' }) });
+    await expect(card).toBeVisible({ timeout: 15_000 });
+    // The open action is an overlay button that the card's preview text sits on
+    // top of, so a real pointer click is intercepted. Drive it by keyboard, the
+    // same way list-card-semantics.spec.ts does.
+    await card.getByRole('button', { name: /open readable page/i }).focus();
+    await signedInPage.keyboard.press('Enter');
     await signedInPage.waitForURL(/\/p\/readable-page/);
     await expect(signedInPage.getByText('This is the body content.')).toBeVisible({ timeout: 15_000 });
   });
 });
 
 test.describe('page lifecycle — API', () => {
+  test('duplicate title in the same topic is rejected with 409', async ({ apiAsAdmin }) => {
+    // assertTitleAvailableInSpace (pages.service.ts) guards this: an identical
+    // title in the same space is a conflict, not a silent second item.
+    await createPageViaApi(apiAsAdmin, { title: 'Same Title' });
+    const dup = await apiAsAdmin.post('/api/v1/pages', {
+      data: { title: 'Same Title', body: '', status: 'draft', tags: [], frontmatter: {} },
+    });
+    expect(dup.status()).toBe(409);
+  });
+
   test('slug collision auto-disambiguates with -2 suffix', async ({ apiAsAdmin }) => {
-    const a = await createPageViaApi(apiAsAdmin, { title: 'Same Title' });
-    const b = await createPageViaApi(apiAsAdmin, { title: 'Same Title' });
-    expect(a.slug).toBe('same-title');
-    expect(b.slug).toBe('same-title-2');
+    // Distinct titles that slugify identically ("!" is stripped) still collide
+    // on slug, so findFreeSlug's -2 suffix remains reachable. Identical titles
+    // no longer are — they are rejected by the duplicate-title guard above.
+    const a = await createPageViaApi(apiAsAdmin, { title: 'Slug Collide' });
+    const b = await createPageViaApi(apiAsAdmin, { title: 'Slug Collide!' });
+    expect(a.slug).toBe('slug-collide');
+    expect(b.slug).toBe('slug-collide-2');
   });
 
   test('lookup by exact title returns the page', async ({ apiAsAdmin }) => {

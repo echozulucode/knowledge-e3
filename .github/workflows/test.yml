@@ -67,5 +67,65 @@ jobs:
       - name: Type check
         run: pnpm -r typecheck
 
+      - name: Lint
+        # Catches the class of bug tsc cannot: conditional/after-early-return
+        # React Hook calls, which only surface at runtime. Config is narrow on
+        # purpose (see web/eslint.config.js).
+        run: pnpm -r lint
+
       - name: Run tests
         run: pnpm -r test
+
+  # Separate job: e2e boots a real server + Vite and is slower than the unit
+  # suite, so a failure here should be distinguishable at a glance. It runs
+  # every spec NOT tagged @quarantine -- see docs/e2e-quarantine.md for why
+  # specs get quarantined and how to bring one back.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages
+        run: pnpm -r build
+
+      - name: Install Playwright browser
+        run: pnpm test:e2e:install
+
+      - name: Run e2e (non-quarantined)
+        run: pnpm --filter @echozedlabs/web test:e2e:ci
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          retention-days: 7

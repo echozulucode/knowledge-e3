@@ -133,7 +133,9 @@ export const ReadView: React.FC<ReadViewProps> = ({ markdown, knownSlugs }) => {
           // Images: constrain to the content width and lazy-load. `src` is a
           // bundle-relative `/assets/<file>` served by the API (proxied in dev).
           img: ({ node, ...props }: any) => (
-            // eslint-disable-next-line jsx-a11y/alt-text
+            // `alt` is not set literally here: it arrives via {...props} from
+            // the markdown image syntax (`![alt](src)`), so it is authored in
+            // the source file rather than in this component.
             <img loading="lazy" style={{ maxWidth: '100%', height: 'auto', borderRadius: '6px' }} {...props} />
           ),
           // Tables: wrap in an overflow container so wide tables scroll

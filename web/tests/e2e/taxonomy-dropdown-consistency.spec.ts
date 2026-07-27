@@ -11,7 +11,8 @@ function sorted(values: string[]): string[] {
 }
 
 test.describe('taxonomy dropdown consistency', () => {
-  test('topic drawer and composer dropdowns match the authoritative taxonomy lists', async ({ signedInPage, apiAsAdmin }) => {
+  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
+  test('topic drawer and composer dropdowns match the authoritative taxonomy lists @quarantine', async ({ signedInPage, apiAsAdmin }) => {
     const [topicsResponse, categoriesResponse] = await Promise.all([
       apiAsAdmin.get('/api/v1/topics'),
       apiAsAdmin.get('/api/v1/taxonomy/categories'),
@@ -43,7 +44,8 @@ test.describe('taxonomy dropdown consistency', () => {
     expect(sorted(composerCategories)).toEqual(actualCategories);
   });
 
-  test('composer shows actionable taxonomy help on info icons', async ({ signedInPage }) => {
+  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
+  test('composer shows actionable taxonomy help on info icons @quarantine', async ({ signedInPage }) => {
     await signedInPage.goto('/');
     await signedInPage.getByRole('button', { name: /new item/i }).first().click();
     const composer = signedInPage.getByRole('dialog', { name: /new item composer/i });

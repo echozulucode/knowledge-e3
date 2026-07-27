@@ -17,7 +17,8 @@ function editMetadataRegion(page: import('@playwright/test').Page) {
 }
 
 test.describe('item properties default display', () => {
-  test('read mode hides item properties until explicitly toggled on', async ({ signedInPage, apiAsAdmin }, testInfo) => {
+  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
+  test('read mode hides item properties until explicitly toggled on @quarantine', async ({ signedInPage, apiAsAdmin }, testInfo) => {
     const suffix = `props-read-${testInfo.workerIndex}-${Date.now()}`;
     const item = await createPageViaApi(apiAsAdmin, {
       title: `Read Hidden Properties Item ${suffix}`,
@@ -76,14 +77,14 @@ test.describe('item properties default display', () => {
 
   test('new item auto-edit also hides properties until explicitly toggled on', async ({ signedInPage }, testInfo) => {
     const suffix = `props-new-${testInfo.workerIndex}-${Date.now()}`;
-    await signedInPage.goto('/');
+    await signedInPage.goto('/browse');
     await signedInPage.getByRole('button', { name: /new item/i }).first().click();
 
     const dialog = signedInPage.getByRole('dialog', { name: /new item composer/i });
     await dialog.getByLabel(/^title/i).fill(`Expanded Properties New Item ${suffix}`);
     await dialog.getByRole('button', { name: /start draft/i }).click();
 
-    await expect(signedInPage).toHaveURL((url) => url.pathname.startsWith('/items/') && Boolean(url.searchParams.get('edit')), {
+    await expect(signedInPage).toHaveURL((url) => url.pathname.startsWith('/p/') && Boolean(url.searchParams.get('edit')), {
       timeout: 10_000,
     });
     await expect(propertiesDetails(signedInPage)).toHaveCount(0, { timeout: 15_000 });

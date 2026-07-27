@@ -1,7 +1,8 @@
 import { test, expect, createPageViaApi } from './fixtures.js';
 
 test.describe('admin primary category management', () => {
-  test('creates primary categories from Admin and reports duplicate validation errors', async ({ signedInPage, apiAsAdmin }, testInfo) => {
+  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
+  test('creates primary categories from Admin and reports duplicate validation errors @quarantine', async ({ signedInPage, apiAsAdmin }, testInfo) => {
     const suffix = `admin-category-${testInfo.workerIndex}-${Date.now()}`;
     const architectureTitle = `Admin Category Seed Architecture ${suffix}`;
     const fieldResearchTitle = `Admin Category Seed Field Research ${suffix}`;

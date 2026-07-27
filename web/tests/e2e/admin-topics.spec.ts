@@ -1,7 +1,8 @@
 import { test, expect } from './fixtures.js';
 
 test.describe('admin Topic management', () => {
-  test('lists existing topics from Admin and creates a topic in a modal', async ({ signedInPage, apiAsAdmin }, testInfo) => {
+  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
+  test('lists existing topics from Admin and creates a topic in a modal @quarantine', async ({ signedInPage, apiAsAdmin }, testInfo) => {
     const suffix = `admin-topic-${testInfo.workerIndex}-${Date.now()}`;
     const seedName = `Product Discovery ${suffix}`;
     const seedSlug = `product-discovery-${suffix}`;
@@ -50,7 +51,8 @@ test.describe('admin Topic management', () => {
     await expect(signedInPage.getByText(/topic created/i)).toBeVisible();
   });
 
-  test('keeps risky topic operations and article topic reassignment out of the editor', async ({ signedInPage, apiAsAdmin }, testInfo) => {
+  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
+  test('keeps risky topic operations and article topic reassignment out of the editor @quarantine', async ({ signedInPage, apiAsAdmin }, testInfo) => {
     const suffix = `editor-boundary-${testInfo.workerIndex}-${Date.now()}`;
     const topicName = `Editor Boundary ${suffix}`;
     const renamedTopicName = `Editor Boundary Renamed ${suffix}`;

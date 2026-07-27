@@ -77,14 +77,14 @@ test.describe('editor chrome feedback', () => {
 
   test('new item hides properties on first edit and on later edit after save', async ({ signedInPage }, testInfo) => {
     const suffix = `chrome-new-${testInfo.workerIndex}-${Date.now()}`;
-    await signedInPage.goto('/');
+    await signedInPage.goto('/browse');
     await signedInPage.getByRole('button', { name: /new item/i }).first().click();
 
     const dialog = signedInPage.getByRole('dialog', { name: /new item composer/i });
     await dialog.getByLabel(/^title/i).fill(`Feedback New Item Properties ${suffix}`);
     await dialog.getByRole('button', { name: /start draft/i }).click();
 
-    await expect(signedInPage).toHaveURL((url) => url.pathname.startsWith('/items/') && Boolean(url.searchParams.get('edit')), {
+    await expect(signedInPage).toHaveURL((url) => url.pathname.startsWith('/p/') && Boolean(url.searchParams.get('edit')), {
       timeout: 10_000,
     });
     await expect(signedInPage.locator('.cm-me-properties-details').first()).toHaveCount(0, { timeout: 15_000 });

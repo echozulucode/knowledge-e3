@@ -4,14 +4,14 @@
 import { test, expect, ADMIN } from './fixtures.js';
 
 test.describe('authentication', () => {
-  test('successful sign-in lands on the page list', async ({ page }) => {
+  test('successful sign-in lands on the home page', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('Username').fill(ADMIN.username);
     await page.getByLabel('Password').fill(ADMIN.password);
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.waitForURL((u) => u.pathname === '/');
-    // PageList's <h1> reads "All pages" in the redesigned header.
-    await expect(page.getByRole('heading', { name: 'All pages' })).toBeVisible();
+    // `/` is the Home hero (router.tsx); the item list moved to /browse.
+    await expect(page.getByRole('heading', { name: /Quiet, source-backed knowledge/i })).toBeVisible();
   });
 
   test('invalid password shows an error and stays on /login', async ({ page }) => {
