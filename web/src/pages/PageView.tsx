@@ -144,6 +144,7 @@ export function PageView() {
   const autoEditProcessedRef = useRef(false);
   const autoEditBodyFocusDoneRef = useRef(false);
   const saveInFlightRef = useRef(false);
+  const autoReturnTimerRef = useRef<number | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -442,6 +443,23 @@ export function PageView() {
     document.title = isDirty ? `• ${baseTitle}` : baseTitle;
   }, [isDirty, page?.title]);
 
+  // If the author resumes editing during the post-save "Saved" window, cancel the
+  // pending auto-return to read view — they're clearly still working.
+  useEffect(() => {
+    if (isDirty && autoReturnTimerRef.current) {
+      window.clearTimeout(autoReturnTimerRef.current);
+      autoReturnTimerRef.current = null;
+    }
+  }, [isDirty]);
+
+  // Clear any pending auto-return timer on unmount.
+  useEffect(
+    () => () => {
+      if (autoReturnTimerRef.current) window.clearTimeout(autoReturnTimerRef.current);
+    },
+    [],
+  );
+
   // New-item drafts should land with the body editor ready for immediate typing.
   // Only do this once for the auto-edit mount. Re-running on every editState
   // update steals focus back from the title input after the first typed
@@ -484,8 +502,12 @@ export function PageView() {
           }
         );
 
-        // Success: remain in the focused data-entry workspace and make the save
-        // state visible in the sticky bar rather than hiding it in a toast-only flow.
+        // Success: confirm the save in the sticky savebar ("Saved"), then briefly
+        // afterward return to the read view. This is the middle ground between
+        // exiting immediately (abrupt, and the confirmation flashed by unseen) and
+        // staying in edit mode indefinitely (never felt "done"). The auto-return is
+        // cancelled if the author resumes editing before it fires (see the isDirty
+        // effect below).
         await queryClient.invalidateQueries({ queryKey: ['pages'] });
         await queryClient.invalidateQueries({ queryKey: ['search'] });
         pushToast({
@@ -499,7 +521,11 @@ export function PageView() {
         setIsDirty(false);
         refetchPage();
         refetchPageById();
-        exitEditMode();
+        if (autoReturnTimerRef.current) window.clearTimeout(autoReturnTimerRef.current);
+        autoReturnTimerRef.current = window.setTimeout(() => {
+          autoReturnTimerRef.current = null;
+          exitEditMode();
+        }, 1100);
         return true;
       } catch (err: any) {
         if (err.statusCode === 409 && /already exists/i.test(err.message || '')) {

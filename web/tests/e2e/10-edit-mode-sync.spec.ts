@@ -20,8 +20,7 @@
 import { test, expect, createPageViaApi } from './fixtures.js';
 
 test.describe('edit-mode sync — P0 regression', () => {
-  // @quarantine (app bug): editor save/sync path hangs — pre-existing, predates the OKF pivot. Test is likely correct; fix the product.
-  test('edits in source mode sync to WYSIWYG without save @quarantine', async ({ signedInPage, apiAsAdmin }) => {
+  test('edits in source mode sync to WYSIWYG without save', async ({ signedInPage, apiAsAdmin }) => {
     const p = await createPageViaApi(apiAsAdmin, {
       title: 'SyncTest',
       body: 'Initial body.',
@@ -56,13 +55,13 @@ test.describe('edit-mode sync — P0 regression', () => {
     await signedInPage.waitForTimeout(200);
 
     // Assert: the CM6-typed text should be visible in the Lexical editor output.
-    // Lexical wraps its content in an editable div with class .editor-input
-    const lexicalEditor = signedInPage.locator('.editor-input');
+    // The Lexical ContentEditable renders with class `me-wysiwyg-input`
+    // (from @echozedlabs/wysiwyg-lexical), not the old `.editor-input`.
+    const lexicalEditor = signedInPage.locator('.me-wysiwyg-input');
     await expect(lexicalEditor).toContainText(marker1);
   });
 
-  // @quarantine (app bug): editor save/sync path hangs — pre-existing, predates the OKF pivot. Test is likely correct; fix the product.
-  test('edits in WYSIWYG sync back to source mode without save @quarantine', async ({
+  test('edits in WYSIWYG sync back to source mode without save', async ({
     signedInPage,
     apiAsAdmin,
   }) => {
@@ -81,7 +80,7 @@ test.describe('edit-mode sync — P0 regression', () => {
 
     // Type a marker in the Lexical editor
     const marker1 = '-- WYSIWYG 67890 --';
-    const lexicalEditor = signedInPage.locator('.editor-input');
+    const lexicalEditor = signedInPage.locator('.me-wysiwyg-input');
     await lexicalEditor.click();
     await lexicalEditor.press('End');
     await lexicalEditor.press('Enter');
@@ -100,8 +99,7 @@ test.describe('edit-mode sync — P0 regression', () => {
     await expect(cmContent).toContainText(marker1);
   });
 
-  // @quarantine (app bug): editor save/sync path hangs — pre-existing, predates the OKF pivot. Test is likely correct; fix the product.
-  test('round-trip: CM6 → Lexical → CM6 preserves both edits @quarantine', async ({
+  test('round-trip: CM6 → Lexical → CM6 preserves both edits', async ({
     signedInPage,
     apiAsAdmin,
   }) => {
@@ -127,7 +125,7 @@ test.describe('edit-mode sync — P0 regression', () => {
     await signedInPage.waitForTimeout(200);
 
     const marker2 = '-- WYSIWYG 67890 --';
-    const lexicalEditor = signedInPage.locator('.editor-input');
+    const lexicalEditor = signedInPage.locator('.me-wysiwyg-input');
     await lexicalEditor.click();
     await lexicalEditor.press('End');
     await lexicalEditor.type(`\n${marker2}`);
@@ -145,8 +143,7 @@ test.describe('edit-mode sync — P0 regression', () => {
     await expect(cmContent2).toContainText(marker2);
   });
 
-  // @quarantine (app bug): editor save/sync path hangs — pre-existing, predates the OKF pivot. Test is likely correct; fix the product.
-  test('keyboard shortcut Cmd+Shift+M cycles modes while preserving edits @quarantine', async ({
+  test('cycling through all editor modes via the toolbar preserves edits', async ({
     signedInPage,
     apiAsAdmin,
   }) => {
@@ -158,7 +155,7 @@ test.describe('edit-mode sync — P0 regression', () => {
     await signedInPage.goto(`/p/${p.slug}`);
     await signedInPage.getByRole('button', { name: /edit/i }).click();
 
-    // Type in hybrid (default, assumed)
+    // Type a marker in hybrid mode (the default), which is CodeMirror-backed.
     const marker = '-- CYCLE TEST --';
     const cmContent = signedInPage.locator('.cm-content');
     await cmContent.click();
@@ -166,29 +163,31 @@ test.describe('edit-mode sync — P0 regression', () => {
     await cmContent.type(`\n${marker}`);
     await signedInPage.waitForTimeout(100);
 
-    // Use keyboard shortcut to cycle to next mode (hybrid → preview)
-    await signedInPage.keyboard.press('Meta+Shift+M');
-    await signedInPage.waitForTimeout(200);
+    // Mode switching is toolbar-driven (there is no keyboard mode-cycle shortcut
+    // in the editor package — it only binds Cmd/Ctrl+S and Escape). The four mode
+    // buttons live in the editor's "Editor controls" toolbar; scope to it so the
+    // savebar's own "Preview" toggle can't collide with the mode buttons.
+    const editorSection = signedInPage.locator('.me-editor');
+    const toolbar = signedInPage.getByRole('toolbar', { name: /editor controls/i });
 
-    // Should now be in preview mode. Assert the marker is still there (rendered).
-    await expect(signedInPage.locator('[data-mode="preview"]')).toBeVisible();
-    const cmContent2 = signedInPage.locator('.cm-content');
-    await expect(cmContent2).toContainText(marker);
+    // Hybrid → Rich text (WYSIWYG). Lexical renders into `.me-wysiwyg-input`.
+    await toolbar.getByRole('button', { name: /rich text/i }).click();
+    await expect(editorSection).toHaveAttribute('data-mode', 'wysiwyg');
+    await expect(signedInPage.locator('.me-wysiwyg-input')).toContainText(marker);
 
-    // Cycle again (preview → wysiwyg)
-    await signedInPage.keyboard.press('Meta+Shift+M');
-    await signedInPage.waitForTimeout(200);
+    // Rich text → Markdown (CodeMirror source view).
+    await toolbar.getByRole('button', { name: /^markdown$/i }).click();
+    await expect(editorSection).toHaveAttribute('data-mode', 'markdown');
+    await expect(signedInPage.locator('.cm-content')).toContainText(marker);
 
-    await expect(signedInPage.locator('[data-mode="wysiwyg"]')).toBeVisible();
-    const lexicalEditor = signedInPage.locator('.editor-input');
-    await expect(lexicalEditor).toContainText(marker);
+    // Markdown → Preview (rendered, read-only). Assert the marker text rendered.
+    await toolbar.getByRole('button', { name: /^preview$/i }).click();
+    await expect(editorSection).toHaveAttribute('data-mode', 'preview');
+    await expect(editorSection).toContainText(marker);
 
-    // Cycle once more (wysiwyg → hybrid)
-    await signedInPage.keyboard.press('Meta+Shift+M');
-    await signedInPage.waitForTimeout(200);
-
-    await expect(signedInPage.locator('[data-mode="hybrid"]')).toBeVisible();
-    const cmContent3 = signedInPage.locator('.cm-content');
-    await expect(cmContent3).toContainText(marker);
+    // Preview → Hybrid, back to the start; the marker is still in the source.
+    await toolbar.getByRole('button', { name: /^hybrid$/i }).click();
+    await expect(editorSection).toHaveAttribute('data-mode', 'hybrid');
+    await expect(signedInPage.locator('.cm-content')).toContainText(marker);
   });
 });

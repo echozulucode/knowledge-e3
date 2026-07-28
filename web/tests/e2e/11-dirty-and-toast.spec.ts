@@ -66,8 +66,7 @@ test.describe('dirty indicator + save toast', () => {
     expect(title).not.toContain('•');
   });
 
-  // @quarantine (app bug): editor save/sync path hangs — pre-existing, predates the OKF pivot. Test is likely correct; fix the product.
-  test('success toast "Page saved" appears and auto-dismisses @quarantine', async ({
+  test('success toast "Page saved" appears and auto-dismisses', async ({
     signedInPage,
     apiAsAdmin,
   }) => {
@@ -88,19 +87,21 @@ test.describe('dirty indicator + save toast', () => {
     // Save
     await signedInPage.keyboard.press('Control+s');
 
-    // Wait for success toast to appear
-    // Toast is typically role="status" with success message
-    const successToast = signedInPage.locator('[role="status"]').filter({
-      hasText: /saved|saved|synced/i,
+    // Wait for the success toast to appear. Scope to the toast component
+    // (role="status" success): PageView also renders an inline `kp-local-notice`
+    // with role="status" for the same event, so a bare [role="status"] matches
+    // two elements and trips Playwright strict mode. The toast is what this test
+    // is about; the inline notice is covered by the dirty-indicator tests.
+    const successToast = signedInPage.locator('.kp-toast-item').filter({
+      hasText: /saved|synced/i,
     });
     await expect(successToast).toBeVisible({ timeout: 3000 });
 
-    // Wait for auto-dismiss (typically 3 seconds)
+    // Success toasts auto-dismiss after 2500ms (useToast AUTO_DISMISS_MS).
     await expect(successToast).not.toBeVisible({ timeout: 5000 });
   });
 
-  // @quarantine (app bug): editor save/sync path hangs — pre-existing, predates the OKF pivot. Test is likely correct; fix the product.
-  test('error toast appears with Retry button on save failure @quarantine', async ({
+  test('error toast appears with Retry button on save failure', async ({
     signedInPage,
     apiAsAdmin,
   }) => {
@@ -134,23 +135,21 @@ test.describe('dirty indicator + save toast', () => {
     // Save (will fail due to interceptor)
     await signedInPage.keyboard.press('Control+s');
 
-    // Wait for error toast to appear
-    // Toast is typically role="alert" with error message
-    const errorToast = signedInPage.locator('[role="alert"]').filter({
+    // Wait for the error toast. Scope to the toast component (role="alert"
+    // error): PageView also renders an inline `kp-local-notice` with role="alert"
+    // for the same error, so a bare [role="alert"] matches two elements and trips
+    // strict mode. Error toasts persist until dismissed (useToast).
+    const errorToast = signedInPage.locator('.kp-toast-item').filter({
       hasText: /failed|error/i,
     });
     await expect(errorToast).toBeVisible({ timeout: 3000 });
 
-    // Expect a Retry button inside or near the error toast
-    const retryButton = signedInPage
-      .locator('[role="alert"]')
-      .filter({ hasText: /failed|error/i })
-      .getByRole('button', { name: /retry/i });
+    // Expect a Retry button inside the error toast.
+    const retryButton = errorToast.getByRole('button', { name: /retry/i });
     await expect(retryButton).toBeVisible();
   });
 
-  // @quarantine (app bug): editor save/sync path hangs — pre-existing, predates the OKF pivot. Test is likely correct; fix the product.
-  test('Retry button re-attempts save and shows success on recovery @quarantine', async ({
+  test('Retry button re-attempts save and shows success on recovery', async ({
     signedInPage,
     apiAsAdmin,
   }) => {
@@ -190,21 +189,18 @@ test.describe('dirty indicator + save toast', () => {
 
     await signedInPage.keyboard.press('Control+s');
 
-    // Error toast appears
-    const errorToast = signedInPage.locator('[role="alert"]').filter({
+    // Error toast appears (scoped to the toast component — see note above).
+    const errorToast = signedInPage.locator('.kp-toast-item').filter({
       hasText: /failed|error/i,
     });
     await expect(errorToast).toBeVisible({ timeout: 3000 });
 
-    // Click Retry button
-    const retryButton = signedInPage
-      .locator('[role="alert"]')
-      .filter({ hasText: /failed|error/i })
-      .getByRole('button', { name: /retry/i });
+    // Click the Retry button inside the error toast.
+    const retryButton = errorToast.getByRole('button', { name: /retry/i });
     await retryButton.click();
 
-    // Wait for success toast (error toast should be gone)
-    const successToast = signedInPage.locator('[role="status"]').filter({
+    // Wait for the success toast (the error toast dismisses on retry).
+    const successToast = signedInPage.locator('.kp-toast-item').filter({
       hasText: /saved|synced/i,
     });
     await expect(successToast).toBeVisible({ timeout: 3000 });

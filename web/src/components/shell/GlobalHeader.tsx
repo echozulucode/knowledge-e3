@@ -53,10 +53,10 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onOpenPalette, onOpe
             type="button"
             className="kp-palette-trigger kp-header-search"
             onClick={onOpenPalette}
-            aria-label="Search knowledge (Command or Control + K)"
+            aria-label="Jump to a page (Command or Control + K)"
           >
             <Icon icon={appIcons.magnifyingGlass} />
-            <span>Search knowledge…</span>
+            <span>Jump to a page…</span>
             <kbd>⌘K</kbd>
           </button>
         ) : (
@@ -69,8 +69,8 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onOpenPalette, onOpe
             type="button"
             className="kp-header-search-mobile"
             onClick={onOpenPalette}
-            aria-label="Search knowledge"
-            title="Search"
+            aria-label="Jump to a page"
+            title="Jump to a page"
           >
             <Icon icon={appIcons.magnifyingGlass} />
           </button>

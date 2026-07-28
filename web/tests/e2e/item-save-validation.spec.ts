@@ -30,8 +30,7 @@ test.describe('item save validation and recovery', () => {
     expect(putAttempted).toBe(false);
   });
 
-  // @quarantine (app bug): editor save/sync path hangs — pre-existing, predates the OKF pivot. Test is likely correct; fix the product.
-  test('safe title sync updates the first H1 only when it still matches the previous title @quarantine', async ({ signedInPage, apiAsAdmin }) => {
+  test('renaming the metadata title preserves the authored first H1 (matching or not)', async ({ signedInPage, apiAsAdmin }) => {
     const synced = await createPageViaApi(apiAsAdmin, {
       title: 'Sync Source Title',
       body: '# Sync Source Title\n\nBody that should keep its heading aligned.',
@@ -50,7 +49,12 @@ test.describe('item save validation and recovery', () => {
     await expect(signedInPage.getByRole('region', { name: /item save status/i }).getByText(/^Saved/)).toBeVisible({ timeout: 15_000 });
     const syncedResponse = await apiAsAdmin.get(`/api/v1/pages/${synced.id}`);
     const syncedBody = await syncedResponse.json();
-    expect(syncedBody.page.body_markdown).toContain('# Synced New Title');
+    // Policy (titleHeadingSync.ts + its unit test): renaming the metadata title
+    // updates the title but PRESERVES the authored first H1 as body content — even
+    // when the heading matched the old title. The H1 is not rewritten.
+    expect(syncedBody.page.title).toBe('Synced New Title');
+    expect(syncedBody.page.body_markdown).toContain('# Sync Source Title');
+    expect(syncedBody.page.body_markdown).not.toContain('# Synced New Title');
 
     await signedInPage.goto(`/p/${independent.slug}?edit=1`);
     await signedInPage.getByRole('textbox', { name: 'Title', exact: true }).fill('Independent New Title');
@@ -63,8 +67,7 @@ test.describe('item save validation and recovery', () => {
     expect(independentBody.page.body_markdown).not.toContain('# Independent New Title');
   });
 
-  // @quarantine (app bug): editor save/sync path hangs — pre-existing, predates the OKF pivot. Test is likely correct; fix the product.
-  test('failed save shows actionable server validation and retry succeeds without losing Markdown edits @quarantine', async ({ signedInPage, apiAsAdmin }) => {
+  test('failed save shows actionable server validation and retry succeeds without losing Markdown edits', async ({ signedInPage, apiAsAdmin }) => {
     const draft = await createPageViaApi(apiAsAdmin, { title: 'Retry Validation Draft', body: 'Original retry body.', status: 'draft' });
 
     await signedInPage.goto(`/p/${draft.slug}?edit=1`);

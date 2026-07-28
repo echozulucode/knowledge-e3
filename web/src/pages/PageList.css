@@ -745,9 +745,21 @@
   box-shadow: inset 0 0 0 3px var(--kp-accent-bg);
 }
 
+/* Passive card content (title, preview, footer, badges) sits above the
+   full-card open button for layout, but must let clicks fall THROUGH to that
+   button so the whole card opens the item. The genuine interactive islands
+   (edit, copy, tag-filter chips) re-enable pointer events below. Without this,
+   the z-index:1 content layer swallowed every click except empty gaps. */
 .PageList__Card > :not(.PageList__CardOpenAction) {
   position: relative;
   z-index: 1;
+  pointer-events: none;
+}
+
+.PageList__EditOverlay,
+.PageList__CopyAction,
+.PageList__TagChipButton {
+  pointer-events: auto;
 }
 
 .PageList__Card:hover {

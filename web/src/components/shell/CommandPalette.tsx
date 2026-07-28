@@ -16,7 +16,7 @@ interface CommandPaletteProps {
   onOpenKeyboardHelp?: () => void;
 }
 
-export const COMMAND_PALETTE_SCOPE_HINT = 'Searches all Topics. Use browse filters for scoped search.';
+export const COMMAND_PALETTE_SCOPE_HINT = 'Jump to a page — or open the full results in Browse.';
 
 /** Rows the palette renders before deferring to the full results page. */
 const PALETTE_LIMIT = 8;
@@ -107,7 +107,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
           </span>
           <input
             type="text"
-            placeholder="Search knowledge — titles, tags, topics, decisions…"
+            placeholder="Jump to a page — start typing a title…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -138,7 +138,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
                 <div className="kp-palette-item-meta">Cmd+?</div>
               </button>
               {/* Then show search hint */}
-              <div className="kp-palette-empty">Type to search pages…</div>
+              <div className="kp-palette-empty">Type to jump to a page…</div>
             </>
           ) : results.length === 0 ? (
             <div className="kp-palette-empty">

@@ -91,6 +91,8 @@ test.describe('editor chrome feedback', () => {
 
     const savebar = signedInPage.locator('.kp-edit-savebar');
     await savebar.getByRole('button', { name: /^Save$/ }).click();
+    // Save confirms with "Saved" in the savebar, then auto-returns to the read view
+    // (PageView.performSave schedules exitEditMode after the confirmation window).
     await expect(signedInPage.locator('.kp-pageview')).toHaveAttribute('data-mode', 'read', { timeout: 10_000 });
     await expect(signedInPage.getByRole('button', { name: /edit page/i })).toBeVisible();
     await expect(signedInPage.locator('.kp-edit-savebar')).toHaveCount(0);

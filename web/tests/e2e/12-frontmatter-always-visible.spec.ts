@@ -19,7 +19,15 @@
 import { test, expect, createPageViaApi } from './fixtures.js';
 
 test.describe('frontmatter strip — visibility across modes', () => {
-  // @quarantine (app bug): editor save/sync path hangs — pre-existing, predates the OKF pivot. Test is likely correct; fix the product.
+  // @quarantine (test rot): asserts the always-visible FrontmatterStrip
+  // (getByTitle('Click to edit title/status/tags'), click-to-edit owner) in every
+  // editor mode. PageView now renders its own `kp-edit-titlebar` (a Title <input>
+  // + Space <select> + read-only status chip) and passes frontmatterDisplay="hidden"
+  // to the editor, so the click-to-edit strip is not shown in the page editor — the
+  // related 08-frontmatter-strip suite is test.skip(true) for the same reason. These
+  // tests also use stale mode-button labels (wysiwyg/source → "Rich text"/"Markdown")
+  // and a Meta+Shift+M shortcut the editor never bound. Rewrite against the new
+  // titlebar or retire; NOT the save/sync hang originally (wrongly) claimed here.
   test('strip is visible in hybrid mode @quarantine', async ({ signedInPage, apiAsAdmin }) => {
     const p = await createPageViaApi(apiAsAdmin, {
       title: 'HybridMode',
@@ -44,7 +52,15 @@ test.describe('frontmatter strip — visibility across modes', () => {
     await expect(statusField).toContainText(/draft|published/i);
   });
 
-  // @quarantine (app bug): editor save/sync path hangs — pre-existing, predates the OKF pivot. Test is likely correct; fix the product.
+  // @quarantine (test rot): asserts the always-visible FrontmatterStrip
+  // (getByTitle('Click to edit title/status/tags'), click-to-edit owner) in every
+  // editor mode. PageView now renders its own `kp-edit-titlebar` (a Title <input>
+  // + Space <select> + read-only status chip) and passes frontmatterDisplay="hidden"
+  // to the editor, so the click-to-edit strip is not shown in the page editor — the
+  // related 08-frontmatter-strip suite is test.skip(true) for the same reason. These
+  // tests also use stale mode-button labels (wysiwyg/source → "Rich text"/"Markdown")
+  // and a Meta+Shift+M shortcut the editor never bound. Rewrite against the new
+  // titlebar or retire; NOT the save/sync hang originally (wrongly) claimed here.
   test('strip is visible in preview mode @quarantine', async ({ signedInPage, apiAsAdmin }) => {
     const p = await createPageViaApi(apiAsAdmin, {
       title: 'PreviewMode',
@@ -69,7 +85,15 @@ test.describe('frontmatter strip — visibility across modes', () => {
     await expect(statusField).toContainText(/published/i);
   });
 
-  // @quarantine (app bug): editor save/sync path hangs — pre-existing, predates the OKF pivot. Test is likely correct; fix the product.
+  // @quarantine (test rot): asserts the always-visible FrontmatterStrip
+  // (getByTitle('Click to edit title/status/tags'), click-to-edit owner) in every
+  // editor mode. PageView now renders its own `kp-edit-titlebar` (a Title <input>
+  // + Space <select> + read-only status chip) and passes frontmatterDisplay="hidden"
+  // to the editor, so the click-to-edit strip is not shown in the page editor — the
+  // related 08-frontmatter-strip suite is test.skip(true) for the same reason. These
+  // tests also use stale mode-button labels (wysiwyg/source → "Rich text"/"Markdown")
+  // and a Meta+Shift+M shortcut the editor never bound. Rewrite against the new
+  // titlebar or retire; NOT the save/sync hang originally (wrongly) claimed here.
   test('strip is visible in WYSIWYG mode @quarantine', async ({ signedInPage, apiAsAdmin }) => {
     const p = await createPageViaApi(apiAsAdmin, {
       title: 'WysiwygMode',
@@ -100,7 +124,15 @@ test.describe('frontmatter strip — visibility across modes', () => {
     await expect(tagsField).toContainText('demo');
   });
 
-  // @quarantine (app bug): editor save/sync path hangs — pre-existing, predates the OKF pivot. Test is likely correct; fix the product.
+  // @quarantine (test rot): asserts the always-visible FrontmatterStrip
+  // (getByTitle('Click to edit title/status/tags'), click-to-edit owner) in every
+  // editor mode. PageView now renders its own `kp-edit-titlebar` (a Title <input>
+  // + Space <select> + read-only status chip) and passes frontmatterDisplay="hidden"
+  // to the editor, so the click-to-edit strip is not shown in the page editor — the
+  // related 08-frontmatter-strip suite is test.skip(true) for the same reason. These
+  // tests also use stale mode-button labels (wysiwyg/source → "Rich text"/"Markdown")
+  // and a Meta+Shift+M shortcut the editor never bound. Rewrite against the new
+  // titlebar or retire; NOT the save/sync hang originally (wrongly) claimed here.
   test('title edit in hybrid mode syncs to WYSIWYG @quarantine', async ({
     signedInPage,
     apiAsAdmin,
@@ -139,7 +171,15 @@ test.describe('frontmatter strip — visibility across modes', () => {
     await expect(titleFieldWysiwyg).toContainText('UpdatedTitle');
   });
 
-  // @quarantine (app bug): editor save/sync path hangs — pre-existing, predates the OKF pivot. Test is likely correct; fix the product.
+  // @quarantine (test rot): asserts the always-visible FrontmatterStrip
+  // (getByTitle('Click to edit title/status/tags'), click-to-edit owner) in every
+  // editor mode. PageView now renders its own `kp-edit-titlebar` (a Title <input>
+  // + Space <select> + read-only status chip) and passes frontmatterDisplay="hidden"
+  // to the editor, so the click-to-edit strip is not shown in the page editor — the
+  // related 08-frontmatter-strip suite is test.skip(true) for the same reason. These
+  // tests also use stale mode-button labels (wysiwyg/source → "Rich text"/"Markdown")
+  // and a Meta+Shift+M shortcut the editor never bound. Rewrite against the new
+  // titlebar or retire; NOT the save/sync hang originally (wrongly) claimed here.
   test('status change in WYSIWYG syncs to source mode YAML @quarantine', async ({
     signedInPage,
     apiAsAdmin,
@@ -179,7 +219,15 @@ test.describe('frontmatter strip — visibility across modes', () => {
     await expect(cmContent).toContainText(/status:.*published/i);
   });
 
-  // @quarantine (app bug): editor save/sync path hangs — pre-existing, predates the OKF pivot. Test is likely correct; fix the product.
+  // @quarantine (test rot): asserts the always-visible FrontmatterStrip
+  // (getByTitle('Click to edit title/status/tags'), click-to-edit owner) in every
+  // editor mode. PageView now renders its own `kp-edit-titlebar` (a Title <input>
+  // + Space <select> + read-only status chip) and passes frontmatterDisplay="hidden"
+  // to the editor, so the click-to-edit strip is not shown in the page editor — the
+  // related 08-frontmatter-strip suite is test.skip(true) for the same reason. These
+  // tests also use stale mode-button labels (wysiwyg/source → "Rich text"/"Markdown")
+  // and a Meta+Shift+M shortcut the editor never bound. Rewrite against the new
+  // titlebar or retire; NOT the save/sync hang originally (wrongly) claimed here.
   test('tags field visible and editable in all modes @quarantine', async ({
     signedInPage,
     apiAsAdmin,
@@ -213,7 +261,15 @@ test.describe('frontmatter strip — visibility across modes', () => {
     await expect(tagsFieldWysiwyg).toContainText('existing');
   });
 
-  // @quarantine (app bug): editor save/sync path hangs — pre-existing, predates the OKF pivot. Test is likely correct; fix the product.
+  // @quarantine (test rot): asserts the always-visible FrontmatterStrip
+  // (getByTitle('Click to edit title/status/tags'), click-to-edit owner) in every
+  // editor mode. PageView now renders its own `kp-edit-titlebar` (a Title <input>
+  // + Space <select> + read-only status chip) and passes frontmatterDisplay="hidden"
+  // to the editor, so the click-to-edit strip is not shown in the page editor — the
+  // related 08-frontmatter-strip suite is test.skip(true) for the same reason. These
+  // tests also use stale mode-button labels (wysiwyg/source → "Rich text"/"Markdown")
+  // and a Meta+Shift+M shortcut the editor never bound. Rewrite against the new
+  // titlebar or retire; NOT the save/sync hang originally (wrongly) claimed here.
   test('frontmatter strip visible even with long body content @quarantine', async ({
     signedInPage,
     apiAsAdmin,
@@ -244,7 +300,15 @@ test.describe('frontmatter strip — visibility across modes', () => {
     }
   });
 
-  // @quarantine (app bug): editor save/sync path hangs — pre-existing, predates the OKF pivot. Test is likely correct; fix the product.
+  // @quarantine (test rot): asserts the always-visible FrontmatterStrip
+  // (getByTitle('Click to edit title/status/tags'), click-to-edit owner) in every
+  // editor mode. PageView now renders its own `kp-edit-titlebar` (a Title <input>
+  // + Space <select> + read-only status chip) and passes frontmatterDisplay="hidden"
+  // to the editor, so the click-to-edit strip is not shown in the page editor — the
+  // related 08-frontmatter-strip suite is test.skip(true) for the same reason. These
+  // tests also use stale mode-button labels (wysiwyg/source → "Rich text"/"Markdown")
+  // and a Meta+Shift+M shortcut the editor never bound. Rewrite against the new
+  // titlebar or retire; NOT the save/sync hang originally (wrongly) claimed here.
   test('frontmatter changes persist across mode cycles @quarantine', async ({
     signedInPage,
     apiAsAdmin,
