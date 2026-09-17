@@ -1,0 +1,59 @@
+{
+  "name": "@echozedlabs/knowledge-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Read-only stdio MCP server over local knowledge folders, local git working trees and, optionally, a Knowledge E3 server. Keyword search only.",
+  "license": "Apache-2.0",
+  "author": "EchoZed Labs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/echozulucode/knowledge-e3.git",
+    "directory": "apps/knowledge-mcp"
+  },
+  "homepage": "https://github.com/echozulucode/knowledge-e3/tree/main/apps/knowledge-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/echozulucode/knowledge-e3/issues"
+  },
+  "bin": {
+    "knowledge-mcp": "dist/knowledge-mcp.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "knowledge",
+    "okf",
+    "markdown"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/bundle.mjs",
+    "bundle": "node scripts/bundle.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@echozedlabs/api-client": "workspace:*",
+    "@echozedlabs/codec": "workspace:*",
+    "@echozedlabs/content-model": "workspace:*",
+    "@echozedlabs/content-store": "workspace:*",
+    "@echozedlabs/knowledge-types": "workspace:*",
+    "@echozedlabs/mcp-tools": "workspace:*",
+    "@echozedlabs/okf": "workspace:*",
+    "@echozedlabs/repo-sync": "workspace:*",
+    "@echozedlabs/search": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "esbuild": "^0.27.7",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4",
+    "yaml": "^2.6.0"
+  }
+}

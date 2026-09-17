@@ -3,6 +3,7 @@ import {
   readingTimeMinutes,
   authorsOf,
   coverImageOf,
+  coverAltOf,
   publishDateOf,
   displayDateOf,
   bylineParts,
@@ -31,6 +32,12 @@ describe('blogMeta', () => {
     expect(coverImageOf({ frontmatter: { cover: '/assets/x.png' } })).toBe('/assets/x.png');
     expect(coverImageOf({ frontmatter: { cover_image: '/a.jpg' } })).toBe('/a.jpg');
     expect(coverImageOf({ frontmatter: {} })).toBeNull();
+  });
+
+  it('reads the cover alt text from `cover_alt`, ignoring blanks', () => {
+    expect(coverAltOf({ frontmatter: { cover: '/a.png', cover_alt: ' A lighthouse at dusk ' } })).toBe('A lighthouse at dusk');
+    expect(coverAltOf({ frontmatter: { cover_alt: '   ' } })).toBeNull();
+    expect(coverAltOf({ frontmatter: {} })).toBeNull();
   });
 
   it('reads the series name from frontmatter', () => {

@@ -1,0 +1,71 @@
+/* SwatchPicker and IconPicker share the fieldset/legend frame. Token-driven, light/dark. */
+.kp-swatches {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.kp-swatches__legend {
+  padding: 0;
+  margin-bottom: var(--kp-space-2);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-primary);
+}
+.kp-swatches__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-2);
+}
+.kp-swatches__helper {
+  margin: var(--kp-space-2) 0 0;
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+
+.kp-swatch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  min-height: 36px;
+  padding: 0 var(--kp-space-3) 0 var(--kp-space-2);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-base);
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-primary);
+  cursor: pointer;
+}
+/* The native radio stays in the accessibility tree and keyboard order; only its box is hidden. */
+.kp-swatch__input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.kp-swatch__dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--kp-swatch, transparent);
+  border: 1px dashed var(--kp-border-strong);
+}
+.kp-swatch[data-color] .kp-swatch__dot {
+  border-style: solid;
+  border-color: var(--kp-swatch);
+}
+.kp-swatch:has(.kp-swatch__input:checked) {
+  border-color: var(--kp-accent);
+  box-shadow: inset 0 0 0 1px var(--kp-accent);
+  font-weight: var(--kp-weight-semibold);
+}
+.kp-swatch:has(.kp-swatch__input:focus-visible) {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+.kp-swatches:disabled .kp-swatch {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

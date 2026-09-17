@@ -1,15 +1,15 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { KYSELY } from '../db/db.module.js';
 import type { Database } from '../db/schema.js';
-import { nowIso } from '../common/ids.js';
+import { SourceRegistryService, type SourceRow } from '../sync/source-registry.service.js';
 
 const execFileAsync = promisify(execFile);
 const LS_REMOTE_TIMEOUT_MS = 15_000;
 
-/** app_config key for the instance-level "main repo" remote (topics default here). */
+/** Legacy app_config key for the main remote; copied into the registry by the migration, no longer written. */
 export const MAIN_REMOTE_KEY = 'git.main_remote';
 
 export interface MainRemote {
@@ -44,16 +44,21 @@ export interface ConnectionResult {
 
 /**
  * Admin-managed mapping of a topic (space) to a backend git repository (ADR-0001
- * multi-repo). Stores only the remote URL/branch — never credentials; pushes use
+ * multi-repo) — now a **facade over the source registry** (`content_sources`,
+ * plan §7.4): a topic binding is the `topic:<slug>` row, the main remote is the
+ * `main` row. Stores only the remote URL/branch — never credentials; pushes use
  * the host's ambient SSH identity. Also runs a read-connectivity check.
  */
 @Injectable()
 export class RepoConfigService {
-  constructor(@Inject(KYSELY) private readonly db: Kysely<Database>) {}
+  constructor(
+    @Inject(KYSELY) private readonly db: Kysely<Database>,
+    private readonly registry: SourceRegistryService,
+  ) {}
 
   async list(): Promise<SpaceRepoView[]> {
     const rows = await this.db
-      .selectFrom('space_repos as r')
+      .selectFrom('content_sources as r')
       .leftJoin('spaces as s', 's.id', 'r.space_id')
       .select([
         'r.space_id',
@@ -65,12 +70,14 @@ export class RepoConfigService {
         's.slug as space_slug',
         's.name as space_name',
       ])
+      .where('r.id', '!=', 'main')
+      .where('r.space_id', 'is not', null)
       .execute();
     return rows.map((r) => ({
-      space_id: r.space_id,
+      space_id: r.space_id!,
       space_slug: r.space_slug,
       space_name: r.space_name,
-      remote_url: r.remote_url,
+      remote_url: r.remote_url ?? '',
       branch: r.branch,
       enabled: r.enabled === 1,
       default_status: r.default_status,
@@ -78,49 +85,35 @@ export class RepoConfigService {
     }));
   }
 
+  /** The registry row bound to a topic, if any. */
+  forSpace(spaceId: string): Promise<SourceRow | null> {
+    return this.registry.forSpace(spaceId);
+  }
+
   async upsert(spaceId: string, input: RepoUpsertInput, _actorId: string | null): Promise<void> {
     const remote = input.remote_url.trim();
     assertSafeRemote(remote);
-    const now = nowIso();
-    const branch = input.branch?.trim() || null;
-    const enabled = input.enabled === false ? 0 : 1;
-    const defaultStatus = input.default_status ?? null;
-    await this.db
-      .insertInto('space_repos')
-      .values({
-        space_id: spaceId,
-        remote_url: remote,
-        branch,
-        enabled,
-        default_status: defaultStatus,
-        created_at: now,
-        updated_at: now,
-      })
-      .onConflict((oc) =>
-        oc
-          .column('space_id')
-          .doUpdateSet({ remote_url: remote, branch, enabled, default_status: defaultStatus, updated_at: now }),
-      )
-      .execute();
+    const space = await this.db.selectFrom('spaces').select('slug').where('id', '=', spaceId).executeTakeFirst();
+    if (!space) throw new NotFoundException('Topic not found.');
+    const existing = await this.registry.forSpace(spaceId);
+    await this.registry.upsert(existing?.id ?? `topic:${space.slug}`, {
+      space_id: spaceId,
+      remote_url: remote,
+      branch: input.branch?.trim() || null,
+      enabled: input.enabled !== false,
+      default_status: input.default_status ?? null,
+    });
   }
 
   async remove(spaceId: string): Promise<void> {
-    await this.db.deleteFrom('space_repos').where('space_id', '=', spaceId).execute();
+    await this.db.deleteFrom('content_sources').where('space_id', '=', spaceId).execute();
   }
 
   /** The instance-level "main repo" remote (where topics live unless dedicated). */
   async getMainRemote(): Promise<MainRemote | null> {
-    const row = await this.db
-      .selectFrom('app_config')
-      .select('value_json')
-      .where('key', '=', MAIN_REMOTE_KEY)
-      .executeTakeFirst();
-    if (!row) return null;
-    try {
-      return JSON.parse(row.value_json) as MainRemote;
-    } catch {
-      return null;
-    }
+    const row = await this.registry.get('main');
+    if (!row?.remote_url) return null;
+    return { remote_url: row.remote_url, branch: row.branch, enabled: row.enabled === 1 };
   }
 
   async setMainRemote(input: { remote_url: string; branch?: string | null; enabled?: boolean }): Promise<MainRemote> {
@@ -131,12 +124,7 @@ export class RepoConfigService {
       branch: input.branch?.trim() || null,
       enabled: input.enabled !== false,
     };
-    const now = nowIso();
-    await this.db
-      .insertInto('app_config')
-      .values({ key: MAIN_REMOTE_KEY, value_json: JSON.stringify(value), updated_at: now, updated_by: null })
-      .onConflict((oc) => oc.column('key').doUpdateSet({ value_json: JSON.stringify(value), updated_at: now }))
-      .execute();
+    await this.registry.upsert('main', { remote_url: value.remote_url, branch: value.branch, enabled: value.enabled });
     return value;
   }
 

@@ -1,0 +1,130 @@
+/* EditDialog — token-driven, light/dark. Matches ConfirmDialog's surface so the
+   two read as one family; the discard question stacks above it (later in the DOM). */
+
+.kp-edit-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--kp-z-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--kp-space-4);
+  background: var(--kp-surface-overlay);
+}
+
+.kp-edit-dialog {
+  max-width: 100%;
+  max-height: calc(100vh - 2 * var(--kp-space-4));
+  overflow-y: auto;
+  background: var(--kp-surface-raised);
+  color: var(--kp-text-primary);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-lg);
+  box-shadow: var(--kp-shadow-lg);
+}
+
+.kp-edit-dialog__form {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-4);
+  width: min(calc(100vw - 2 * var(--kp-space-4)), 28rem);
+  padding: var(--kp-space-6);
+}
+.kp-edit-dialog__form[data-width='md'] {
+  width: min(calc(100vw - 2 * var(--kp-space-4)), 36rem);
+}
+
+.kp-edit-dialog__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1);
+}
+.kp-edit-dialog__title {
+  margin: 0;
+  font-size: var(--kp-text-lg);
+  font-weight: var(--kp-weight-semibold);
+  line-height: 1.3;
+}
+.kp-edit-dialog__description {
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  line-height: var(--kp-leading-normal);
+}
+.kp-edit-dialog__description > p {
+  margin: 0;
+}
+
+.kp-edit-dialog__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-4);
+}
+
+.kp-edit-dialog__error {
+  margin: 0;
+  padding: var(--kp-space-2) var(--kp-space-3);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-danger-bg);
+  color: var(--kp-danger);
+  font-size: var(--kp-text-sm);
+}
+
+.kp-edit-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--kp-space-2);
+}
+
+.kp-edit-dialog__button {
+  min-height: 40px;
+  padding: 0 var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-sm);
+  background: transparent;
+  color: var(--kp-text-primary);
+  font: inherit;
+  font-weight: var(--kp-weight-medium);
+  cursor: pointer;
+}
+.kp-edit-dialog__button:hover:not(:disabled) {
+  background: var(--kp-surface-sunken);
+}
+.kp-edit-dialog__button--primary {
+  border-color: transparent;
+  background: var(--kp-accent);
+  color: var(--kp-brand-contrast);
+}
+.kp-edit-dialog__button--primary:hover:not(:disabled) {
+  background: var(--kp-accent-hover);
+}
+.kp-edit-dialog__button:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+.kp-edit-dialog__button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Phones: full-width sheet from the bottom, buttons share the row. */
+@media (max-width: 40rem) {
+  .kp-edit-dialog-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .kp-edit-dialog {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: var(--kp-radius-lg) var(--kp-radius-lg) 0 0;
+  }
+  .kp-edit-dialog__form,
+  .kp-edit-dialog__form[data-width='md'] {
+    width: 100%;
+    padding: var(--kp-space-4);
+  }
+  .kp-edit-dialog__button {
+    flex: 1;
+  }
+}

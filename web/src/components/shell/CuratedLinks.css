@@ -1,0 +1,63 @@
+/**
+ * Curated landing-page links (reader plan §4, R2.4).
+ *
+ * Deliberately quiet: a row of bordered chips in the same surface/border tokens
+ * the Home cards use, so a curator's links read as part of the page rather than
+ * as a promotional banner. Wraps at any width and collapses to one column on a
+ * narrow screen.
+ */
+.CuratedLinks {
+  display: grid;
+  gap: var(--kp-space-2);
+}
+
+.CuratedLinks__heading {
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  margin: 0;
+  font-size: var(--kp-text-md);
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-primary);
+}
+
+.CuratedLinks__row {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: var(--kp-space-2);
+}
+
+.CuratedLinks__link {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  height: 100%;
+  padding: var(--kp-space-2) var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  background: var(--kp-surface-base);
+  border-radius: var(--kp-radius-md);
+  text-decoration: none;
+  color: var(--kp-text-primary);
+}
+
+.CuratedLinks__link:hover {
+  border-color: var(--kp-border-strong);
+  background: var(--kp-surface-raised);
+}
+
+.CuratedLinks__link:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+
+.CuratedLinks__label {
+  font-weight: var(--kp-weight-medium);
+}
+
+.CuratedLinks__desc {
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}

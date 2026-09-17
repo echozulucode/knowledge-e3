@@ -1,0 +1,34 @@
+/* Freshness — a muted one-liner; the Refresh control is a text button so it
+   never competes with the page's primary action. */
+.kp-freshness {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--kp-space-1) var(--kp-space-2);
+  color: var(--kp-text-meta, var(--kp-text-secondary));
+  font-size: var(--kp-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.kp-freshness__refresh {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--kp-accent);
+  font: inherit;
+  font-weight: var(--kp-weight-medium);
+  cursor: pointer;
+  /* Touch target: the text is small, the hit area is not. */
+  min-height: 1.5rem;
+}
+.kp-freshness__refresh:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.kp-freshness__refresh:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--kp-radius-xs);
+}
+.kp-freshness__refresh:disabled {
+  color: var(--kp-text-muted);
+  cursor: default;
+}

@@ -1,0 +1,618 @@
+/* Compose — writing surface + Publish drawer (plan §4). Tokens from @echozedlabs/ui. */
+
+.kp-compose {
+  --kp-compose-footer-space: 64px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding-bottom: var(--kp-compose-footer-space);
+  box-sizing: border-box;
+  background: var(--kp-surface-base);
+  overflow: hidden;
+}
+
+.kp-compose-head {
+  flex: 0 0 auto;
+  display: grid;
+  gap: var(--kp-space-2);
+  padding: var(--kp-space-4) clamp(var(--kp-space-4), 3vw, var(--kp-space-8)) var(--kp-space-3);
+  border-bottom: 1px solid var(--kp-border-subtle);
+}
+
+.kp-compose-crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+
+.kp-compose-crumbs a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.kp-compose-type {
+  margin-left: auto;
+  padding: 2px 9px;
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-sunken);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+}
+
+.kp-compose-title-label {
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: var(--kp-tracking-wide);
+  color: var(--kp-text-muted);
+  text-transform: uppercase;
+}
+
+.kp-compose-title {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--kp-text-primary);
+  font-family: var(--kp-font-ui);
+  font-size: clamp(var(--kp-text-2xl), 4vw, var(--kp-text-4xl));
+  font-weight: var(--kp-weight-bold);
+  letter-spacing: var(--kp-tracking-tight);
+  line-height: var(--kp-leading-tight);
+}
+
+.kp-compose-title::placeholder {
+  color: var(--kp-text-muted);
+}
+
+.kp-compose-title:focus {
+  box-shadow: inset 0 -2px 0 var(--kp-accent);
+}
+
+.kp-compose-cover {
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-3);
+}
+
+.kp-compose-cover-preview {
+  max-height: 160px;
+  max-width: 100%;
+  border-radius: var(--kp-radius-lg);
+  object-fit: cover;
+  background: var(--kp-surface-sunken);
+}
+
+.kp-compose-cover-add {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  padding: var(--kp-space-2) var(--kp-space-3);
+  border: 1px dashed var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  cursor: pointer;
+}
+
+.kp-compose-cover-add input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.kp-compose-editor {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--kp-space-4) clamp(var(--kp-space-4), 3vw, var(--kp-space-8));
+}
+
+.kp-compose-editor .me-editor {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+}
+
+.kp-compose-editor .me-editor-surface,
+.kp-compose-editor .me-codemirror,
+.kp-compose-editor .cm-editor,
+.kp-compose-editor .me-preview,
+.kp-compose-editor .me-wysiwyg {
+  min-height: 0;
+  height: 100%;
+}
+
+.kp-compose-editor .cm-scroller {
+  overflow: auto;
+}
+
+/* Sticky footer — mirrors PageView's save bar. */
+.kp-compose-footer {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: var(--kp-sidebar-width-collapsed);
+  height: var(--kp-compose-footer-space, 64px);
+  box-sizing: border-box;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kp-space-4);
+  padding: var(--kp-space-3) clamp(var(--kp-space-4), 3vw, var(--kp-space-8));
+  padding-bottom: calc(var(--kp-space-3) + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--kp-surface-base) 94%, transparent);
+  border-top: 1px solid var(--kp-border-subtle);
+  box-shadow: var(--kp-shadow-lg);
+  backdrop-filter: blur(14px);
+}
+
+.kp-compose-footer-status {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kp-compose-footer-status strong {
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-sm);
+}
+
+.kp-compose-footer-status span,
+.kp-compose-footer-status p {
+  margin: 0;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-xs);
+}
+
+.kp-compose-footer--error .kp-compose-footer-status p,
+.kp-compose-footer--conflict .kp-compose-footer-status p {
+  color: var(--kp-danger, #b42318);
+  font-weight: var(--kp-weight-semibold);
+}
+
+.kp-compose-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.kp-compose-primary,
+.kp-compose-secondary {
+  height: 36px;
+  padding: 0 var(--kp-space-4);
+  border-radius: var(--kp-radius-pill);
+  font-family: var(--kp-font-ui);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--kp-space-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.kp-compose-primary {
+  border: 1px solid var(--kp-accent);
+  background: var(--kp-accent);
+  color: var(--kp-accent-fg);
+}
+
+.kp-compose-secondary {
+  border: 1px solid var(--kp-border-subtle);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-secondary);
+}
+
+.kp-compose-primary:disabled,
+.kp-compose-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.kp-compose-inline-action {
+  width: fit-content;
+  border: none;
+  background: transparent;
+  color: var(--kp-accent);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Publish drawer */
+.kp-compose-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--kp-z-modal, 70);
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(15, 23, 42, 0.34);
+  backdrop-filter: blur(2px);
+}
+
+.kp-compose-drawer {
+  width: min(520px, 100vw);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--kp-surface-base);
+  border-left: 1px solid var(--kp-border-subtle);
+  box-shadow: var(--kp-shadow-lg);
+  outline: none;
+}
+
+.kp-compose-drawer-header,
+.kp-compose-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--kp-space-4) var(--kp-space-5);
+  border-bottom: 1px solid var(--kp-border-subtle);
+}
+
+.kp-compose-drawer-header h2,
+.kp-compose-preview-header h2 {
+  margin: 0;
+  font-family: var(--kp-font-ui);
+  font-size: var(--kp-text-lg);
+  font-weight: var(--kp-weight-bold);
+  color: var(--kp-text-primary);
+}
+
+.kp-compose-drawer-close {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  background: transparent;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-lg);
+  cursor: pointer;
+}
+
+.kp-compose-drawer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--kp-space-4) var(--kp-space-5);
+  display: grid;
+  gap: var(--kp-space-4);
+  align-content: start;
+}
+
+.kp-compose-drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--kp-space-2);
+  padding: var(--kp-space-3) var(--kp-space-5);
+  border-top: 1px solid var(--kp-border-subtle);
+  background: var(--kp-surface-base);
+}
+
+.kp-compose-group {
+  margin: 0;
+  padding: var(--kp-space-3) var(--kp-space-4) var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-lg);
+  display: grid;
+  gap: var(--kp-space-3);
+}
+
+.kp-compose-group legend,
+.kp-compose-advanced summary {
+  padding: 0 var(--kp-space-1);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: var(--kp-tracking-wide);
+  color: var(--kp-text-muted);
+  text-transform: uppercase;
+}
+
+.kp-compose-advanced summary {
+  cursor: pointer;
+}
+
+.kp-compose-field {
+  display: grid;
+  gap: var(--kp-space-1);
+}
+
+.kp-compose-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--kp-space-3);
+}
+
+.kp-compose-field label {
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-medium);
+  color: var(--kp-text-primary);
+}
+
+.kp-compose-field input,
+.kp-compose-field select,
+.kp-compose-field textarea,
+.kp-compose-tokens {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--kp-space-2) var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font-family: var(--kp-font-ui);
+  font-size: var(--kp-text-sm);
+}
+
+.kp-compose-field input[type='file'] {
+  padding: var(--kp-space-1) 0;
+  border: none;
+}
+
+.kp-compose-field input:focus,
+.kp-compose-field select:focus,
+.kp-compose-field textarea:focus,
+.kp-compose-tokens:focus-within {
+  outline: none;
+  border-color: var(--kp-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--kp-accent) 18%, transparent);
+}
+
+.kp-compose-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-1);
+}
+
+.kp-compose-tokens input {
+  flex: 1 1 120px;
+  min-width: 120px;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.kp-compose-tokens input:focus {
+  box-shadow: none;
+}
+
+.kp-compose-token {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-1);
+  padding: 2px 8px;
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-sunken);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-medium);
+}
+
+.kp-compose-token button {
+  border: none;
+  background: transparent;
+  color: var(--kp-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.kp-compose-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-primary);
+}
+
+.kp-compose-field-hint {
+  margin: 0;
+  font-size: var(--kp-text-xs);
+  color: var(--kp-text-muted);
+}
+
+/* "Where this lives" (plan B1): stated, not edited — a file moves by moving the item. */
+.kp-compose-location-label {
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-primary);
+}
+.kp-compose-location dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px var(--kp-space-3);
+  margin: 0;
+  font-size: var(--kp-text-xs);
+}
+.kp-compose-location dt {
+  color: var(--kp-text-muted);
+}
+.kp-compose-location dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.kp-compose-location code {
+  font-family: var(--kp-font-mono, ui-monospace, monospace);
+}
+
+/*
+ * Marks the three fields publish actually refuses without: content type,
+ * primary category, description. Primary category earns it twice over — it is a
+ * curated choice with no default (Eric, 2026-09-11), so the marker says the
+ * author must pick and nothing will pick for them, and its own control also
+ * carries `required`/`aria-required`. The glyph itself is `aria-hidden`: it is
+ * decoration, and the inline error below each field is what screen readers get.
+ */
+.kp-compose-required {
+  color: var(--kp-danger, #b42318);
+  font-weight: var(--kp-weight-semibold);
+}
+
+.kp-compose-field-error {
+  margin: 0;
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-danger, #b42318);
+}
+
+.kp-compose-validation {
+  padding: var(--kp-space-3) var(--kp-space-4);
+  border: 1px solid color-mix(in srgb, var(--kp-warning, #b54708) 32%, var(--kp-border-subtle));
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-warning-bg, color-mix(in srgb, var(--kp-warning, #b54708) 8%, var(--kp-surface-base)));
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-primary);
+}
+
+.kp-compose-validation p {
+  margin: 0 0 var(--kp-space-1);
+  font-weight: var(--kp-weight-semibold);
+}
+
+.kp-compose-validation ul {
+  margin: 0;
+  padding-left: var(--kp-space-5);
+}
+
+/* Preview modal — renders the real ReadView. */
+.kp-compose-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--kp-z-modal, 70);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--kp-space-6);
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.kp-compose-preview {
+  width: min(960px, 100%);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--kp-surface-base);
+  border-radius: var(--kp-radius-lg);
+  box-shadow: var(--kp-shadow-lg);
+  overflow: hidden;
+  outline: none;
+}
+
+.kp-compose-preview-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--kp-space-5) var(--kp-content-pad, var(--kp-space-6));
+}
+
+.kp-compose-preview-title {
+  margin: 0 0 var(--kp-space-4);
+  font-family: var(--kp-font-ui);
+  font-size: var(--kp-text-3xl);
+  font-weight: var(--kp-weight-bold);
+  letter-spacing: var(--kp-tracking-tight);
+  color: var(--kp-text-primary);
+}
+
+@media (max-width: 720px) {
+  .kp-compose-footer {
+    left: 0;
+    align-items: stretch;
+    flex-direction: column;
+    height: auto;
+  }
+
+  .kp-compose {
+    --kp-compose-footer-space: 112px;
+  }
+
+  .kp-compose-field-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* "Changed upstream" (plan §8.3): the FILE moved under the index, which is a
+   different situation from a version conflict, so it gets a banner with one
+   way forward rather than the diffing conflict dialog. */
+.kp-compose-upstream {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--kp-space-4);
+  padding: var(--kp-space-3) clamp(var(--kp-space-4), 3vw, var(--kp-space-8));
+  background: var(--kp-warning-bg);
+  border-bottom: 1px solid color-mix(in srgb, var(--kp-warning) 32%, transparent);
+}
+
+.kp-compose-upstream-text {
+  display: grid;
+  gap: 2px;
+}
+
+.kp-compose-upstream-text strong {
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-warning);
+}
+
+.kp-compose-upstream-text p {
+  margin: 0;
+  font-size: var(--kp-text-xs);
+  color: var(--kp-text-secondary);
+}
+
+/* The publish gate's refusal (422 `lint_failed`): a fixable list, not a dead
+   end — each diagnostic names the frontmatter key that has to change. Reuses
+   the "changed upstream" banner geometry; the list is what differs. */
+.kp-compose-lint {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--kp-space-4);
+  padding: var(--kp-space-3) clamp(var(--kp-space-4), 3vw, var(--kp-space-8));
+  background: var(--kp-danger-bg, var(--kp-warning-bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--kp-danger, var(--kp-warning)) 32%, transparent);
+}
+
+.kp-compose-lint-text {
+  display: grid;
+  gap: 2px;
+}
+
+.kp-compose-lint-text strong {
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-danger, var(--kp-warning));
+}
+
+.kp-compose-lint-text p {
+  margin: 0;
+  font-size: var(--kp-text-xs);
+  color: var(--kp-text-secondary);
+}
+
+.kp-compose-lint-list {
+  margin: var(--kp-space-1) 0;
+  padding-left: var(--kp-space-4);
+  display: grid;
+  gap: 2px;
+  font-size: var(--kp-text-xs);
+  color: var(--kp-text-primary);
+}
+
+.kp-compose-lint-list code {
+  margin-right: var(--kp-space-2);
+  font-family: var(--kp-font-mono, monospace);
+  color: var(--kp-danger, var(--kp-warning));
+}

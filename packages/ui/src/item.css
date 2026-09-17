@@ -1,0 +1,228 @@
+/* ItemCard / ItemRow — the two item presentations (reader UX plan R1.3).
+   Every value resolves through tokens.css, so the house style follows the
+   theme without a single colour being written here. The surfaces that render
+   these (Feed, TopicLanding, Sections) keep their own stylesheets for LAYOUT
+   only — the grid or the column they sit in — and no longer restyle the item
+   itself. */
+
+/* ---- Shared bits ---- */
+
+.kp-item-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-1);
+}
+
+/* The metadata line (author, date, type, reading time) is the quietest text
+   on an item, and quieter than the preview above it on every index surface
+   that renders one — Latest, Sections, topic lists, series parts, the home
+   feed. Two steps make it so: one type step smaller than the preview (11px
+   under 13px here; the home page scales both up by one) and `--kp-text-meta`,
+   a colour between the preview's `--kp-text-secondary` and `--kp-text-muted`.
+   Not muted itself: `--kp-text-muted` is 3.5:1 on the parchment surface,
+   below WCAG AA for text this small, and a date or a reading time is content a
+   reader acts on, not a placeholder. `--kp-text-meta` measures 5.08:1 (light)
+   and 6.46:1 (dark) on `--kp-surface-base`, against the preview's 6.20:1 and
+   9.30:1 (tokens.css; the home page's e2e computes both in the browser). */
+.kp-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--kp-space-1);
+  color: var(--kp-text-meta);
+  font-size: var(--kp-text-xs);
+}
+.kp-item-meta__part {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-1);
+  min-width: 0;
+}
+.kp-item-meta__sep {
+  color: var(--kp-text-meta);
+}
+
+/* ---- Card ---- */
+
+.kp-item-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  border: 1px solid var(--kp-border-subtle);
+  background: var(--kp-surface-base);
+  border-radius: var(--kp-radius-md);
+  box-shadow: var(--kp-shadow-xs);
+  overflow: hidden;
+}
+.kp-item-card:hover {
+  border-color: var(--kp-border-strong);
+}
+/* A cover turns a `row` card into a two-column band; without one the body is
+   the whole card. `:has()` keeps that decision in CSS rather than in a modifier
+   class the call site would have to remember to pass. */
+.kp-item-card[data-layout='row']:has(.kp-item-card__cover) {
+  grid-template-columns: 200px minmax(0, 1fr);
+}
+.kp-item-card__cover {
+  width: 100%;
+  height: 100%;
+  min-height: 140px;
+  object-fit: cover;
+  background: var(--kp-surface-sunken);
+}
+/* `stacked`: a 16:9 banner across the top, for cards in a narrow grid column
+   where a side thumbnail would leave nothing for the text. */
+.kp-item-card[data-layout='stacked'] .kp-item-card__cover {
+  aspect-ratio: 16 / 9;
+  height: auto;
+  min-height: 0;
+}
+.kp-item-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+  padding: var(--kp-space-4);
+  min-width: 0;
+}
+.kp-item-card__title {
+  margin: 0;
+  font-size: var(--kp-text-lg);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  font-weight: var(--kp-weight-semibold);
+}
+.kp-item-card__titleLink {
+  color: var(--kp-text-primary);
+  text-decoration: none;
+}
+.kp-item-card__titleLink:hover {
+  color: var(--kp-accent);
+}
+.kp-item-card__preview {
+  margin: 0;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  line-height: 1.5;
+}
+.kp-item-card__meta {
+  /* Same column gap as the row's line: the separators carry the spacing, and a
+     wider gap left "Author  · Sep 8" visibly lopsided around each dot. */
+  gap: var(--kp-space-1);
+}
+.kp-item-card__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2);
+  font-size: var(--kp-text-xs);
+}
+
+/* ---- Row ---- */
+
+.kp-item-row {
+  position: relative; /* anchor for the stretched title link below */
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-3);
+  padding: var(--kp-space-3) var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  background: var(--kp-surface-base);
+  border-radius: var(--kp-radius-md);
+  box-shadow: var(--kp-shadow-xs);
+}
+.kp-item-row:hover {
+  border-color: var(--kp-border-strong);
+}
+.kp-item-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.kp-item-row__head {
+  display: flex;
+  /* Top, not centre: a title may now take two lines, and badges centred on a
+     two-line title float between them. */
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--kp-space-3);
+  min-width: 0;
+}
+/* Two lines, then an ellipsis (home plan R2.4). The single-line truncation
+   this replaced cut most titles to a few words in any column narrower than the
+   title, and the title is the most important thing in a row on every surface
+   that renders one — not only the home page — so the change is here rather
+   than in one page's stylesheet. Two lines keeps rows scannable and of a
+   predictable height; a title longer than that is still whole in its link's
+   accessible name and on the article. */
+.kp-item-row__title {
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  font-size: var(--kp-text-base);
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-primary);
+  text-decoration: none;
+}
+.kp-item-row__title:hover {
+  color: var(--kp-accent);
+}
+/* Stretched link: the whole row is the title's click target, so a row behaves
+   like the single wrapping <Link> the Sections list used to be — but there is
+   still exactly ONE link in the accessibility tree, named by the title. */
+.kp-item-row__title::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+/* …and anything genuinely interactive inside the row (a Freshness badge's PR
+   link, a tag chip) sits above that overlay and keeps working. */
+.kp-item-row__badges,
+.kp-item-row__trailing,
+.kp-item-row a:not(.kp-item-row__title) {
+  position: relative;
+  z-index: 1;
+}
+.kp-item-row__badges {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.kp-item-row__preview {
+  margin: 0;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kp-item-row__trailing {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--kp-text-muted);
+}
+
+@media (max-width: 640px) {
+  /* Must match the specificity of the `[data-layout='row']` rule above, or the
+     200px cover column survives on a phone and squeezes the title to one word
+     per line (found by the mobile sweep on /latest, Sections and the home feed). */
+  .kp-item-card[data-layout='row']:has(.kp-item-card__cover) {
+    grid-template-columns: 1fr;
+  }
+  .kp-item-card__cover {
+    min-height: 0;
+    max-height: 180px;
+  }
+  .kp-item-row__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

@@ -16,6 +16,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../src/app.module.js';
 import { AuthService } from '../src/auth/auth.service.js';
 import { OkfImportService } from '../src/okf/okf-import.service.js';
+import { bundleSummaryLine } from '../src/okf/okf-bundle-validation.js';
 
 const args = process.argv.slice(2);
 const inArg = args.find((a) => !a.startsWith('--')) ?? process.env['OKF_IN'] ?? './data/okf-export';
@@ -44,9 +45,15 @@ async function main(): Promise<void> {
     const actor = { id: system.id, role: system.role === 'admin' ? ('admin' as const) : ('user' as const) };
 
     const files = readBundle(inDir);
-    const result = await importer.importBundleFiles(actor, files);
+    // An import door like the HTTP and MCP ones, so it gates: a directory that
+    // is not a conformant OKF bundle is refused whole rather than half-imported.
+    // Content that merely fails local policy still lands, with its diagnostics
+    // recorded — see OkfImportOptions.gate.
+    const result = await importer.importBundleFiles(actor, files, { gate: true });
     // eslint-disable-next-line no-console
     console.log(`[okf] import done: ${result.created} created, ${result.updated} updated.`);
+    // eslint-disable-next-line no-console
+    console.log(`[okf] ${bundleSummaryLine(result.validation)}`);
   } finally {
     await ctx.close();
   }

@@ -1,26 +1,18 @@
+import type { ToolDescriptor } from '@echozedlabs/mcp-tools';
 import { ANONYMOUS_ACTOR } from '../../auth/auth-mode.js';
 
-export interface McpToolDescriptor {
-  name: string;
-  title?: string;
-  description: string;
-  /**
-   * True when the tool mutates content. Write tools are hidden from, and
-   * refused for, anonymous callers on a public instance (see isAnonymousContext).
-   * Declared per-tool rather than as a name list elsewhere, so a new tool has to
-   * state its own intent and cannot be silently omitted from the check.
-   */
-  write?: boolean;
-  inputSchema: {
-    type: 'object';
-    properties: Record<string, unknown>;
-    required?: string[];
-    additionalProperties?: boolean;
-  };
-}
+/**
+ * A tool's descriptor. The type — and every READ tool's descriptor — comes from
+ * `@echozedlabs/mcp-tools`, the contract this server and the stdio knowledge-mcp
+ * app share. `write: true` is what hides a tool from, and refuses it for,
+ * anonymous and read-scoped-token callers (see isAnonymousContext).
+ */
+export type McpToolDescriptor = ToolDescriptor;
 
 export interface McpToolContext {
-  user?: { id: string; role: string };
+  /** The authenticated caller; `username` (present on real sessions) names the OKF actor for writes.
+   * `token` is set when the caller authenticated with a personal access token. */
+  user?: { id: string; role: string; username?: string; token?: { id: string; scope: 'read' | 'write' } };
 }
 
 /**
@@ -33,11 +25,15 @@ export function isAnonymousContext(context: McpToolContext = {}): boolean {
   return context.user?.id === ANONYMOUS_ACTOR.id;
 }
 
+/** Whether the caller authenticated with a read-scoped personal access token. */
+export function isReadTokenContext(context: McpToolContext = {}): boolean {
+  return context.user?.token?.scope === 'read';
+}
+
 export interface McpTool<TInput extends Record<string, unknown> = Record<string, unknown>, TOutput = unknown> {
   descriptor: McpToolDescriptor;
   call(input: TInput, context?: McpToolContext): Promise<TOutput>;
 }
 
-export function stringProp(description: string, enumValues?: string[]) {
-  return enumValues ? { type: 'string', description, enum: enumValues } : { type: 'string', description };
-}
+// Shared with the stdio app: one declaration of these helpers for both hosts.
+export { stringProp, bundleFilesSchema, normalizeBundleFiles, type BundleFileInput } from '@echozedlabs/mcp-tools';

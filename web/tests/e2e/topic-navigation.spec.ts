@@ -5,8 +5,7 @@ function cardForTitle(page: import('@playwright/test').Page, title: string) {
 }
 
 test.describe('topic navigation drawer', () => {
-  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
-  test('switches topics through the directory drawer, persists URL state, restores after refresh, and clears to All topics @quarantine', async ({ signedInPage, apiAsAdmin }, testInfo) => {
+  test('switches topics through the directory drawer, persists URL state, restores after refresh, and clears to All topics', async ({ signedInPage, apiAsAdmin }, testInfo) => {
     const suffix = `topic-nav-${testInfo.workerIndex}-${Date.now()}`;
     const researchName = `Research Lab ${suffix}`;
     const productName = `Product Lab ${suffix}`;
@@ -40,7 +39,7 @@ test.describe('topic navigation drawer', () => {
       frontmatter: {},
     });
 
-    await signedInPage.goto(`/?view=all&q=${encodeURIComponent(suffix)}`);
+    await signedInPage.goto(`/browse?q=${encodeURIComponent(suffix)}`);
     await expect(signedInPage.getByRole('button', { name: /topic: all topics/i })).toBeVisible({ timeout: 15_000 });
     await expect(cardForTitle(signedInPage, `Research Topic Card ${suffix}`)).toBeVisible();
     await expect(cardForTitle(signedInPage, `Product Topic Card ${suffix}`)).toBeVisible();
@@ -52,7 +51,7 @@ test.describe('topic navigation drawer', () => {
     expect(new Set(topicNames).size).toBe(topicNames.length);
     await expect(drawer.getByRole('button', { name: /^all topics/i })).toHaveCount(0);
     await expect(drawer.getByRole('button', { name: /^unassigned/i })).toHaveCount(0);
-    await drawer.getByPlaceholder(/search topics/i).fill('research');
+    await drawer.getByLabel(/search topics/i).fill('research');
     const researchTopicButton = drawer.locator('.TopicSwitcher__TopicButton').filter({ hasText: researchName });
     await expect(researchTopicButton).toContainText('1 item');
     await researchTopicButton.click();
@@ -73,7 +72,7 @@ test.describe('topic navigation drawer', () => {
     await expect(cardForTitle(signedInPage, `Product Topic Card ${suffix}`)).toBeVisible();
 
     await signedInPage.getByRole('button', { name: /topic: all topics/i }).click();
-    await signedInPage.getByRole('dialog', { name: /topic directory/i }).getByPlaceholder(/search topics/i).fill('unassigned');
+    await signedInPage.getByRole('dialog', { name: /topic directory/i }).getByLabel(/search topics/i).fill('unassigned');
     await expect(signedInPage.getByRole('dialog', { name: /topic directory/i }).getByText(/no topics match/i)).toBeVisible();
   });
 });

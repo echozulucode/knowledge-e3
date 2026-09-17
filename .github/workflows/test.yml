@@ -70,8 +70,9 @@ jobs:
       - name: Lint
         # Catches the class of bug tsc cannot: conditional/after-early-return
         # React Hook calls, which only surface at runtime. Config is narrow on
-        # purpose (see web/eslint.config.js).
-        run: pnpm -r lint
+        # purpose (see web/eslint.config.js). The root script runs the NUL-byte
+        # guard first (scripts/check-nul-bytes.mjs).
+        run: pnpm lint
 
       - name: Run tests
         run: pnpm -r test

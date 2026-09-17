@@ -10,8 +10,14 @@ test.describe('authentication', () => {
     await page.getByLabel('Password').fill(ADMIN.password);
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.waitForURL((u) => u.pathname === '/');
-    // `/` is the Home hero (router.tsx); the item list moved to /browse.
-    await expect(page.getByRole('heading', { name: /Quiet, source-backed knowledge/i })).toBeVisible();
+    // `/` is the front page (router.tsx); the item list moved to /browse. The
+    // front page carries no product headline any more - the tenant's masthead
+    // and the Updates feed are what identify it - so the root element is the
+    // locator, and its colophon (rendered unconditionally, after every region
+    // above it) is the proof it rendered rather than errored. The page no
+    // longer has a search field of its own; search lives in the header.
+    await expect(page.locator('main.Home')).toBeVisible();
+    await expect(page.locator('main.Home .SiteFooter')).toBeVisible();
   });
 
   test('invalid password shows an error and stays on /login', async ({ page }) => {
@@ -23,11 +29,10 @@ test.describe('authentication', () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test('unauthenticated visit to / redirects to /login', async ({ page }) => {
+  test('unauthenticated visit to / can read public knowledge', async ({ page }) => {
     await page.goto('/');
-    // Either the app sends us to /login OR a 401 surfaces — accept either signal.
-    // Most apps redirect; we prefer that.
-    await expect(page).toHaveURL(/\/login/, { timeout: 5000 });
+    await expect(page).toHaveURL('/');
+    await expect(page.locator('main.Home')).toBeVisible();
   });
 
   test('sign-out invalidates the session and redirects to /login', async ({ signedInPage }) => {
@@ -36,8 +41,13 @@ test.describe('authentication', () => {
     await signedInPage.getByRole('button', { name: /user menu for/i }).click();
     await signedInPage.getByRole('button', { name: /sign out|logout/i }).click();
     await expect(signedInPage).toHaveURL(/\/login/, { timeout: 5000 });
-    // Hitting / now should bounce us back to /login.
+    // Public knowledge remains readable after the session ends.
     await signedInPage.goto('/');
+    await expect(signedInPage).toHaveURL('/');
+    await expect(signedInPage.locator('main.Home')).toBeVisible();
+
+    // Protected areas still require a session.
+    await signedInPage.goto('/admin');
     await expect(signedInPage).toHaveURL(/\/login/);
   });
 });

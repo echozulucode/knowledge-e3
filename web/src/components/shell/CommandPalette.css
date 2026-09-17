@@ -1,6 +1,7 @@
 /**
- * CommandPalette styles
- * Modal for Cmd+K page search
+ * CommandPalette styles — the header's quick search (Cmd+K).
+ * A centred modal on wide screens; full-screen on phones, where a small
+ * floating box leaves no room for the keyboard and the results together.
  */
 
 .kp-palette-backdrop {
@@ -134,13 +135,6 @@
   color: var(--kp-accent);
 }
 
-.kp-palette-item-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--kp-space-2);
-}
-
 .kp-palette-item-title {
   font-weight: var(--kp-weight-semibold);
   font-size: var(--kp-text-base);
@@ -149,16 +143,7 @@
   white-space: nowrap;
 }
 
-.kp-palette-item-snippet {
-  margin-top: 3px;
-  font-size: var(--kp-text-sm);
-  color: var(--kp-text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.kp-palette-item.selected .kp-palette-item-snippet {
+.kp-palette-item.selected .kp-result-row__snippet {
   color: inherit;
   opacity: 0.85;
 }
@@ -173,40 +158,52 @@
   color: var(--kp-text-muted);
 }
 
-.kp-palette-tag,
-.kp-palette-reason {
-  padding: 1px 8px;
-  border-radius: var(--kp-radius-pill);
-  background: var(--kp-surface-sunken);
-  color: var(--kp-text-secondary);
-}
-
-.kp-palette-reason {
-  color: var(--kp-accent);
-  background: var(--kp-accent-bg);
-}
-
-.kp-palette-status {
-  padding: 1px 8px;
-  border-radius: var(--kp-radius-pill);
-  font-weight: var(--kp-weight-semibold);
-}
-
-.kp-palette-status--published {
-  color: var(--kp-success);
-  background: var(--kp-success-bg);
-}
-
-.kp-palette-status--draft {
-  color: var(--kp-text-secondary);
-  background: var(--kp-surface-sunken);
-}
-
 .kp-palette-item.selected .kp-palette-item-meta,
-.kp-palette-item.selected .kp-palette-tag,
-.kp-palette-item.selected .kp-palette-reason,
-.kp-palette-item.selected .kp-palette-status {
+.kp-palette-item.selected .kp-result-row__meta,
+.kp-palette-item.selected .kp-result-row__meta .kp-item-meta__sep {
   color: var(--kp-accent);
+}
+
+/* Grouped results (§3.5): one section per content type, heading + "See all N"
+   handing that type off to /search. Rows inside stay .kp-palette-item so the
+   selection/hover styling and the specs' selectors are unchanged. */
+.kp-palette-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.kp-palette-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kp-space-2);
+  padding: var(--kp-space-2) var(--kp-space-4) var(--kp-space-1);
+  background: var(--kp-surface-sunken);
+  border-top: 1px solid var(--kp-border-subtle);
+  border-bottom: 1px solid var(--kp-border-subtle);
+}
+
+.kp-palette-group-label {
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: var(--kp-tracking-wide);
+  text-transform: uppercase;
+  color: var(--kp-text-muted);
+}
+
+.kp-palette-group-seeall {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-medium);
+  color: var(--kp-accent);
+  cursor: pointer;
+}
+
+.kp-palette-group-seeall:hover,
+.kp-palette-group-seeall:focus-visible {
+  text-decoration: underline;
 }
 
 /* Keyboard hint footer */
@@ -243,23 +240,75 @@
   color: var(--kp-text-secondary);
 }
 
-/* Mobile adjustments */
-@media (max-width: 640px) {
-  .kp-palette-modal {
-    width: 95vw;
-    max-height: 80vh;
+/* Cancel — only on phones, which have no Escape key (see the media block). */
+.kp-palette-close {
+  display: none;
+  flex-shrink: 0;
+  padding: var(--kp-space-1) var(--kp-space-2);
+  border: none;
+  background: transparent;
+  color: var(--kp-accent);
+  font-size: var(--kp-text-base);
+  font-weight: var(--kp-weight-medium);
+  cursor: pointer;
+}
+
+/* Phones: full-screen. The palette is a viewport overlay, not part of a page
+   layout, so this one IS a viewport query (40rem matches the header's switch
+   to the icon trigger). */
+@media (max-width: 40rem) {
+  .kp-palette-backdrop {
+    align-items: stretch;
+    backdrop-filter: none;
   }
 
+  .kp-palette-modal {
+    width: 100%;
+    max-width: none;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+    animation: fadeIn var(--kp-duration-fast) var(--kp-ease);
+  }
+
+  .kp-palette-header {
+    padding: var(--kp-space-3) var(--kp-space-4);
+  }
+
+  /* 16px stops iOS Safari zooming the page when the box takes focus. */
   .kp-palette-input {
-    font-size: var(--kp-text-base);
+    font-size: max(16px, var(--kp-text-base));
+  }
+
+  .kp-palette-close {
+    display: inline-flex;
+  }
+
+  /* No hardware keyboard to hint at. */
+  .kp-palette-footer {
+    display: none;
+  }
+
+  /* Touch targets for the MRU rows. */
+  .kp-palette-recent-run,
+  .kp-palette-recent-remove {
+    min-height: 44px;
+  }
+
+  .kp-palette-recent-remove {
+    min-width: 44px;
   }
 }
 
-/* Handoff to the canonical results page (/browse?q=). The palette shows only
-   the top few matches, so it must always offer a way through to the rest
-   rather than dead-ending in a dropdown. */
+/* "Search all results for 'q'" — the handoff to /search. It is the first row
+   and the default Enter target, so the palette never dead-ends in a dropdown
+   of the top few matches. */
 .kp-palette-seeall {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-2);
   width: 100%;
   padding: var(--kp-space-3) var(--kp-space-4);
   background: transparent;
@@ -272,7 +321,117 @@
   cursor: pointer;
 }
 
+.kp-palette-seeall:first-child {
+  border-top: none;
+}
+
+.kp-palette-seeall span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .kp-palette-seeall:hover,
 .kp-palette-seeall:focus-visible {
   background: var(--kp-surface-hover, rgba(127, 127, 127, 0.08));
+}
+
+.kp-palette-seeall.selected {
+  background: var(--kp-accent-bg);
+}
+
+/* Recent searches (MRU): a row per query — run it, or remove it with the ×. */
+.kp-palette-recents {
+  display: flex;
+  flex-direction: column;
+}
+
+.kp-palette-recents .kp-palette-group-head {
+  border-top: none;
+}
+
+.kp-palette-recents-empty {
+  padding: var(--kp-space-3) var(--kp-space-4);
+  color: var(--kp-text-muted);
+  font-size: var(--kp-text-sm);
+}
+
+.kp-palette-recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.kp-palette-recent {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--kp-border-subtle);
+}
+
+.kp-palette-recent:hover {
+  background: var(--kp-surface-sunken);
+}
+
+.kp-palette-recent.selected {
+  background: var(--kp-accent-bg);
+}
+
+.kp-palette-recent-run {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-3);
+  padding: var(--kp-space-2) var(--kp-space-4);
+  border: none;
+  background: transparent;
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-base);
+  text-align: left;
+  cursor: pointer;
+}
+
+.kp-palette-recent-run svg {
+  flex-shrink: 0;
+  color: var(--kp-text-muted);
+}
+
+.kp-palette-recent.selected .kp-palette-recent-run {
+  color: var(--kp-accent);
+}
+
+.kp-palette-recent-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kp-palette-recent-remove {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  border: none;
+  background: transparent;
+  color: var(--kp-text-muted);
+  cursor: pointer;
+}
+
+.kp-palette-recent-remove:hover {
+  color: var(--kp-text-primary);
+}
+
+.kp-palette-recent-run:focus-visible,
+.kp-palette-recent-remove:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: -2px;
+}
+
+/* An operator the parser could not honour — said here, never dropped. */
+.kp-palette-warnings {
+  padding: var(--kp-space-2) var(--kp-space-4);
+  border-bottom: 1px solid var(--kp-border-subtle);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-xs);
 }

@@ -13,7 +13,8 @@ test.describe('page lifecycle — UI', () => {
     // Explicit goto so first-load Vite transpilation is fully done before
     // we look for the button.
     await signedInPage.goto('/browse');
-    // New item creation now uses an in-app composer rather than browser prompt().
+    // New item creation happens on a route, never in a browser prompt() and (as
+    // of the Compose consolidation) never in a modal composer either.
     signedInPage.on('dialog', (dialog) => {
       throw new Error(`Page creation should not open a browser ${dialog.type()} dialog.`);
     });
@@ -23,15 +24,21 @@ test.describe('page lifecycle — UI', () => {
     const newPageButton = signedInPage.getByRole('button', { name: /\+ new item/i }).first();
     await expect(newPageButton).toBeVisible({ timeout: 15_000 });
     await newPageButton.click();
-    const composer = signedInPage.getByRole('dialog', { name: /new item composer/i });
-    await expect(composer).toBeVisible();
-    await composer.getByLabel(/^title/i).fill('Hello From Test');
-    await composer.getByRole('button', { name: /start draft/i }).click();
-    await signedInPage.waitForURL(/\/p\/hello-from-test/, { timeout: 10_000 });
-    // Newly-created pages auto-open in edit mode, where the title hero is
-    // rendered as a focused <input> (not a static h1). Assert the input has
-    // the right value rather than looking for the read-mode heading.
+
+    // Browse hands creation to Compose (plan §4.1) rather than opening a dialog
+    // over the list.
+    await signedInPage.waitForURL(/\/new(\?|$)/, { timeout: 10_000 });
     const titleInput = signedInPage.getByRole('textbox', { name: 'Title', exact: true });
+    await expect(titleInput).toBeVisible({ timeout: 15_000 });
+    await titleInput.fill('Hello From Test');
+
+    // Autosave (3 s after the last change) is what turns the draft into an item,
+    // so the title alone is not enough — type into the body too.
+    const editor = signedInPage.locator('.cm-content, .ProseMirror').first();
+    await editor.click();
+    await editor.type('Created from the browse surface.');
+
+    await signedInPage.waitForURL(/\/p\/hello-from-test\/edit$/, { timeout: 20_000 });
     await expect(titleInput).toHaveValue('Hello From Test');
   });
 
@@ -67,7 +74,7 @@ test.describe('page lifecycle — UI', () => {
     const putReq = signedInPage.waitForRequest(
       (req) => req.method() === 'PUT' && req.url().includes(`/api/v1/pages/${p.id}`),
     );
-    await signedInPage.getByRole('button', { name: /^save$/i }).first().click();
+    await signedInPage.getByRole('button', { name: /save draft/i }).first().click();
     await putReq;
 
     // Hard reload — fresh GET from server, no cached state.

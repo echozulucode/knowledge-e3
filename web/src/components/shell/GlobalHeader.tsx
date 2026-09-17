@@ -8,6 +8,7 @@ import { useMe, useLogout } from '../../queries.js';
 import { useNavigate } from '@tanstack/react-router';
 import { ThemeToggle } from './ThemeToggle.js';
 import { SpaceSwitcher } from './SpaceSwitcher.js';
+import { useSiteBrand } from './SiteBrand.js';
 import { Icon, appIcons } from '../../icons.js';
 import './GlobalHeader.css';
 
@@ -21,6 +22,10 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onOpenPalette, onOpe
   const navigate = useNavigate();
   const logout = useLogout();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  // The tenant's own search wording (`site.searchPlaceholder`) when they set
+  // one. It used to label the rail's search box; that box is gone and this
+  // trigger is the one quick search, so the wording moved here with it.
+  const searchLabel = useSiteBrand().searchPlaceholder ?? 'Search…';
 
   const handleLogout = async () => {
     setUserMenuOpen(false);
@@ -47,37 +52,44 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onOpenPalette, onOpe
           <SpaceSwitcher />
         </div>
 
-        {/* Center search trigger (opens the command palette) */}
+        {/* Quick search trigger (opens the command palette). It says "Search"
+            because that is what it is — the same index `/search` queries (home
+            plan R2.3). An empty box shows the reader's recent searches; a
+            result still jumps straight to its item, and Enter opens /search. */}
         {onOpenPalette ? (
           <button
             type="button"
             className="kp-palette-trigger kp-header-search"
             onClick={onOpenPalette}
-            aria-label="Jump to a page (Command or Control + K)"
+            aria-label="Search (Command or Control + K)"
+            aria-haspopup="dialog"
           >
             <Icon icon={appIcons.magnifyingGlass} />
-            <span>Jump to a page…</span>
+            <span>{searchLabel}</span>
             <kbd>⌘K</kbd>
           </button>
         ) : (
           <div className="kp-header-spacer" />
         )}
 
-        {/* Compact search (mobile, when the full trigger is hidden) */}
+        {/* Compact search (mobile, when the full trigger is hidden). The palette
+            it opens is full-screen at this width (CommandPalette.css). */}
         {onOpenPalette && (
           <button
             type="button"
             className="kp-header-search-mobile"
             onClick={onOpenPalette}
-            aria-label="Jump to a page"
-            title="Jump to a page"
+            aria-label="Search"
+            aria-haspopup="dialog"
+            title="Search"
           >
             <Icon icon={appIcons.magnifyingGlass} />
           </button>
         )}
 
-        {/* Theme Toggle */}
-        <ThemeToggle />
+        {/* Theme Toggle. Hidden on phones, where the navigation drawer carries it
+            instead (Sidebar) so the topic switcher keeps room for its label. */}
+        <ThemeToggle className="kp-header-theme" />
 
         {/* User Menu */}
         {user && (
@@ -137,9 +149,10 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onOpenPalette, onOpe
           </div>
         )}
 
-        {/* Sign Out Button (Old style, for backwards compat) */}
+        {/* Sign In (signed-out readers) */}
         {!user && (
           <button
+            type="button"
             className="kp-header-cta"
             onClick={() => navigate({ to: '/login' })}
           >

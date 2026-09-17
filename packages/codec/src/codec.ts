@@ -19,8 +19,7 @@ const FRONTMATTER_FENCE = /^---\r?\n/;
  *    not by re-serialising the AST (see `wikilinks.ts`).
  */
 export function parse(raw: string): ParsedPage {
-  const { rawFrontmatter, body, hasFrontmatter, frontmatter, trailing } =
-    splitFrontmatter(raw);
+  const { rawFrontmatter, body, hasFrontmatter, frontmatter } = splitFrontmatter(raw);
 
   // Build the body AST with positions for surgical edits.
   const processor = unified().use(remarkParse).use(remarkGfm);
@@ -33,7 +32,6 @@ export function parse(raw: string): ParsedPage {
     ast,
     hasFrontmatter,
     rawFrontmatter,
-    trailing,
   };
 }
 
@@ -55,10 +53,10 @@ export function serialize(parsed: ParsedPage): string {
  * Used by surgical-edit paths (e.g. `rewriteWikiLinks`).
  *
  * The frontmatter block is preserved verbatim — we never re-serialise YAML on this path.
- * Trailing whitespace / final-newline behaviour from the original is preserved.
+ * Whatever trails the body (whitespace, final newline) is part of `newBody`.
  */
 export function serializeWithBody(parsed: ParsedPage, newBody: string): string {
-  return `${parsed.rawFrontmatter}${newBody}${parsed.trailing}`;
+  return `${parsed.rawFrontmatter}${newBody}`;
 }
 
 /**
@@ -76,11 +74,10 @@ interface FrontmatterSplit {
   body: string;
   hasFrontmatter: boolean;
   frontmatter: Frontmatter;
-  trailing: string;
 }
 
 /**
- * Split a raw input into (frontmatter, body, trailing) preserving byte boundaries.
+ * Split a raw input into (frontmatter, body) preserving byte boundaries.
  *
  * Uses gray-matter to parse the frontmatter object, but locates the delimiter blocks
  * ourselves so we can keep the original frontmatter bytes for round-trip stability.
@@ -113,7 +110,6 @@ function noFrontmatter(raw: string): FrontmatterSplit {
     body: raw,
     hasFrontmatter: false,
     frontmatter: sanitizeFrontmatter({}),
-    trailing: '',
   };
 }
 
@@ -161,7 +157,6 @@ function splitFrontmatter(raw: string): FrontmatterSplit {
     body,
     hasFrontmatter: true,
     frontmatter,
-    trailing: '',
   };
 }
 

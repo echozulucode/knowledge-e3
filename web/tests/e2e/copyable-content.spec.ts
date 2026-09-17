@@ -22,8 +22,7 @@ async function installClipboardShim(page: import('@playwright/test').Page) {
 }
 
 test.describe('explicit copyable content', () => {
-  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
-  test('browse cards and read view expose frontmatter copy entries without summary-as-copy semantics @quarantine', async ({ signedInPage, apiAsAdmin }) => {
+  test('browse cards and read view expose frontmatter copy entries without summary-as-copy semantics', async ({ signedInPage, apiAsAdmin }) => {
     const item = await createPageViaApi(apiAsAdmin, {
       title: 'Deploy Runbook With Copy Blocks',
       status: 'published',
@@ -54,15 +53,20 @@ test.describe('explicit copyable content', () => {
     await expect(card.getByRole('button', { name: /copy command from deploy runbook with copy blocks/i })).toHaveCount(0);
 
     await card.getByRole('button', { name: /copy deploy command from deploy runbook with copy blocks/i }).click();
-    await expect(signedInPage).toHaveURL(/\/$/);
+    // Copying is not navigation: the browse URL is untouched.
+    await expect(signedInPage).toHaveURL((url) => url.pathname === '/browse');
     await expect.poll(() => signedInPage.evaluate(() => navigator.clipboard.readText())).toBe('pnpm --filter @echozedlabs/web deploy --prod');
 
     await card.getByRole('button', { name: /copy rollback command from deploy runbook with copy blocks/i }).focus();
     await signedInPage.keyboard.press('Enter');
-    await expect(signedInPage).toHaveURL(/\/$/);
+    await expect(signedInPage).toHaveURL((url) => url.pathname === '/browse');
     await expect.poll(() => signedInPage.evaluate(() => navigator.clipboard.readText())).toBe('pnpm --filter @echozedlabs/web rollback --last-good');
 
-    await card.click({ position: { x: 24, y: 72 } });
+    // The card's primary action is a named button under the preview text; a
+    // positional click can land on the edit pencil instead (list-card-semantics
+    // drives it the same way).
+    await card.getByRole('button', { name: /open deploy runbook with copy blocks/i }).focus();
+    await signedInPage.keyboard.press('Enter');
     await expect(signedInPage).toHaveURL((url) => url.pathname === `/p/${item.slug}`, { timeout: 10_000 });
     await installClipboardShim(signedInPage);
     await expect(signedInPage.getByRole('region', { name: /copyable content/i })).toBeVisible({ timeout: 15_000 });

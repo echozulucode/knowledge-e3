@@ -2,6 +2,7 @@
 type: concept
 title: LIGO
 description: The interferometer that first detected gravitational waves.
+categories: [reference]
 tags:
   - physics
   - instruments

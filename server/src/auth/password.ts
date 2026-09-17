@@ -35,6 +35,22 @@ export async function hashPassword(plaintext: string): Promise<string> {
   ].join('$');
 }
 
+/**
+ * A well-formed hash that matches no password, with the SAME cost parameters as
+ * a real one. Sign-in verifies against it when the username does not resolve (or
+ * the account is disabled), so "no such user" costs the same scrypt round as
+ * "wrong password" and response timing is not an account-existence oracle.
+ * Random per process and never persisted; building it costs no scrypt round.
+ */
+export const DUMMY_PASSWORD_HASH = [
+  SCHEME,
+  PARAMS.N,
+  PARAMS.r,
+  PARAMS.p,
+  randomBytes(16).toString('base64'),
+  randomBytes(KEYLEN).toString('base64'),
+].join('$');
+
 export async function verifyPassword(plaintext: string, stored: string): Promise<boolean> {
   const parts = stored.split('$');
   if (parts.length !== 6 || parts[0] !== SCHEME) return false;

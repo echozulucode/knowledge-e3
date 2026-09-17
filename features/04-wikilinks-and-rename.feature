@@ -17,7 +17,8 @@ Feature: Item links, backlinks, and rename safety
     Given one item links to another item using the target item's stable identity
     When I view the target item
     Then the backlink list includes the source item
-    And the backlink preview shows the surrounding context
+    And the backlink preview shows the surrounding context as readable text
+    And the preview starts and ends on whole words, with no raw link syntax
 
   Scenario: Backlinks are visible from the item read view
     Given an item has inbound links from other items

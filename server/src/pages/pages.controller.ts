@@ -13,10 +13,13 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { IsArray, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import { PagesService } from './pages.service.js';
+import { forViewer, listForViewer } from './lifecycle-columns.js';
 import { CurrentUser, PublicRead } from '../auth/auth.decorators.js';
 import type { AuthedUser } from '../auth/auth.service.js';
+import { actorFrom } from '../content/actor.js';
+import { ContentCommandsService } from '../content/content-commands.service.js';
 
 class CreatePageDto {
   @IsString() @MaxLength(500) title!: string;
@@ -33,6 +36,8 @@ class UpdatePageDto {
   @IsOptional() @IsIn(['draft', 'published']) status?: 'draft' | 'published';
   @IsOptional() frontmatter?: Record<string, unknown>;
   @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
+  /** Admin-only, audited opt-out of the publish gate (422 `lint_failed`). */
+  @IsOptional() @IsBoolean() allow_lint_errors?: boolean;
 }
 
 class RenameDto {
@@ -45,12 +50,15 @@ class RenameDto {
 
 @Controller('pages')
 export class PagesController {
-  constructor(private readonly pages: PagesService) {}
+  constructor(
+    private readonly pages: PagesService,
+    private readonly content: ContentCommandsService,
+  ) {}
 
   @Post()
   @HttpCode(201)
   async create(@CurrentUser() user: AuthedUser, @Body() body: CreatePageDto) {
-    const page = await this.pages.create(user.id, body);
+    const { item: page } = await this.content.create(actorFrom(user, 'ui'), body, 'ui');
     return { page, version_token: page.version_token };
   }
 
@@ -61,6 +69,8 @@ export class PagesController {
     @Query('q') q?: string,
     @Query('status') status?: string,
     @Query('tag') tag?: string,
+    // Repeated `?tags=a&tags=b`, or a single value; a Section's any-of tag filter.
+    @Query('tags') tags?: string | string[],
     @Query('since') since?: string,
     @Query('limit') limit?: string,
     @Query('space') space?: string,
@@ -74,34 +84,36 @@ export class PagesController {
     if (sort && !SORTS.includes(sort as (typeof SORTS)[number])) {
       throw new BadRequestException('invalid sort');
     }
-    const items = await this.pages.list(
-      {
-        q,
-        status: status as 'draft' | 'published' | undefined,
-        tag,
-        since,
-        limit: limit ? parseInt(limit, 10) : undefined,
-        space,
-        type,
-        sort: sort as 'updated' | 'published' | 'created' | 'title' | undefined,
-      },
-      user,
-    );
-    return { items, total: items.length };
+    const opts = {
+      q,
+      status: status as 'draft' | 'published' | undefined,
+      tag,
+      tags: tags === undefined ? undefined : Array.isArray(tags) ? tags : [tags],
+      since,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      space,
+      type,
+      sort: sort as 'updated' | 'published' | 'created' | 'title' | undefined,
+    };
+    // `total` is every match for this caller, not the length of this page: the
+    // Sections admin reads it as "Matches N items", and a count capped at
+    // `limit` would under-report exactly the sections that matter most.
+    const [items, total] = await Promise.all([this.pages.list(opts, user), this.pages.count(opts, user)]);
+    return { items: listForViewer(items, user), total };
   }
 
   @PublicRead()
   @Get('by-title/:title')
   async byTitle(@CurrentUser() user: AuthedUser, @Param('title') title: string) {
     const page = await this.pages.getByTitle(title, user);
-    return { page };
+    return { page: forViewer(page, user) };
   }
 
   @PublicRead()
   @Get('by-slug/:slug')
   async bySlug(@CurrentUser() user: AuthedUser, @Param('slug') slug: string) {
     const page = await this.pages.getBySlug(slug, user);
-    return { page };
+    return { page: forViewer(page, user) };
   }
 
   // Must precede `:id` so "link-index" isn't captured as a page id.
@@ -121,7 +133,7 @@ export class PagesController {
     const page = await this.pages.getById(id, { actor: user });
     if (!page) return { page: null };
     res.setHeader('ETag', String(page.version_token));
-    return { page, version_token: page.version_token };
+    return { page: forViewer(page, user), version_token: page.version_token };
   }
 
   @Put(':id')
@@ -136,19 +148,19 @@ export class PagesController {
     if (expected === null) {
       throw new BadRequestException('If-Match header is required');
     }
-    const page = await this.pages.update(user, id, expected, body);
+    const { item: page } = await this.content.update(actorFrom(user, 'ui'), id, body, expected, 'ui');
     return { page, version_token: page.version_token };
   }
 
   @Delete(':id')
   @HttpCode(204)
   async delete(@Param('id') id: string, @CurrentUser() user: AuthedUser) {
-    await this.pages.softDelete(user, id);
+    await this.content.remove(actorFrom(user, 'ui'), id);
   }
 
   @Post(':id/restore')
   async restore(@Param('id') id: string, @CurrentUser() user: AuthedUser) {
-    const page = await this.pages.restore(user, id);
+    const { item: page } = await this.content.restore(actorFrom(user, 'ui'), id);
     return { page };
   }
 
@@ -161,14 +173,12 @@ export class PagesController {
   ) {
     const expected = parseEtag(req.headers['if-match']);
     if (expected === null) throw new BadRequestException('If-Match header is required');
-    return this.pages.rename(
-      user,
-      id,
-      expected,
-      body.new_title,
-      body.link_action,
-      (body.expected_affected_versions ?? {}) as Record<string, number>,
-    );
+    const { item: page, affected_pages } = await this.content.rename(actorFrom(user, 'ui'), id, body.new_title, {
+      ifMatch: expected,
+      linkAction: body.link_action,
+      expectedAffectedVersions: (body.expected_affected_versions ?? {}) as Record<string, number>,
+    });
+    return { page, affected_pages };
   }
 
   @Get(':id/versions')

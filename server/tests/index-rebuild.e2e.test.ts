@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import request from 'supertest';
 import { Kysely, sql } from 'kysely';
 import type { INestApplication } from '@nestjs/common';
 import { makeApp, seedAdminAndLogin } from './helpers.js';
@@ -11,6 +12,7 @@ import { ItemsService, type ItemView } from '../src/items/items.service.js';
 import { WikiService } from '../src/wiki/wiki.service.js';
 import { IndexRebuildService } from '../src/storage/index-rebuild.service.js';
 import { GitRevisionMirrorAdapter } from '../src/storage/git-revision-mirror.adapter.js';
+import { RepoConfigService } from '../src/storage/repo-config.service.js';
 import type { RevisionMirrorEvent } from '../src/storage/revision-mirror.port.js';
 
 /**
@@ -25,12 +27,13 @@ describe('IndexRebuildService (Phase B) rebuild-from-git drill', () => {
   let wiki: WikiService;
   let rebuild: IndexRebuildService;
   let adminId: string;
+  let cookie: string;
   let dir: string;
   let adapter: GitRevisionMirrorAdapter;
 
   beforeEach(async () => {
     app = await makeApp();
-    ({ userId: adminId } = await seedAdminAndLogin(app));
+    ({ userId: adminId, cookie } = await seedAdminAndLogin(app));
     db = app.get<Kysely<Database>>(KYSELY);
     items = app.get(ItemsService);
     wiki = app.get(WikiService);
@@ -199,6 +202,49 @@ describe('IndexRebuildService (Phase B) rebuild-from-git drill', () => {
     expect(after.body_markdown).toContain('Third revision.');
     expect(after.version_token).toBe(3);
     expect(after.owner_id).toBe(adminId);
+  });
+
+  it('sets type + lifecycle columns from the file, applies the root index.md presentation to the repo topic, and only indexes concept dirs', async () => {
+    // A dedicated topic repo: the working tree is named after the topic slug and
+    // the topic is bound to a repo, so the adapter's root index.md carries the
+    // topic's presentation (exactly the production layout `<root>/topics/<slug>`).
+    const topicDir = join(dir, 'matlab');
+    const topicAdapter = new GitRevisionMirrorAdapter(topicDir, db, { quietMs: 20, maxMs: 50 });
+    await request(app.getHttpServer())
+      .post('/api/v1/topics')
+      .set('Cookie', cookie)
+      .send({ name: 'MATLAB', slug: 'matlab', presentation: 'portal', start_here: 'use-ai', landing_markdown: 'Gateway prose.' })
+      .expect(201);
+    await app.get(RepoConfigService).upsert('space_matlab', { remote_url: join(dir, 'unused.git') }, adminId);
+
+    const runbook = await items.create(adminId, {
+      raw: '---\ntitle: Old Runbook\ntype: runbook\nstatus: published\ntopic: MATLAB\nstale_after: 2020-01-01\n---\nPast due.\n',
+    });
+    await topicAdapter.afterItemVersionPersisted(eventFrom(runbook));
+    await topicAdapter.flush();
+    // Stray markdown outside a concepts dir (and under assets/) is not an item.
+    mkdirSync(join(topicDir, 'notes'), { recursive: true });
+    mkdirSync(join(topicDir, 'assets'), { recursive: true });
+    writeFileSync(join(topicDir, 'notes', 'scratch.md'), '---\ntitle: Scratch\n---\nnot a concept\n');
+    writeFileSync(join(topicDir, 'assets', 'readme.md'), '# assets\n');
+    expect(readFileSync(join(topicDir, 'index.md'), 'utf8')).toContain('presentation: portal');
+
+    const report = await rebuild.rebuildFromDir(topicDir, { actorId: adminId, sourceId: 'topic:matlab' });
+    expect(report.pages).toBe(1);
+
+    const row = await db.selectFrom('pages').selectAll().where('id', '=', runbook.id).executeTakeFirstOrThrow();
+    // `type` is canonicalized the way a live write does it; lifecycle columns come from the file.
+    expect(row).toMatchObject({
+      type: 'Runbook',
+      lifecycle_status: 'stable',
+      trust_tier: 'unverified',
+      stale_after: '2020-01-01T00:00:00.000Z',
+      source_id: 'topic:matlab',
+      file_path: `concepts/${runbook.slug}.md`,
+    });
+    // The topic was recreated from the concept's frontmatter, then the index.md landed on it.
+    const topic = await db.selectFrom('spaces').selectAll().where('slug', '=', 'matlab').executeTakeFirstOrThrow();
+    expect(topic).toMatchObject({ presentation: 'portal', start_here: 'use-ai', landing_markdown: 'Gateway prose.' });
   });
 
   it('is idempotent — rebuilding twice yields the same store', async () => {

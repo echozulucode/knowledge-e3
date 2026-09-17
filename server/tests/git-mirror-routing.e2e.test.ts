@@ -98,7 +98,7 @@ describe('RoutingRevisionMirror (topic-subtree, hybrid) e2e', () => {
 
     // The shared repo is one conformant bundle with a root index over all topics.
     const index = readFileSync(join(main, 'index.md'), 'utf8');
-    expect(index).toMatch(/okf_version: "0\.1"/);
+    expect(index).toMatch(/okf_version: "0\.2"/);
     expect(index).toContain('(/physics/concepts/');
     const report = validateBundle({ files: readBundle(main) });
     expect(report.conformant).toBe(true);

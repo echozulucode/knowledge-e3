@@ -1,80 +1,71 @@
-version: '3.8'
+# Knowledge E3 — turnkey self-host.
+#
+#   cp .env.example .env      # then set SEED_ADMIN_PASSWORD (and edit as needed)
+#   docker compose up -d      # build + run; the first boot creates that admin
+#   # open http://localhost:3000 and sign in with SEED_ADMIN_USERNAME / *_PASSWORD
+#
+# One container serves both the JSON API and the built web UI on port 3000.
+# All state lives on the `kp_data` volume mounted at /data:
+#   /data/kp.sqlite   the derived index (rebuildable from the mirror)
+#   /data/wiki        the git-of-record Markdown mirror + uploaded media (ADR-0001)
+# Back up that volume and you have backed up everything. SQLite is the only
+# supported store (ADR-0002). Full walk-through: docs/self-hosting.md.
 
 services:
-  # SQL Server database.
-  # NOTE (v0.1): the application does NOT yet talk to SQL Server — db.module.ts
-  # only wires the SQLite driver. This service is kept for future prod stand-up
-  # and manual experimentation; the `app` below runs on SQLite. See
-  # docs/plan.md (decision: SQLite is the supported v0.1 store).
-  mssql:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: knowledge-e3-mssql
-    environment:
-      ACCEPT_EULA: "Y"
-      # Provide MSSQL_SA_PASSWORD via a local .env file (see .env.example).
-      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?set MSSQL_SA_PASSWORD in .env}"
-    ports:
-      # Bind to loopback only — never expose SA-auth SQL Server on all interfaces.
-      - "127.0.0.1:1433:1433"
-    volumes:
-      - mssql_data:/var/opt/mssql/data
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -No -Q 'SELECT 1'",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
-
-  # Mailhog for email testing
-  mailhog:
-    image: axllent/mailhog:latest
-    container_name: knowledge-e3-mailhog
-    ports:
-      - "127.0.0.1:1025:1025"  # SMTP port
-      - "127.0.0.1:8025:8025"  # Web UI port
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8025/api/v1/stats"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # Knowledge Platform application (SQLite-backed in v0.1).
+  # Production-built app + web UI, backed by SQLite on a persistent volume.
+  # NODE_ENV is development only so the loopback HTTP quickstart can set its
+  # session cookie (the Secure flag is on in production, and a browser drops a
+  # Secure cookie over plain HTTP). TLS deployments set NODE_ENV=production and
+  # HTTPS_ONLY=1 in .env or at the platform boundary.
   app:
     build:
       context: .
       dockerfile: Dockerfile
+    image: knowledge-e3
     container_name: knowledge-e3-app
-    depends_on:
-      mailhog:
-        condition: service_healthy
+    restart: unless-stopped
     environment:
-      NODE_ENV: "development"
+      NODE_ENV: "${NODE_ENV:-development}"
+      HTTPS_ONLY: "${HTTPS_ONLY:-0}"
       PORT: "3000"
-      # SQLite file on a persistent named volume (see `kp_data` below).
       DB_URL: "/data/kp.sqlite"
-      MAIL_HOST: "mailhog"
-      MAIL_PORT: "1025"
+      GIT_MIRROR_ROOT: "/data/wiki"
+      # First-run admin bootstrap, run by the entrypoint. Idempotent, and skipped
+      # entirely when the password is unset (seed by hand then — see .env.example).
+      SEED_ADMIN_USERNAME: "${SEED_ADMIN_USERNAME:-admin}"
+      SEED_ADMIN_EMAIL: "${SEED_ADMIN_EMAIL:-admin@local}"
+      SEED_ADMIN_PASSWORD: "${SEED_ADMIN_PASSWORD:-}"
+      # 'public' (the default) lets anonymous visitors read published content in
+      # public topics; 'authenticated' requires a sign-in even to read.
+      KNOWLEDGE_E3_DEFAULT_READ_ACCESS: "${KNOWLEDGE_E3_DEFAULT_READ_ACCESS:-}"
+      # Behind TLS, name your public origin here or the CSRF guard rejects
+      # browser mutations from it with a 403.
+      KNOWLEDGE_E3_ALLOWED_ORIGINS: "${KNOWLEDGE_E3_ALLOWED_ORIGINS:-}"
+      # Proxy hops allowed to report the client address; without it the per-IP
+      # sign-in throttle sees one address for every client behind the proxy.
+      TRUST_PROXY: "${TRUST_PROXY:-}"
+      # SQLite WAL breaks on SMB/NFS/Azure-Files mounts — set DELETE there.
+      SQLITE_JOURNAL_MODE: "${SQLITE_JOURNAL_MODE:-WAL}"
     ports:
-      - "127.0.0.1:3000:3000"
+      # Loopback by default: an instance is not exposed to the network until the
+      # operator says so, which is the safe default for `docker compose up` on a
+      # machine that has no TLS in front of it yet.
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-3000}:3000"
     volumes:
-      # Mount source for hot-reload during development (optional)
-      - ./server/src:/app/server/src:ro
-      - ./packages/codec/src:/app/packages/codec/src:ro
       - kp_data:/data
-    command: npm run dev
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3000/api/v1/healthz',(r)=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
       interval: 15s
       timeout: 5s
       retries: 3
       start_period: 20s
 
 volumes:
-  mssql_data:
-    driver: local
   kp_data:
     driver: local

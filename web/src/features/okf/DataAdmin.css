@@ -1,0 +1,176 @@
+/* Admin → Data (review §4.9): tabs, the Import stepper, Export's format choice
+   and the library audit. Token-driven, light/dark. OkfAdmin.css keeps the shared
+   panel/report classes (BundleReport and the Files page use them). */
+
+.DataAdmin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-4);
+  min-width: 0;
+}
+.DataAdmin__panel { min-width: 0; }
+.DataAdmin .OkfAdmin__panel {
+  border-color: var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* The shared panel styles every button as a tinted chip; the admin buttons here keep their own look. */
+.DataAdmin .OkfAdmin__panel button.kp-admin-button { border-radius: var(--kp-radius-pill); }
+.DataAdmin .OkfAdmin__panel button.kp-admin-button:not(.kp-admin-button--primary) { background: var(--kp-surface-base); }
+.DataAdmin .OkfAdmin__panel button.kp-admin-button--primary {
+  border-color: var(--kp-accent);
+  background: var(--kp-accent);
+  color: var(--kp-accent-fg);
+}
+.DataAdmin h3 {
+  margin: 0 0 var(--kp-space-2);
+  font-size: var(--kp-text-md, 15px);
+  font-weight: var(--kp-weight-semibold);
+}
+.DataAdmin__lead {
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+}
+.DataAdmin .OkfAdmin__panel p.DataAdmin__lead { opacity: 1; }
+.DataAdmin__panelHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--kp-space-1) var(--kp-space-4);
+}
+.DataAdmin__vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.DataAdmin__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1);
+  max-width: 24rem;
+  margin-bottom: var(--kp-space-3);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+}
+.DataAdmin__field select {
+  /* A <select> sizes to its longest option; cap it so a long topic name cannot widen a phone page. */
+  max-width: 100%;
+  min-width: 0;
+  padding: var(--kp-space-2);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-canvas);
+  color: var(--kp-text-primary);
+  font: inherit;
+  font-weight: normal;
+}
+.DataAdmin__alert { display: flex; flex-direction: column; align-items: flex-start; gap: var(--kp-space-2); }
+
+/* Export: the format choice. */
+.DataAdmin__formats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+  margin: 0 0 var(--kp-space-4);
+  padding: 0;
+  border: 0;
+  font-size: var(--kp-text-sm);
+}
+.DataAdmin__formats legend { margin-bottom: var(--kp-space-1); font-weight: var(--kp-weight-semibold); }
+.DataAdmin__formats label { display: flex; align-items: flex-start; gap: var(--kp-space-2); }
+.DataAdmin__formats input { margin-top: 0.2rem; }
+
+/* Import stepper. The current step is bold AND numbered in a filled circle, done steps carry a check: never colour alone. */
+.DataImport__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-2) var(--kp-space-5);
+  margin: var(--kp-space-2) 0 var(--kp-space-3);
+  padding: 0;
+  list-style: none;
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+.DataImport__steps li { display: inline-flex; align-items: center; gap: var(--kp-space-2); }
+.DataImport__stepNumber {
+  display: inline-grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: 50%;
+  font-variant-numeric: tabular-nums;
+}
+.DataImport__steps li[data-status='current'] { color: var(--kp-text-primary); font-weight: var(--kp-weight-semibold); }
+.DataImport__steps li[data-status='current'] .DataImport__stepNumber { border-color: var(--kp-accent); background: var(--kp-accent); color: var(--kp-accent-fg); }
+.DataImport__steps li[data-status='done'] .DataImport__stepNumber { border-color: var(--kp-success); color: var(--kp-success); }
+.DataImport__body { display: flex; flex-direction: column; gap: var(--kp-space-3); min-width: 0; }
+.DataImport__body h3:focus { outline: none; }
+.DataImport__body h3:focus-visible { outline: 2px solid var(--kp-border-focus); outline-offset: 2px; }
+.DataImport__drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--kp-space-2);
+  padding: var(--kp-space-6) var(--kp-space-4);
+  border: 2px dashed var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-sunken);
+  text-align: center;
+}
+.DataImport__drop[data-dragging='true'] { border-color: var(--kp-accent); background: var(--kp-surface-base); }
+.DataAdmin .OkfAdmin__panel .DataImport__drop p { margin: 0; opacity: 1; }
+.DataImport__dropTitle { font-weight: var(--kp-weight-semibold); }
+.DataImport__dropHint { max-width: 60ch; color: var(--kp-text-secondary); font-size: var(--kp-text-sm); }
+.DataImport__change { margin: 0; font-weight: var(--kp-weight-semibold); }
+.DataImport__nav { justify-content: flex-start; }
+.DataImport__statement { margin: 0; padding-left: 1.2rem; display: grid; gap: var(--kp-space-1); font-size: var(--kp-text-sm); }
+.DataImport__links { display: flex; flex-wrap: wrap; gap: var(--kp-space-1) var(--kp-space-4); }
+.DataImport__links a { color: var(--kp-accent); }
+
+/* Library audit. */
+.DataAudit__verdict { display: flex; flex-wrap: wrap; align-items: center; gap: var(--kp-space-2); }
+.DataAdmin .OkfAdmin__panel p.DataAudit__verdict { opacity: 1; }
+.DataAudit__rollup {
+  display: grid;
+  gap: var(--kp-space-1);
+  margin: 0 0 var(--kp-space-4);
+  padding: var(--kp-space-3) var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-sunken);
+  font-size: var(--kp-text-sm);
+}
+.DataAudit__rollup > div { display: flex; flex-wrap: wrap; gap: var(--kp-space-2); }
+.DataAudit__rollup dt { min-width: 6rem; font-weight: var(--kp-weight-semibold); }
+.DataAudit__rollup dd { margin: 0; }
+.DataAudit__tier { display: flex; flex-direction: column; gap: var(--kp-space-2); margin-top: var(--kp-space-4); min-width: 0; }
+.DataAudit__tierCount { color: var(--kp-text-secondary); font-weight: normal; }
+.DataAdmin .OkfAdmin__panel p.DataAudit__meaning { margin: 0; color: var(--kp-text-secondary); font-size: var(--kp-text-sm); opacity: 1; }
+.DataAudit__rule {
+  min-width: 0;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  padding: var(--kp-space-2) var(--kp-space-3);
+}
+.DataAudit__rule summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-1) var(--kp-space-3);
+  cursor: pointer;
+  font-size: var(--kp-text-sm);
+}
+.DataAudit__rule[open] summary { margin-bottom: var(--kp-space-2); }
+.DataAudit__ruleCount { color: var(--kp-text-secondary); }
+.DataAudit code { overflow-wrap: anywhere; }

@@ -1,0 +1,173 @@
+/**
+ * The reading pane (ReadingPaneLayout.tsx).
+ *
+ * None of this applies below the threshold: there, the layout renders no
+ * wrapper and these selectors match nothing. Above it, the wrapper is present
+ * in two states, switched by `data-pane` from the same measurement that decides
+ * clicks — the CSS never guesses at a width of its own.
+ *
+ * COUPLING, stated once: Root.css makes whatever the shell's `<Outlet />`
+ * renders the route's scroll container (`.kp-main > :not(header)`). The wrapper
+ * now sits in that position, so each state below re-establishes the page's
+ * scroll container one level down. The specificity is (0,3,0) on purpose, to
+ * win over Root.css's (0,2,1).
+ */
+
+/* ---- Wide, nothing open: exactly the page as it lays out without us ---- */
+
+.kp-main > .kp-reading-layout[data-pane='closed'] {
+  display: contents;
+}
+
+.kp-main > .kp-reading-layout[data-pane] > :first-child {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ---- Wide, an item open: list | pane ---- */
+
+/*
+ * The split: half and half (Eric, 2026-09-13: "the right side panel for the
+ * content should be roughly 50% of the space on extra wide screens"). The
+ * threshold (readingPaneModel.ts) guarantees each half is at least 55rem, so
+ * neither side needs a minmax floor of its own. The list side does NOT reflow
+ * its page into a squeezed version of itself: each page that hosts the pane
+ * states its own open-state column (Home.css, "Reading pane open"), centred in
+ * this half at the width it has when the pane is closed.
+ */
+.kp-main > .kp-reading-layout[data-pane='open'] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.kp-main > .kp-reading-layout[data-pane='open'] > :first-child {
+  min-width: 0;
+  min-height: 0;
+}
+
+.kp-reading-pane {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-left: 1px solid var(--kp-border-subtle);
+  background: var(--kp-surface-base);
+  /* Scrollbar space is reserved, so a short article and a long one put the
+     header's buttons in the same place. */
+  scrollbar-gutter: stable;
+  /* The reader's "On this page" scrolls this container; a heading it jumps to
+     must land below the sticky bar, not under it. */
+  scroll-padding-top: 4rem;
+}
+
+.kp-reading-pane__bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-3);
+  min-height: 3rem;
+  padding: var(--kp-space-2) var(--kp-space-3) var(--kp-space-2) var(--kp-space-5);
+  border-bottom: 1px solid var(--kp-border-subtle);
+  background: var(--kp-surface-base);
+}
+
+.kp-reading-pane__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-secondary);
+}
+
+.kp-reading-pane__action,
+.kp-reading-pane__close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--kp-space-2);
+  min-height: 2.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--kp-radius-md);
+  background: transparent;
+  color: var(--kp-text-secondary);
+  font: inherit;
+  font-size: var(--kp-text-sm);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.kp-reading-pane__action {
+  padding: 0 var(--kp-space-3);
+  border-color: var(--kp-border-subtle);
+}
+
+.kp-reading-pane__close {
+  width: 2.25rem;
+}
+
+.kp-reading-pane__action:hover,
+.kp-reading-pane__close:hover {
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-primary);
+}
+
+.kp-reading-pane__action:focus-visible,
+.kp-reading-pane__close:focus-visible {
+  outline: 2px solid var(--kp-accent);
+  outline-offset: 2px;
+}
+
+/* Horizontal padding only: the reader caps and centres its own article column
+   (`--kp-article-width`) and owns its vertical rhythm. */
+.kp-reading-pane__body {
+  padding-inline: var(--kp-space-6);
+}
+
+/* The title receives focus programmatically on open; a focus ring on a heading
+   the reader did not tab to reads as a bug, so it shows only for the keyboard. */
+.kp-reading-pane [tabindex='-1']:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ---- The row that is open ----
+   `aria-current` is set on the item link only while the pane shows it, so these
+   match nothing on a narrow screen. Token-based, and a 3px inline-start bar as
+   well as a tint, so the state never rests on colour alone. */
+
+.kp-reading-layout .kp-item-row:has(.kp-item-row__title[aria-current='true']) {
+  border-color: var(--kp-accent);
+  background: var(--kp-accent-bg);
+  box-shadow: inset 3px 0 0 var(--kp-accent);
+}
+
+.kp-reading-layout .kp-item-card:has(.kp-item-card__titleLink[aria-current='true']) {
+  outline: 2px solid var(--kp-accent);
+  outline-offset: 2px;
+  background: var(--kp-accent-bg);
+}
+
+.kp-reading-layout .Search__row[aria-current='true'] {
+  border-color: var(--kp-accent);
+  background: var(--kp-accent-bg);
+  box-shadow: inset 3px 0 0 var(--kp-accent);
+}
+
+.kp-reading-layout .Home__popularItem:has([aria-current='true']) {
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-accent-bg);
+  box-shadow: inset 3px 0 0 var(--kp-accent);
+}
+
+.kp-reading-layout a[aria-current='true'] {
+  color: var(--kp-accent);
+}

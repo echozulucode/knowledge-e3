@@ -41,9 +41,9 @@ Feature: Item browse and search
     Then I can search across the knowledge base
     And choosing a result opens the item directly
 
-  Scenario: The top bar does not duplicate browse search
+  Scenario: The top bar offers one quick search, not a second browse search
     When I view the application header
-    Then the header does not show a Search or Search pages control
+    Then the header shows a single Search control that opens the quick search
     And the visible browse search remains in the browse controls
 
   Scenario: Search and browse perform at demo scale

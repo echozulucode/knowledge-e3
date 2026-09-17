@@ -2,7 +2,7 @@
  * Export all Knowledge E3 content to an Open Knowledge Format (OKF) bundle on disk.
  *
  * This is the first concrete increment of the git-of-record direction (see
- * docs/llm-wiki-study/implementation-plan.md and docs/okf-study/): a read-only
+ * the LLM wiki study's implementation plan and the OKF format study): a read-only
  * export that turns every page into an OKF concept document, reusing the @echozedlabs/codec
  * parser and the @echozedlabs/okf builder. It does not modify any content.
  *
@@ -89,7 +89,7 @@ async function main(): Promise<void> {
 
     const bundle = buildBundle(pages, {
       bundleTitle: 'Knowledge E3',
-      bundleDescription: 'Exported from Knowledge E3 in Open Knowledge Format (OKF v0.1).',
+      bundleDescription: 'Exported from Knowledge E3 in Open Knowledge Format (OKF v0.2).',
     });
 
     // Fresh export: clear a prior export dir so deleted pages don't linger.
@@ -107,7 +107,7 @@ async function main(): Promise<void> {
     );
     if (report.conformant) {
       // eslint-disable-next-line no-console
-      console.log('[okf] conformance: OK (OKF v0.1)');
+      console.log('[okf] conformance: OK (OKF v0.2)');
     } else {
       // eslint-disable-next-line no-console
       console.error(`[okf] conformance: ${report.issues.length} issue(s):`);

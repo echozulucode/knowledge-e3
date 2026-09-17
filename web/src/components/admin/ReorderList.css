@@ -1,0 +1,113 @@
+/* ReorderList / useReorder — token-driven, light/dark. The drop indicators are
+   generic `[data-reorder-item]` rules so they also apply to DataTable rows. */
+
+.kp-reorder__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kp-reorder[data-layout='grid'] .kp-reorder__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--kp-space-3);
+}
+
+.kp-reorder__item {
+  position: relative;
+  min-width: 0;
+}
+
+.kp-reorder__handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--kp-radius-sm);
+  background: transparent;
+  color: var(--kp-text-secondary);
+  cursor: grab;
+  /* Touch: the drag is ours, not the page scroll's. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.kp-reorder__handle svg {
+  width: 18px;
+  height: 18px;
+}
+.kp-reorder__handle:hover:not(:disabled) {
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-primary);
+}
+.kp-reorder__handle:active:not(:disabled) {
+  cursor: grabbing;
+}
+.kp-reorder__handle:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 1px;
+}
+.kp-reorder__handle[data-reorder-grabbed='true'] {
+  border-color: var(--kp-accent);
+  background: var(--kp-accent-bg);
+  color: var(--kp-accent);
+  cursor: grabbing;
+}
+.kp-reorder__handle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Picked up by keyboard: the whole item is highlighted, not just the handle. */
+[data-reorder-item]:has([data-reorder-grabbed='true']) {
+  outline: 2px solid var(--kp-accent);
+  outline-offset: -2px;
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-accent-bg);
+}
+
+/* Pointer drag: the source fades, a line marks where it lands. */
+[data-reorder-item][data-reorder-dragging='true'] {
+  opacity: 0.55;
+}
+[data-reorder-item][data-drop='before'] {
+  box-shadow: 0 -3px 0 0 var(--kp-accent);
+}
+[data-reorder-item][data-drop='after'] {
+  box-shadow: 0 3px 0 0 var(--kp-accent);
+}
+/* Table rows ignore box-shadow in some engines; draw on the cells too. */
+tr[data-reorder-item][data-drop='before'] > * {
+  box-shadow: inset 0 3px 0 0 var(--kp-accent);
+}
+tr[data-reorder-item][data-drop='after'] > * {
+  box-shadow: inset 0 -3px 0 0 var(--kp-accent);
+}
+.kp-reorder[data-layout='grid'] [data-reorder-item][data-drop] {
+  box-shadow: 0 0 0 3px var(--kp-accent);
+  border-radius: var(--kp-radius-md);
+}
+
+.kp-reorder__vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-reorder-item] {
+    transition: opacity var(--kp-duration-fast) var(--kp-ease), box-shadow var(--kp-duration-fast) var(--kp-ease);
+  }
+}

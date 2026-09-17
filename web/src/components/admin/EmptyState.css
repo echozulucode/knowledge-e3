@@ -1,0 +1,43 @@
+/* EmptyState — token-driven, light/dark. */
+
+.kp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--kp-space-2);
+  padding: var(--kp-space-10) var(--kp-space-4);
+  border: 1px dashed var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  text-align: center;
+}
+
+.kp-empty__icon {
+  width: 32px;
+  height: 32px;
+  color: var(--kp-text-muted);
+}
+.kp-empty[data-tone='success'] .kp-empty__icon {
+  color: var(--kp-success);
+}
+
+.kp-empty__title {
+  margin: 0;
+  font-size: var(--kp-text-md);
+  font-weight: var(--kp-weight-semibold);
+}
+
+.kp-empty__body {
+  max-width: 44ch;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  line-height: var(--kp-leading-normal);
+}
+.kp-empty__body > p {
+  margin: 0;
+}
+
+.kp-empty__action {
+  margin-top: var(--kp-space-2);
+}

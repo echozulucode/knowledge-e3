@@ -1,0 +1,203 @@
+/* TopicEditPage — presentation cards, the markdown Write/Preview panel and the aside. Layout comes from EditPageLayout; inputs from TopicAdmin.css (TopicForm). Token-driven, light/dark. */
+.TopicEditPage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-4);
+  min-width: 0;
+}
+
+.TopicEditPage__muted {
+  margin: 0;
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+.TopicEditPage__warn {
+  color: var(--kp-warning);
+}
+.TopicEditPage__danger {
+  align-self: flex-start;
+  border-color: var(--kp-danger);
+  color: var(--kp-danger);
+}
+.TopicEditPage__danger[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Presentation: radio cards, two across when there is room. */
+.TopicEditPage__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  gap: var(--kp-space-2);
+}
+.TopicEditPage__card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px var(--kp-space-2);
+  align-items: start;
+  padding: var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+  cursor: pointer;
+}
+.TopicEditPage__card:hover {
+  background: var(--kp-surface-sunken);
+}
+/* Checked is a border, a tint AND the filled radio, never colour alone. */
+.TopicEditPage__card[data-checked] {
+  border-color: var(--kp-accent);
+  background: var(--kp-accent-bg);
+}
+.TopicEditPage__card:focus-within {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 1px;
+}
+.TopicEditPage__card input {
+  margin: 3px 0 0;
+}
+.TopicEditPage__cardTitle {
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+}
+.TopicEditPage__cardBody {
+  grid-column: 2;
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+
+/* Landing markdown. */
+.TopicEditPage__markdownHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kp-space-2);
+}
+.TopicEditPage__tabs {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+}
+.TopicEditPage__tab {
+  min-height: 32px;
+  padding: 0 var(--kp-space-3);
+  border: 0;
+  border-radius: var(--kp-radius-pill);
+  background: transparent;
+  color: var(--kp-text-secondary);
+  font: inherit;
+  font-size: var(--kp-text-sm);
+  cursor: pointer;
+}
+.TopicEditPage__tab[aria-selected='true'] {
+  background: var(--kp-accent-bg);
+  color: var(--kp-text-primary);
+  font-weight: var(--kp-weight-semibold);
+}
+.TopicEditPage__tab:focus-visible,
+.TopicEditPage__markdownPreview:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+.TopicEditPage__textarea {
+  min-height: 12rem;
+  font-family: var(--kp-font-mono);
+}
+.TopicEditPage__markdown[data-invalid] .TopicEditPage__textarea {
+  border-color: var(--kp-danger);
+}
+.TopicEditPage__markdownPreview {
+  min-height: 12rem;
+  max-height: 32rem;
+  overflow: auto;
+  padding: var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-base);
+}
+.TopicEditPage__markdownFoot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--kp-space-2);
+}
+.TopicEditPage__count {
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.TopicEditPage__count[data-over] {
+  color: var(--kp-danger);
+  font-weight: var(--kp-weight-semibold);
+}
+
+.TopicEditPage__sections {
+  margin: 0;
+  padding-left: 1.1em;
+  font-size: var(--kp-text-sm);
+}
+.TopicEditPage__sections li + li {
+  margin-top: var(--kp-space-1);
+}
+
+.TopicEditPage__repo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1);
+  font-size: var(--kp-text-sm);
+}
+.TopicEditPage__repo p {
+  margin: 0;
+}
+.TopicEditPage__repo code {
+  font-family: var(--kp-font-mono);
+  overflow-wrap: anywhere;
+}
+.TopicEditPage__repoLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2);
+}
+
+/* Aside. */
+.TopicEditPage__preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-4);
+  font-size: var(--kp-text-sm);
+}
+.TopicEditPage__previewBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1);
+}
+.TopicEditPage__previewBlock p {
+  margin: 0;
+}
+.TopicEditPage__previewTitle {
+  margin: 0;
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--kp-text-secondary);
+}
+.TopicEditPage__viewLink {
+  font-weight: var(--kp-weight-semibold);
+}
+.TopicEditPage__summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--kp-space-1) var(--kp-space-3);
+  margin: 0;
+}
+.TopicEditPage__summary dt {
+  color: var(--kp-text-secondary);
+}
+.TopicEditPage__summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

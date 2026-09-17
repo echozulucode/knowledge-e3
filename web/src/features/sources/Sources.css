@@ -1,0 +1,469 @@
+/* Admin → Sources (plan §7.4 / §8.1 / §8.2). Token-driven, light/dark. */
+
+.Sources__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border: 1px solid var(--kp-border-subtle, #d0d0d0);
+  border-radius: var(--kp-radius-pill, 999px);
+  background: var(--kp-surface-sunken, #f4f4f5);
+  color: var(--kp-text-secondary, #444);
+  font-size: var(--kp-text-xs, 12px);
+  font-weight: var(--kp-weight-semibold, 600);
+  white-space: nowrap;
+}
+
+.Sources__chip[data-tone='ok'] {
+  border-color: var(--kp-success, #1a7f37);
+  color: var(--kp-success, #1a7f37);
+}
+.Sources__chip[data-tone='pending'],
+.Sources__chip[data-tone='busy'] {
+  border-color: var(--kp-accent, #4f46e5);
+  color: var(--kp-accent, #4f46e5);
+}
+.Sources__chip[data-tone='conflict'],
+.Sources__chip[data-tone='error'] {
+  border-color: var(--kp-danger, #cf222e);
+  color: var(--kp-danger, #cf222e);
+  background: var(--kp-danger-bg, #fdecec);
+}
+.Sources__chip[data-kind='mode'] {
+  text-transform: capitalize;
+}
+.Sources__chip[data-kind='role'][data-value='reference'] {
+  opacity: 0.8;
+}
+
+/* The env var a source names, and whether the server has it (B3 / D4a). Its own
+   line under the host: the name is long, and a wrapped chip reads as two. */
+.Sources__secret {
+  display: flex;
+  width: fit-content;
+  margin-top: 4px;
+  font-family: var(--kp-font-mono, ui-monospace, monospace);
+  font-weight: var(--kp-weight-medium, 500);
+}
+
+.Sources__mono {
+  font-family: var(--kp-font-mono, ui-monospace, monospace);
+  font-size: var(--kp-text-xs, 12px);
+  word-break: break-all;
+}
+
+.Sources__rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.Sources__rowError {
+  display: block;
+  margin-top: 4px;
+  color: var(--kp-danger, #cf222e);
+  font-size: var(--kp-text-xs, 12px);
+}
+
+.Sources__formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.Sources__fieldError {
+  color: var(--kp-danger, #cf222e);
+  font-size: var(--kp-text-xs, 12px);
+  font-weight: var(--kp-weight-semibold, 600);
+}
+
+.Sources__testRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.Sources__testOk {
+  color: var(--kp-success, #1a7f37);
+  font-size: var(--kp-text-xs, 12px);
+  font-weight: var(--kp-weight-semibold, 600);
+}
+
+.Sources__modes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  border: 0;
+}
+.Sources__modes legend {
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.Sources__mode {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.6rem;
+  align-items: start;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--kp-border-subtle, #d0d0d0);
+  border-radius: var(--kp-radius-md, 8px);
+  background: var(--kp-surface-base, #fff);
+  cursor: pointer;
+}
+.Sources__mode input {
+  margin-top: 0.25rem;
+}
+.Sources__mode strong {
+  grid-column: 2;
+}
+.Sources__modeWhy {
+  grid-column: 2;
+  color: var(--kp-text-secondary, #555);
+  font-size: var(--kp-text-sm, 13px);
+  line-height: 1.45;
+}
+.Sources__modeFits {
+  grid-column: 2;
+  color: var(--kp-text-muted, #777);
+  font-size: var(--kp-text-xs, 12px);
+}
+
+.Sources__hostFields {
+  padding: 0.75rem;
+  border: 1px dashed var(--kp-border-subtle, #d0d0d0);
+  border-radius: var(--kp-radius-md, 8px);
+  margin-bottom: 1rem;
+}
+
+.Sources__conflict {
+  border: 1px solid var(--kp-border-subtle, #d0d0d0);
+  border-radius: var(--kp-radius-md, 8px);
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  background: var(--kp-surface-base, #fff);
+}
+.Sources__conflictHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.Sources__sides {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+.Sources__side h4 {
+  margin: 0 0 0.3rem;
+  font-size: var(--kp-text-xs, 12px);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--kp-text-muted, #777);
+}
+.Sources__side pre {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 0.6rem;
+  border: 1px solid var(--kp-border-subtle, #e0e0e0);
+  border-radius: var(--kp-radius-sm, 6px);
+  background: var(--kp-surface-sunken, #f6f6f7);
+  font-family: var(--kp-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.Sources__mergeBox {
+  width: 100%;
+  min-height: 180px;
+  padding: 0.6rem;
+  border: 1px solid var(--kp-border-subtle, #d0d0d0);
+  border-radius: var(--kp-radius-sm, 6px);
+  background: var(--kp-surface-canvas, #fff);
+  color: var(--kp-text-primary, #111);
+  font-family: var(--kp-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  margin-bottom: 0.5rem;
+}
+
+.Sources__history summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--kp-text-sm, 13px);
+}
+
+.Sources__reviewList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.Sources__review {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--kp-border-subtle, #d0d0d0);
+  border-radius: var(--kp-radius-md, 8px);
+  background: var(--kp-surface-base, #fff);
+}
+.Sources__reviewMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.Sources__reviewMeta a {
+  color: var(--kp-accent, #4f46e5);
+}
+
+/* Which files a source indexes (plan A1): the two glob lists and the default type. */
+.Sources__selection {
+  margin: 0 0 1rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--kp-border-subtle, #d0d0d0);
+  border-radius: var(--kp-radius-md, 8px);
+}
+.Sources__selection legend {
+  padding: 0 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.Sources__globs {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border, #cfcfcf);
+  border-radius: 7px;
+  background: var(--kp-surface-canvas, #fff);
+  color: var(--kp-text-primary, #111);
+  font-family: var(--kp-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* The table chip for a source that selects by glob: a note, not an alarm. */
+.Sources__chip[data-kind='selection'] {
+  border-style: dashed;
+  cursor: help;
+}
+
+/* Details: the selection in effect, what it indexed, and where the tree is. */
+.Sources__details {
+  display: grid;
+  grid-template-columns: minmax(9rem, max-content) 1fr;
+  gap: 0.45rem 1rem;
+  margin: 0;
+}
+.Sources__details dt {
+  color: var(--kp-text-muted, #777);
+  font-size: var(--kp-text-sm, 13px);
+  font-weight: 600;
+}
+.Sources__details dd {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--kp-text-sm, 13px);
+}
+.Sources__globList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.Sources__globList code {
+  font-family: var(--kp-font-mono, ui-monospace, monospace);
+  font-size: var(--kp-text-xs, 12px);
+  word-break: break-all;
+}
+.Sources__details .Sources__secret {
+  display: inline-flex;
+  margin: 0 0 0 0.4rem;
+}
+@media (max-width: 520px) {
+  .Sources__details {
+    grid-template-columns: 1fr;
+  }
+  .Sources__details dd {
+    margin-bottom: 0.4rem;
+  }
+}
+
+/* A refused save, in the form's footer beside its buttons (review §2 #6). */
+.Sources__saveError {
+  display: block;
+  margin: 0.75rem 0 0.25rem;
+}
+
+/* ---- Sheets (review §4.4) --------------------------------------------- */
+
+.Sources__muted {
+  color: var(--kp-text-secondary, #666);
+  font-size: var(--kp-text-sm, 13px);
+  margin: 0;
+}
+
+.Sources__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-2, 0.5rem);
+}
+
+.Sources__tabPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-4, 1rem);
+  min-width: 0;
+}
+
+.Sources__sheetSubtitle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2, 0.5rem);
+}
+
+/* Overview: the state, what it means, and the runbook section that answers it. */
+.Sources__stateBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--kp-space-2, 0.5rem);
+  padding: var(--kp-space-3, 0.75rem) var(--kp-space-4, 1rem);
+  border: 1px solid var(--kp-border-subtle, #d0d0d0);
+  border-radius: var(--kp-radius-md, 8px);
+  background: var(--kp-surface-base, #fff);
+}
+.Sources__stateLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-2, 0.5rem);
+}
+.Sources__stateText {
+  margin: 0;
+  font-size: var(--kp-text-sm, 13px);
+}
+.Sources__runbook {
+  margin: 0;
+  color: var(--kp-text-secondary, #555);
+  font-size: var(--kp-text-xs, 12px);
+}
+
+.Sources__conflict .kp-diff-container {
+  margin-bottom: var(--kp-space-3, 0.75rem);
+}
+.Sources__mergeField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1, 0.25rem);
+  font-size: var(--kp-text-sm, 13px);
+  font-weight: var(--kp-weight-medium, 500);
+}
+.Sources__historyScroll {
+  overflow-x: auto;
+  margin-top: var(--kp-space-2, 0.5rem);
+}
+.Sources__historyTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--kp-text-sm, 13px);
+}
+.Sources__historyTable th,
+.Sources__historyTable td {
+  padding: var(--kp-space-2, 0.5rem);
+  border-bottom: 1px solid var(--kp-border-subtle, #e0e0e0);
+  text-align: start;
+}
+
+/* Editor: the mode cards, the collapsed groups, the error summary. */
+.Sources__mode[data-checked='true'] {
+  border-color: var(--kp-accent, #4f46e5);
+  box-shadow: inset 0 0 0 1px var(--kp-accent, #4f46e5);
+}
+.Sources__modes legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.Sources__disclosure {
+  border: 1px solid var(--kp-border-subtle, #d0d0d0);
+  border-radius: var(--kp-radius-md, 8px);
+  background: var(--kp-surface-base, #fff);
+}
+.Sources__disclosure > summary {
+  padding: var(--kp-space-3, 0.75rem) var(--kp-space-4, 1rem);
+  cursor: pointer;
+  font-size: var(--kp-text-sm, 13px);
+  font-weight: var(--kp-weight-medium, 500);
+  overflow-wrap: anywhere;
+}
+.Sources__disclosure > summary:focus-visible {
+  outline: 2px solid var(--kp-border-focus, #4f46e5);
+  outline-offset: 2px;
+}
+.Sources__disclosureBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3, 0.75rem);
+  padding: 0 var(--kp-space-4, 1rem) var(--kp-space-4, 1rem);
+}
+.Sources__advanced > summary {
+  font-weight: var(--kp-weight-semibold, 600);
+}
+
+.Sources__errorSummary {
+  padding: var(--kp-space-3, 0.75rem) var(--kp-space-4, 1rem);
+  border: 1px solid var(--kp-danger, #cf222e);
+  border-radius: var(--kp-radius-md, 8px);
+  background: var(--kp-danger-bg, #fdecec);
+  font-size: var(--kp-text-sm, 13px);
+}
+.Sources__errorSummary:focus-visible {
+  outline: 2px solid var(--kp-border-focus, #4f46e5);
+  outline-offset: 2px;
+}
+.Sources__errorSummaryTitle {
+  margin: 0 0 var(--kp-space-1, 0.25rem);
+  color: var(--kp-danger, #cf222e);
+  font-weight: var(--kp-weight-semibold, 600);
+}
+.Sources__errorSummary ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+.Sources__linkButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--kp-accent, #4f46e5);
+  font: inherit;
+  font-weight: var(--kp-weight-semibold, 600);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.Sources__presence {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2, 0.5rem);
+}

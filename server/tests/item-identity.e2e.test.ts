@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
-import { makeApp, seedAdminAndLogin } from './helpers.js';
+import { conformant, curateCategories, makeApp, seedAdminAndLogin } from './helpers.js';
 
 describe('item identity contract e2e', () => {
   let app: INestApplication;
@@ -10,6 +10,8 @@ describe('item identity contract e2e', () => {
   beforeEach(async () => {
     app = await makeApp();
     ({ cookie } = await seedAdminAndLogin(app));
+    // The published fixtures below must be publishable (issue 98).
+    await curateCategories(app);
   });
 
   afterEach(async () => app.close());
@@ -22,6 +24,7 @@ describe('item identity contract e2e', () => {
         title: 'Identity Anchor',
         body: 'Stable reconciliation key body.',
         status: 'published',
+        frontmatter: conformant(),
         tags: ['identity'],
       })
       .expect(201);
@@ -42,6 +45,7 @@ describe('item identity contract e2e', () => {
         title: 'Identity Source',
         body: `Reference by immutable id [anchor](${id}) and old display link [[Identity Anchor]].`,
         status: 'published',
+        frontmatter: conformant(),
       })
       .expect(201);
 

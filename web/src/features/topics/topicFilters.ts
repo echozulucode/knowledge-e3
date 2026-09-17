@@ -87,7 +87,7 @@ export function topicForPage(page: Page, topicLookup?: TopicLookup): string | un
   }
   const frontmatterTopic = frontmatterString(page, 'topic') ?? frontmatterString(page, 'space');
   if (frontmatterTopic?.trim()) return frontmatterTopic.trim();
-  if (page.space_id === 'space_default') return 'Default space';
+  if (page.space_id === 'space_default') return 'Default topic';
   if (page.space_id?.trim()) return displayFromSlug(page.space_id.replace(/^space_/, ''));
   return undefined;
 }
@@ -129,7 +129,7 @@ export function buildTopicOptions({ topics }: { pages: Page[]; topics: Topic[] }
 
 export function describeActiveTopicFilter(search: { topic?: string; space?: string }, topicLookup?: TopicLookup): ActiveTopicFilter {
   const rawValue = search.topic?.trim() || search.space?.trim();
-  if (!rawValue) return { kind: 'all', label: 'All spaces', value: undefined };
+  if (!rawValue) return { kind: 'all', label: 'All topics', value: undefined };
   if (rawValue === UNASSIGNED_TOPIC_VALUE) return { kind: 'unassigned', label: 'Unassigned', value: UNASSIGNED_TOPIC_VALUE };
   const topic = topicLookup?.get(rawValue) ?? topicLookup?.get(slugifyFilterValue(rawValue));
   return { kind: 'topic', label: topic ? displayTopic(topic) : displayFromSlug(rawValue), value: rawValue };
@@ -162,7 +162,7 @@ export function buildTopicDirectory({ pages, topics }: { pages: Page[]; topics: 
       value: UNASSIGNED_TOPIC_VALUE,
       slug: UNASSIGNED_TOPIC_VALUE,
       label: 'Unassigned',
-      description: 'Items without a space yet',
+      description: 'Items without a topic yet',
       count: unassignedCount,
       kind: 'unassigned',
     });

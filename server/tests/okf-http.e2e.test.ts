@@ -33,11 +33,11 @@ describe('OKF HTTP bridge (/okf) e2e', () => {
       .set('Cookie', cookie)
       .expect(200);
 
-    expect(res.body.okf_version).toBe('0.1');
+    expect(res.body.okf_version).toBe('0.2');
     expect(res.body.item_count).toBeGreaterThan(0);
     expect(res.body.conformance.conformant).toBe(true);
     const files: BundleFile[] = res.body.files;
-    expect(files.find((f) => f.path === 'index.md')?.content).toContain('okf_version: "0.1"');
+    expect(files.find((f) => f.path === 'index.md')?.content).toContain('okf_version: "0.2"');
     expect(files.some((f) => f.path.startsWith('concepts/'))).toBe(true);
   });
 

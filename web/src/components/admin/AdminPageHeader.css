@@ -1,0 +1,128 @@
+/* AdminPageHeader — compact, flat, token-driven (style guide: mostly flat, no decorative gradients).
+
+   Selectors inside the header are doubled (`.kp-admin-header .kp-admin-header__x`)
+   on purpose: the header sits inside page roots that still style bare elements
+   (`.TopicAdmin h1`, `.AdminHome p` — specificity 0,1,1), and a single class
+   would lose to them and inherit the old 3.5rem hero title. */
+.kp-admin-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+  padding-block: var(--kp-space-1) var(--kp-space-4);
+}
+.kp-admin-header .kp-admin-header__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--kp-space-3) var(--kp-space-6);
+}
+.kp-admin-header .kp-admin-header__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1);
+  min-width: min(100%, 20rem);
+  flex: 1 1 24rem;
+}
+.kp-admin-header .kp-admin-header__title {
+  margin: 0;
+  font-size: var(--kp-text-xl);
+  font-weight: var(--kp-weight-semibold);
+  line-height: 1.2;
+  letter-spacing: normal;
+  color: var(--kp-text-primary);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.kp-admin-header .kp-admin-header__description {
+  margin: 0;
+  max-width: 72ch;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-base);
+  line-height: var(--kp-leading-normal, 1.5);
+}
+.kp-admin-header .kp-admin-header__meta {
+  margin: 0;
+  color: var(--kp-text-meta, var(--kp-text-secondary));
+  font-size: var(--kp-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.kp-admin-header .kp-admin-header__learn {
+  max-width: 72ch;
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+/* The usual `learnMore`: a <details> ("How this works") holding the prose the
+   one-sentence description left out. */
+.kp-admin-header .kp-admin-header__learn summary {
+  width: fit-content;
+  color: var(--kp-accent);
+  font-weight: var(--kp-weight-medium);
+  cursor: pointer;
+}
+.kp-admin-header .kp-admin-header__learn summary:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--kp-radius-xs);
+}
+.kp-admin-header .kp-admin-header__learn details > :not(summary) {
+  margin: var(--kp-space-2) 0 0;
+  max-width: 72ch;
+  line-height: var(--kp-leading-relaxed, 1.6);
+}
+.kp-admin-header .kp-admin-header__actions {
+  /* Shrinkable: a flex item's default min-width is its content, so a wide control
+     here (Content health's topic select with a long topic name) pushed the whole
+     page past a 360px screen. */
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2);
+}
+.kp-admin-header .kp-admin-header__back {
+  font-size: var(--kp-text-sm);
+}
+
+/* The header's action buttons. Pages used to style their create button through
+   whichever panel it sat in; in the header it needs one style of its own, the
+   same on every page. */
+.kp-admin-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--kp-space-2);
+  min-height: 2.5rem;
+  padding: var(--kp-space-2) var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font: inherit;
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--kp-duration-fast) var(--kp-ease), border-color var(--kp-duration-fast) var(--kp-ease);
+}
+.kp-admin-button:hover {
+  background: var(--kp-surface-sunken);
+}
+.kp-admin-button--primary {
+  border-color: var(--kp-accent);
+  background: var(--kp-accent);
+  color: var(--kp-accent-fg);
+}
+.kp-admin-button--primary:hover {
+  border-color: var(--kp-accent-hover);
+  background: var(--kp-accent-hover);
+}
+.kp-admin-button:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+.kp-admin-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}

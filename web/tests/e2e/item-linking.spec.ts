@@ -1,8 +1,7 @@
 import { test, expect, createPageViaApi } from './fixtures.js';
 
 test.describe('item editor link suggestions and backlinks', () => {
-  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
-  test('item editor omits redundant Search pages control while backlinks still index id-backed Markdown links @quarantine', async ({
+  test('backlinks index id-backed Markdown links and survive a rename', async ({
     signedInPage,
     apiAsAdmin,
   }, testInfo) => {
@@ -22,8 +21,15 @@ test.describe('item editor link suggestions and backlinks', () => {
       status: 'published',
     });
 
-    await signedInPage.goto(`/p/${source.slug}?edit=1`);
-    await expect(signedInPage.getByRole('searchbox', { name: 'Search pages' })).toHaveCount(0);
+    // The original assertion here was that the editor carries NO page search.
+    // Compose reverses that on purpose: the host toolbar's link search is how an
+    // author inserts an id-backed link in the first place, which is what the rest
+    // of this test then follows through the backlink index.
+    await signedInPage.goto(`/p/${source.slug}/edit`);
+    await expect(signedInPage.getByRole('textbox', { name: 'Title', exact: true })).toHaveValue(sourceTitle, {
+      timeout: 15_000,
+    });
+    await expect(signedInPage.getByRole('searchbox', { name: 'Search pages' })).toBeVisible();
 
     const sourceWithLink = await apiAsAdmin.put(`/api/v1/pages/${source.id}`, {
       headers: { 'If-Match': String(source.version_token) },
@@ -57,9 +63,10 @@ test.describe('item editor link suggestions and backlinks', () => {
 
     await signedInPage.goto(`/items/${target.id}`);
     await expect(signedInPage.getByText(renamedTitle)).toBeVisible();
-    await signedInPage.getByRole('button', { name: /Backlinks \(1\)/ }).click();
-    const backlinkCard = signedInPage.getByRole('link', { name: new RegExp(sourceTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) });
-    await expect(backlinkCard).toBeVisible();
-    await expect(backlinkCard).toContainText(targetTitle);
+    // What links here now reads as Related at the end of the article rather
+    // than as a collapsed panel under the rail's Tags tab (plan §6, R4.7).
+    const related = signedInPage.getByRole('region', { name: 'Related' });
+    await expect(related.getByRole('link', { name: sourceTitle })).toBeVisible();
+    await expect(related).toContainText(targetTitle);
   });
 });

@@ -1,361 +1,224 @@
-.TopicAdmin {
+/*
+ * The Topics list (`TopicCatalog`) and the topic forms (`TopicForm`: New topic
+ * dialog, edit page). Token-driven, light/dark.
+ */
+
+/* ---------------------------------------------------------------- Topics list */
+
+.TopicCatalog {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  min-height: 100%;
-  padding: 32px;
-  color: var(--kp-text-primary);
+  gap: var(--kp-space-4);
+  min-width: 0;
 }
 
-.TopicAdmin__hero,
-.TopicAdmin__panel {
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: 24px;
-  background: var(--kp-surface-base);
-  box-shadow: var(--kp-shadow-sm);
-}
-
-.TopicAdmin__hero {
-  padding: 28px;
-  background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--kp-accent) 18%, transparent), transparent 42%),
-    var(--kp-surface-base);
-}
-
-.TopicAdmin__eyebrow {
-  display: inline-flex;
+.TopicCatalog__toolbar {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  color: var(--kp-accent);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.TopicAdmin__heroGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 24px;
-  align-items: end;
-}
-
-.TopicAdmin h1,
-.TopicAdmin h2,
-.TopicAdmin p {
-  margin: 0;
-}
-
-.TopicAdmin h1 {
-  font-size: clamp(2rem, 4vw, 3.5rem);
-  line-height: 1;
-  letter-spacing: -0.05em;
-}
-
-.TopicAdmin h2 {
-  font-size: 1.05rem;
-  letter-spacing: -0.02em;
-}
-
-.TopicAdmin p {
-  max-width: 760px;
-  margin-top: 10px;
-  color: var(--kp-text-secondary);
-  line-height: 1.55;
-}
-
-.TopicAdmin__stats {
-  display: grid;
-  grid-template-columns: auto auto;
-  gap: 6px 12px;
-  align-items: baseline;
-  min-width: 210px;
-  padding: 18px;
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--kp-surface-canvas) 72%, transparent);
-}
-
-.TopicAdmin__stats strong {
-  color: var(--kp-text-primary);
-  font-size: 1.6rem;
-}
-
-.TopicAdmin__stats span {
-  color: var(--kp-text-secondary);
-  font-size: 0.9rem;
-}
-
-.TopicAdmin__panel {
-  padding: 22px;
-}
-
-.TopicAdmin__form {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 18px;
-}
-
-.TopicAdmin__form label {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  color: var(--kp-text-secondary);
-  font-size: 0.84rem;
-  font-weight: 700;
-}
-
-.TopicAdmin__form input,
-.TopicAdmin__form textarea {
+  gap: var(--kp-space-3);
   width: 100%;
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: 14px;
-  padding: 11px 12px;
-  background: var(--kp-surface-canvas);
+}
+.TopicCatalog__search {
+  flex: 1 1 14rem;
+  min-width: min(14rem, 100%);
+  min-height: 40px;
+  padding: 0 var(--kp-space-3);
+  border: 1px solid var(--kp-border-strong);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-base);
   color: var(--kp-text-primary);
   font: inherit;
+  font-size: var(--kp-text-sm);
+}
+.TopicCatalog__search:focus-visible,
+.TopicCatalog__chip:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
 }
 
-.TopicAdmin__form textarea {
-  resize: vertical;
+.TopicCatalog__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-2);
 }
-
-.TopicAdmin__formWide {
-  grid-column: 1 / -1;
-}
-
-.TopicAdmin__modalActions button,
-.TopicAdmin__actions button,
-.TopicAdmin__rowActions button,
-.TopicAdmin__iconButton,
-.TopicAdmin__refresh,
-.TopicAdmin__state button {
+.TopicCatalog__chip {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  gap: var(--kp-space-2);
+  min-height: 36px;
+  padding: 0 var(--kp-space-3);
   border: 1px solid var(--kp-border-subtle);
-  border-radius: 999px;
-  padding: 10px 14px;
-  background: var(--kp-surface-canvas);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-base);
   color: var(--kp-text-primary);
-  font-weight: 700;
+  font: inherit;
+  font-size: var(--kp-text-sm);
+  cursor: pointer;
 }
-
-.TopicAdmin__actions button:first-child,
-.TopicAdmin__modalActions button[type="submit"] {
-  width: fit-content;
-  background: var(--kp-accent);
-  color: var(--kp-accent-fg);
+.TopicCatalog__chip:hover {
+  background: var(--kp-surface-sunken);
 }
-
-.TopicAdmin__modalActions button:disabled,
-.TopicAdmin__actions button:disabled,
-.TopicAdmin__rowActions button:disabled {
-  cursor: not-allowed;
+/* Pressed is also a border and weight change, never colour alone. */
+.TopicCatalog__chip[aria-pressed='true'] {
+  border-color: var(--kp-accent);
+  background: var(--kp-accent-bg);
+  font-weight: var(--kp-weight-semibold);
+}
+.TopicCatalog__chipCount {
   color: var(--kp-text-secondary);
-  background: color-mix(in srgb, var(--kp-surface-canvas) 72%, var(--kp-border-subtle));
-  opacity: 0.78;
+  font-variant-numeric: tabular-nums;
 }
 
-.TopicAdmin__success,
-.TopicAdmin__error,
-.TopicAdmin__deferNote {
-  padding: 12px 14px;
-  border-radius: 14px;
-}
-
-.TopicAdmin__success {
-  border: 1px solid color-mix(in srgb, var(--kp-success) 45%, var(--kp-border-subtle));
-  background: color-mix(in srgb, var(--kp-success) 8%, transparent);
-}
-
-.TopicAdmin__error {
-  border: 1px solid color-mix(in srgb, var(--kp-danger) 60%, var(--kp-border-subtle));
-  background: color-mix(in srgb, var(--kp-danger) 8%, transparent);
-}
-
-.TopicAdmin__deferNote {
-  border: 1px dashed var(--kp-border-subtle);
-  background: color-mix(in srgb, var(--kp-accent) 7%, transparent);
-}
-
-.TopicAdmin__actions,
-.TopicAdmin__sectionHeader {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.TopicAdmin__actions {
-  flex-wrap: wrap;
-  justify-content: flex-start;
-  margin-top: 18px;
-}
-
-.TopicAdmin__actions button:not(:disabled),
-.TopicAdmin__rowActions button:not(:disabled) {
-  cursor: pointer;
-}
-
-.TopicAdmin__rowActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.TopicAdmin__rowActions button {
-  padding: 8px 10px;
-  font-size: 0.84rem;
-}
-
-.TopicAdmin__sectionHeader {
-  align-items: flex-start;
-  margin-bottom: 18px;
-}
-
-.TopicAdmin__refresh,
-.TopicAdmin__state button {
-  cursor: pointer;
-}
-
-.TopicAdmin__state {
+.TopicCatalog__name {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  align-items: flex-start;
-  padding: 28px;
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: 18px;
-  background: var(--kp-surface-canvas);
+  gap: 2px;
+  min-width: 0;
+}
+.TopicCatalog__nameLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2);
+}
+.TopicCatalog__nameText {
+  font-weight: var(--kp-weight-semibold);
+  overflow-wrap: anywhere;
+}
+/* Two lines at most: the full text is on the landing page and the edit page. */
+.TopicCatalog__description {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-regular);
   color: var(--kp-text-secondary);
 }
+.TopicCatalog__muted {
+  color: var(--kp-text-secondary);
+}
+.TopicCatalog__itemsLink {
+  color: var(--kp-accent);
+  white-space: nowrap;
+}
 
-.TopicAdmin__state strong {
+/* ---------------------------------------------------------------- topic forms */
+
+.TopicForm__input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: var(--kp-space-2) var(--kp-space-3);
+  border: 1px solid var(--kp-border-strong);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font: inherit;
+  font-size: var(--kp-text-sm);
+}
+.TopicForm__input:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 1px;
+}
+.TopicForm__input[aria-invalid='true'] {
+  border-color: var(--kp-danger);
+}
+.TopicForm__input[readonly] {
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-secondary);
+}
+textarea.TopicForm__input {
+  resize: vertical;
+}
+.TopicForm__mono {
+  font-family: var(--kp-font-mono);
+}
+
+.TopicForm__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2);
+}
+.TopicForm__row .TopicForm__input {
+  flex: 1 1 12rem;
+  width: auto;
+}
+
+.TopicForm__fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.TopicForm__legend {
+  margin-bottom: var(--kp-space-1);
+  padding: 0;
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
   color: var(--kp-text-primary);
 }
-
-.TopicAdmin__state--error {
-  border-color: color-mix(in srgb, var(--kp-danger) 60%, var(--kp-border-subtle));
-  background: color-mix(in srgb, var(--kp-danger) 8%, var(--kp-surface-canvas));
-}
-
-.TopicAdmin__spinner {
-  width: 18px;
-  height: 18px;
-  border: 3px solid var(--kp-border-subtle);
-  border-top-color: var(--kp-accent);
-  border-radius: 999px;
-  animation: TopicAdminSpin 0.8s linear infinite;
-}
-
-.TopicAdmin__table {
-  width: 100%;
-  border-collapse: collapse;
+.TopicForm__legend--hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
   overflow: hidden;
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: 18px;
-  background: var(--kp-surface-canvas);
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
-
-.TopicAdmin__table th,
-.TopicAdmin__table td {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--kp-border-subtle);
-  text-align: left;
-  vertical-align: top;
-}
-
-.TopicAdmin__table th {
-  color: var(--kp-text-secondary);
-  font-size: 0.76rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.TopicAdmin__table tr:last-child td {
-  border-bottom: 0;
-}
-
-.TopicAdmin__table code {
-  padding: 2px 6px;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--kp-border-subtle) 45%, transparent);
-}
-
-.TopicAdmin__badge {
-  display: inline-flex;
-  border-radius: 999px;
-  padding: 4px 9px;
-  background: color-mix(in srgb, var(--kp-accent) 12%, transparent);
-  color: var(--kp-accent);
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
-.TopicAdmin__modalBackdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: color-mix(in srgb, var(--kp-text-primary) 32%, transparent);
-}
-
-.TopicAdmin__modal {
-  width: min(680px, 100%);
-  max-height: min(86vh, 720px);
-  overflow: auto;
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: 24px;
-  padding: 22px;
-  background: var(--kp-surface-base);
-  box-shadow: var(--kp-shadow-lg);
-}
-
-.TopicAdmin__modalHeader {
+.TopicForm__radios {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
+  flex-wrap: wrap;
+  gap: var(--kp-space-2) var(--kp-space-6);
 }
-
-.TopicAdmin__iconButton {
-  flex: 0 0 auto;
-  width: 38px;
-  height: 38px;
-  padding: 0;
+.TopicForm__radio,
+.TopicForm__check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  min-height: 32px;
+  font-size: var(--kp-text-sm);
   cursor: pointer;
 }
+.TopicForm__note {
+  margin: 0;
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
 
-.TopicAdmin__modalActions {
+.TopicForm__disclosure {
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+}
+.TopicForm__disclosure > summary {
+  min-height: 40px;
+  padding: var(--kp-space-2) var(--kp-space-3);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  cursor: pointer;
+}
+.TopicForm__disclosure > summary:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+.TopicForm__disclosureBody {
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  grid-column: 1 / -1;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+  padding: 0 var(--kp-space-3) var(--kp-space-3);
 }
-
-@keyframes TopicAdminSpin {
-  to { transform: rotate(360deg); }
-}
-
-@media (max-width: 760px) {
-  .TopicAdmin {
-    padding: 18px;
-  }
-
-  .TopicAdmin__heroGrid,
-  .TopicAdmin__sectionHeader,
-  .TopicAdmin__form {
-    grid-template-columns: 1fr;
-    flex-direction: column;
-  }
-
-  .TopicAdmin__stats {
-    width: 100%;
-  }
+.TopicForm__testResult {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2);
+  margin: 0;
+  font-size: var(--kp-text-sm);
+  overflow-wrap: anywhere;
 }

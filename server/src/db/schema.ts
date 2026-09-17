@@ -13,7 +13,7 @@
  *     `version_token`, bumped by the application on every page write.
  */
 
-import type { Generated } from 'kysely';
+import type { ColumnType, Generated } from 'kysely';
 
 export interface Database {
   users: UsersTable;
@@ -24,6 +24,7 @@ export interface Database {
   revision_mirror_state: RevisionMirrorStateTable;
   space_repos: SpaceReposTable;
   page_tags: PageTagsTable;
+  page_authors: PageAuthorsTable;
   primary_categories: PrimaryCategoriesTable;
   page_categories: PageCategoriesTable;
   groups: GroupsTable;
@@ -37,6 +38,12 @@ export interface Database {
   bug_reports: BugReportsTable;
   app_config: AppConfigTable;
   user_prefs: UserPrefsTable;
+  api_tokens: ApiTokensTable;
+  content_outbox: ContentOutboxTable;
+  content_sources: ContentSourcesTable;
+  sync_conflicts: SyncConflictsTable;
+  sync_diagnostics: SyncDiagnosticsTable;
+  login_attempts: LoginAttemptsTable;
 }
 
 export interface UsersTable {
@@ -73,9 +80,17 @@ export interface SpacesTable {
    * ANDs with the instance read mode and with per-item `status`.
    */
   visibility: SpaceVisibility;
+  /** Presentation profile for the topic landing page (plan §3.1). Column default 'wiki', so inserts may omit it. */
+  presentation: ColumnType<SpacePresentation, SpacePresentation | undefined, SpacePresentation>;
+  /** Landing-page prose; round-trips through the bundle-root `index.md` body. */
+  landing_markdown: string | null;
+  /** Slug of the "Start here" item (`start_here:` in the bundle-root `index.md`). */
+  start_here: string | null;
 }
 
 export type SpaceVisibility = 'public' | 'private';
+
+export type SpacePresentation = 'portal' | 'blog' | 'docs' | 'wiki';
 
 export interface PagesTable {
   id: string;
@@ -98,7 +113,45 @@ export interface PagesTable {
   /** Application-managed monotonic counter — semantic of SQL Server rowversion. */
   version_token: number;
   current_version_id: string | null;
+  /**
+   * Indexed lifecycle/trust signals (plan §7.4), derived from the current
+   * version's frontmatter on every write — see pages/lifecycle-columns.ts.
+   * NULL on rows written before the columns existed (readers fall back to
+   * frontmatter). `display_state` is not stored: it depends on "now".
+   */
+  lifecycle_status: string | null;
+  stale_after: string | null;
+  trust_tier: string | null;
+  last_verified_at: string | null;
+  generated_by: string | null;
+  superseded_by: string | null;
+  /**
+   * The canonical file this row derives from (§7.2–7.3): repo-relative path,
+   * sha256 of its bytes, and the source registry id. Written by the write-first
+   * command and the rebuild; NULL on rows from the legacy DB-first path.
+   */
+  file_digest: string | null;
+  file_path: string | null;
+  source_id: string | null;
+  /**
+   * Open/settled change request for this item in a `review` source (plan §8.2).
+   * `review_state` NULL means the item was never staged for review; while it is
+   * `open` the item stays a draft and its edits live only on `review_branch`.
+   * `review_change_id` is the host's `ChangeRef.id` (`owner/repo#12`), so the
+   * ref can be rebuilt from the row plus the source's `host_kind`.
+   */
+  review_state: Optional<ReviewState | null>;
+  review_url: Optional<string | null>;
+  review_branch: Optional<string | null>;
+  review_change_id: Optional<string | null>;
+  review_opened_at: Optional<string | null>;
+  review_closed_at: Optional<string | null>;
 }
+
+export type ReviewState = 'open' | 'merged' | 'closed';
+
+/** A nullable column that may be omitted on insert (SQLite defaults it to NULL). */
+export type Optional<T> = ColumnType<T, T | undefined, T>;
 
 export interface PageVersionsTable {
   id: string;
@@ -158,6 +211,17 @@ export interface SpaceReposTable {
 export interface PageTagsTable {
   page_id: string;
   tag: string;
+}
+
+/**
+ * An item's authors (frontmatter `authors` / `author`), normalized — the lookup
+ * behind the `author:` search filter. Derived, like `page_tags`; written by
+ * `reindexPageFts` on every write path and wiped by a rebuild.
+ */
+export interface PageAuthorsTable {
+  page_id: string;
+  /** `normalizeAuthor` form: whitespace collapsed, full-Unicode lowercase. */
+  author: string;
 }
 
 export interface PrimaryCategoriesTable {
@@ -269,4 +333,135 @@ export interface UserPrefsTable {
   key: string;
   value_json: string;
   updated_at: string;
+}
+
+/** Personal access tokens. Only the sha256 of the raw token is stored; `prefix`
+ * (first 8 chars) is kept for display so a user can tell tokens apart. */
+export interface ApiTokensTable {
+  id: string;
+  user_id: string;
+  name: string;
+  prefix: string;
+  token_hash: string;
+  scope: 'read' | 'write';
+  created_at: string;
+  expires_at: string | null;
+  last_used_at: string | null;
+  revoked_at: string | null;
+}
+
+/**
+ * Durable outbox for the write-path inversion (plan §7.3): one row per indexed
+ * file change, written in the same transaction as the index (PagesService) and
+ * marked processed by the git mirror once the file is committed (see
+ * content/outbox.service.ts).
+ */
+export interface ContentOutboxTable {
+  id: string;
+  page_id: string;
+  source_id: string | null;
+  file_path: string | null;
+  file_digest: string | null;
+  actor_id: string | null;
+  kind: 'upsert' | 'delete' | 'move';
+  created_at: string;
+  processed_at: string | null;
+  error: string | null;
+}
+
+export type SourceRole = 'authoritative' | 'reference';
+export type SyncMode = 'direct' | 'review' | 'read-only';
+export type HostKind = 'github' | 'bitbucket-dc';
+
+/**
+ * Source registry (plan §7.4, Appendix B): one row per repository working
+ * tree the instance indexes — `main`, or `topic:<slug>` for a topic bound to
+ * its own repo. Replaces `space_repos` (kept as a legacy table; copied once by
+ * the migration and never written again) and `app_config['git.main_remote']`.
+ * Tokens are never stored: `host_token_env` / `webhook_secret_env` name the
+ * environment variables that hold them.
+ */
+export interface ContentSourcesTable {
+  /** `main` or `topic:<slug>`. */
+  id: string;
+  /** Bound topic; null for `main`. */
+  space_id: string | null;
+  /** Working tree: absolute, or relative to the content root (`main`, `topics/<slug>`). */
+  local_dir: string;
+  remote_url: string | null;
+  branch: string | null;
+  role: SourceRole;
+  mode: SyncMode;
+  /** Item-branch prefix for `review` mode (default `e3/`). */
+  branch_prefix: string | null;
+  host_kind: HostKind | null;
+  host_base_url: string | null;
+  host_token_env: string | null;
+  /** Fetch/merge cadence; null = `sync.every` from the config file. */
+  sync_every_seconds: number | null;
+  webhook_secret_env: string | null;
+  /** Import default for inbound items with no lifecycle state; null = instance fallback. */
+  default_status: 'draft' | 'published' | null;
+  /**
+   * Non-OKF Markdown import (plan §8.3): JSON arrays of posix globs selecting
+   * the files this source indexes, or null. Null `include_globs` keeps the
+   * historical behaviour (`concepts/*.md` at any depth); `exclude_globs`
+   * subtracts from the include set. Stored as JSON text so a list round-trips
+   * exactly (SQLite has no array type and a pattern may contain a comma).
+   */
+  include_globs: string | null;
+  exclude_globs: string | null;
+  /** Content type given to an imported file whose frontmatter names none; null = leave untyped. */
+  default_type: string | null;
+  /** 0/1. When 0 the binding exists but nothing is fetched or pushed. */
+  enabled: number;
+  created_at: string;
+  updated_at: string;
+  last_synced_at: string | null;
+  last_error: string | null;
+}
+
+/** Conflict queue (plan §8.1): a merge left `path` conflicted; both sides kept for Admin → Repos → Conflicts. */
+export interface SyncConflictsTable {
+  id: string;
+  source_id: string;
+  path: string;
+  page_id: string | null;
+  ours: string | null;
+  theirs: string | null;
+  base: string | null;
+  detected_at: string;
+  resolved_at: string | null;
+  resolution: 'ours' | 'theirs' | 'manual' | null;
+  resolved_by: string | null;
+}
+
+/**
+ * Inbound lint failures (plan §12 decision 6): a file that arrived through sync
+ * with error-severity diagnostics. Landed anyway (new items as drafts) and
+ * listed in Content health as `lint_failed_inbound` until a clean version arrives.
+ */
+export interface SyncDiagnosticsTable {
+  id: string;
+  source_id: string;
+  path: string;
+  page_id: string | null;
+  diagnostics_json: string;
+  detected_at: string;
+  cleared_at: string | null;
+  /** When these diagnostics were reported back on the item's change request (once per review). */
+  commented_at: Optional<string | null>;
+}
+
+/**
+ * Sign-in throttle ledger (issue 41). One row per attempt that reached password
+ * verification, per bucket it counts against. Pruned to one window on write.
+ */
+export interface LoginAttemptsTable {
+  id: Generated<number>;
+  bucket: 'username' | 'ip';
+  /** Normalized attempted username, or the client IP (`req.ip`). */
+  key: string;
+  /** Epoch milliseconds. */
+  attempted_at: number;
 }

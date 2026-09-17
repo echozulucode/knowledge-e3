@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
-import { makeApp, seedAdminAndLogin } from './helpers.js';
+import { conformant, curateCategories, makeApp, seedAdminAndLogin } from './helpers.js';
 
 describe('item links e2e', () => {
   let app: INestApplication;
@@ -10,6 +10,7 @@ describe('item links e2e', () => {
   beforeEach(async () => {
     app = await makeApp();
     ({ cookie } = await seedAdminAndLogin(app));
+    await curateCategories(app);
   });
 
   afterEach(async () => app.close());
@@ -18,7 +19,7 @@ describe('item links e2e', () => {
     const target = await request(app.getHttpServer())
       .post('/api/v1/items')
       .set('Cookie', cookie)
-      .send({ title: 'Hub Page', body: 'Hub body.', status: 'published' })
+      .send({ title: 'Hub Page', body: 'Hub body.', status: 'published', frontmatter: conformant() })
       .expect(201);
 
     await request(app.getHttpServer())
@@ -37,6 +38,7 @@ describe('item links e2e', () => {
           '```',
         ].join('\n'),
         status: 'published',
+        frontmatter: conformant(),
       })
       .expect(201);
 
@@ -61,13 +63,13 @@ describe('item links e2e', () => {
     const target = await request(app.getHttpServer())
       .post('/api/v1/items')
       .set('Cookie', cookie)
-      .send({ title: 'Lookup Hub', body: 'Hub body.', status: 'published' })
+      .send({ title: 'Lookup Hub', body: 'Hub body.', status: 'published', frontmatter: conformant() })
       .expect(201);
 
     await request(app.getHttpServer())
       .post('/api/v1/items')
       .set('Cookie', cookie)
-      .send({ title: 'Lookup Source', body: 'See [Lookup Hub](lookup-hub).', status: 'published' })
+      .send({ title: 'Lookup Source', body: 'See [Lookup Hub](lookup-hub).', status: 'published', frontmatter: conformant() })
       .expect(201);
 
     for (const ref of [target.body.item.id, target.body.item.slug, target.body.item.title]) {
@@ -89,7 +91,7 @@ describe('item links e2e', () => {
     const target = await request(app.getHttpServer())
       .post('/api/v1/items')
       .set('Cookie', cookie)
-      .send({ title: 'Stable Hub', body: 'Hub body.', status: 'published' })
+      .send({ title: 'Stable Hub', body: 'Hub body.', status: 'published', frontmatter: conformant() })
       .expect(201);
 
     await request(app.getHttpServer())
@@ -99,6 +101,7 @@ describe('item links e2e', () => {
         title: 'Stable Source',
         body: `See [Stable Hub](<${target.body.item.id}>).`,
         status: 'published',
+        frontmatter: conformant(),
       })
       .expect(201);
 
@@ -121,6 +124,8 @@ describe('item links e2e', () => {
       link_text: 'Stable Hub',
       target_ref: target.body.item.id,
     });
-    expect(res.body.backlinks[0].snippet).toContain('[Stable Hub]');
+    // Readable context, not link markup (issue 114).
+    expect(res.body.backlinks[0].snippet).toContain('Stable Hub');
+    expect(res.body.backlinks[0].snippet).not.toMatch(/[[\]()]/);
   });
 });

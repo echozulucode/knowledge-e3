@@ -10,7 +10,10 @@ import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
 import { BadRequestException } from '@nestjs/common';
 import { makeApp, seedAdminAndLogin, seedUserAndLogin } from './helpers.js';
+import type { Kysely } from 'kysely';
 import { AuthService } from '../src/auth/auth.service.js';
+import { KYSELY } from '../src/db/db.module.js';
+import type { Database } from '../src/db/schema.js';
 
 describe('admin user management e2e (Wave 2)', () => {
   let app: INestApplication;
@@ -68,6 +71,151 @@ describe('admin user management e2e (Wave 2)', () => {
         .set('Cookie', adminCookie)
         .expect(200);
       expect(disabled.body.users.map((u: { username: string }) => u.username)).toEqual(['bob']);
+    });
+  });
+
+  describe('list: server paging, sorting, filters, total (review §4.3)', () => {
+    type Row = { username: string; email: string; role: string; status: string; last_seen_at: string | null };
+    const list = async (qs: string) =>
+      (await request(app.getHttpServer()).get(`/api/v1/admin/users${qs}`).set('Cookie', adminCookie).expect(200)).body as {
+        users: Row[];
+        total: number;
+        limit: number;
+        offset: number;
+      };
+
+    /** 12 more accounts on top of admin/alice/bob: 15 real accounts in all. */
+    async function seedMany() {
+      const auth = app.get(AuthService);
+      for (let i = 0; i < 12; i += 1) {
+        const n = String(i).padStart(2, '0');
+        await auth.createUser({
+          email: `member${n}@corp.example`,
+          username: `member-${n}`,
+          password: 'member-password-123',
+          role: i % 4 === 0 ? 'admin' : 'user',
+        });
+      }
+    }
+
+    it('keeps { users } and adds total/limit/offset; defaults to 50, oldest first', async () => {
+      await app.get(AuthService).ensureLocalSystemActor();
+      const body = await list('');
+      expect(body.limit).toBe(50);
+      expect(body.offset).toBe(0);
+      // The system actor is neither listed nor counted.
+      expect(body.total).toBe(3);
+      expect(body.users.map((u) => u.username)).toEqual(['admin', 'alice', 'bob']);
+    });
+
+    it('pages with limit/offset against a total that covers every match', async () => {
+      await seedMany();
+      const first = await list('?limit=5&offset=0');
+      const second = await list('?limit=5&offset=5');
+      const last = await list('?limit=5&offset=10');
+      const beyond = await list('?limit=5&offset=15');
+      expect([first.total, second.total, last.total, beyond.total]).toEqual([15, 15, 15, 15]);
+      expect(first.users).toHaveLength(5);
+      expect(last.users).toHaveLength(5);
+      expect(beyond.users).toHaveLength(0);
+      const seen = [...first.users, ...second.users, ...last.users].map((u) => u.username);
+      expect(new Set(seen).size).toBe(15);
+    });
+
+    it('clamps limit to 200 and refuses malformed paging or sort values', async () => {
+      expect((await list('?limit=5000')).limit).toBe(200);
+      for (const qs of ['?limit=0', '?limit=abc', '?offset=-1', '?sort=password', '?direction=up']) {
+        await request(app.getHttpServer()).get(`/api/v1/admin/users${qs}`).set('Cookie', adminCookie).expect(400);
+      }
+    });
+
+    it('sorts by username (case-insensitive), role, status and created, both directions', async () => {
+      await seedMany();
+      const byName = await list('?sort=username&direction=desc&limit=3');
+      expect(byName.users.map((u) => u.username)).toEqual(['member-11', 'member-10', 'member-09']);
+      const byNameAsc = await list('?sort=username&limit=2');
+      expect(byNameAsc.users.map((u) => u.username)).toEqual(['admin', 'alice']);
+
+      const byRole = await list('?sort=role&direction=asc&limit=200');
+      const roles = byRole.users.map((u) => u.role);
+      expect(roles.indexOf('user')).toBeGreaterThan(roles.lastIndexOf('admin'));
+
+      await request(app.getHttpServer()).patch(`/api/v1/admin/users/${bobId}`).set('Cookie', adminCookie).send({ disabled: true }).expect(200);
+      const byStatus = await list('?sort=status&direction=desc&limit=1');
+      expect(byStatus.users[0]).toMatchObject({ username: 'bob', status: 'disabled' });
+
+      const newest = await list('?sort=created&direction=desc&limit=1');
+      expect(newest.users[0]!.username).toBe('member-11');
+    });
+
+    it('sorts by last seen, most recent first, never-seen last', async () => {
+      await seedMany();
+      // Pin the times: the admin's own list request slides the admin's session,
+      // so sign-in order alone would make the admin the most recent every time.
+      const db = app.get<Kysely<Database>>(KYSELY);
+      const future = new Date(Date.now() + 60 * 60_000).toISOString();
+      await db.updateTable('sessions').set({ last_seen_at: future }).where('user_id', '=', aliceId).execute();
+      await db.updateTable('sessions').set({ last_seen_at: '2020-01-01T00:00:00.000Z' }).where('user_id', '=', bobId).execute();
+      const body = await list('?sort=last_seen&direction=desc&limit=200');
+      expect(body.users[0]!.username).toBe('alice');
+      expect(body.users[2]!.username).toBe('bob');
+      const seen = body.users.filter((u) => u.last_seen_at !== null).map((u) => u.username);
+      expect(seen.sort()).toEqual(['admin', 'alice', 'bob']);
+      expect(body.users.slice(-12).every((u) => u.last_seen_at === null)).toBe(true);
+    });
+
+    it('filters q (username or email, case-insensitive, literal), role and status in SQL, with a matching total', async () => {
+      await seedMany();
+      const corp = await list('?q=CORP.example&limit=5');
+      expect(corp.total).toBe(12);
+      expect(corp.users).toHaveLength(5);
+
+      const one = await list('?q=member-07');
+      expect(one.users.map((u) => u.username)).toEqual(['member-07']);
+
+      // `_` and `%` are characters, not LIKE wildcards.
+      expect((await list('?q=member_0')).total).toBe(0);
+      expect((await list('?q=%25')).total).toBe(0);
+
+      const admins = await list('?role=admin&status=active');
+      // admin + member-00, -04, -08
+      expect(admins.total).toBe(4);
+
+      await request(app.getHttpServer()).patch(`/api/v1/admin/users/${bobId}`).set('Cookie', adminCookie).send({ disabled: true }).expect(200);
+      const active = await list('?status=active&q=b');
+      expect(active.users.map((u) => u.username)).not.toContain('bob');
+      expect((await list('?status=disabled')).total).toBe(1);
+    });
+  });
+
+  describe('get one', () => {
+    it('returns one account for the user sheet; 404 for unknown ids and the system actor; admin only', async () => {
+      const res = await request(app.getHttpServer()).get(`/api/v1/admin/users/${bobId}`).set('Cookie', adminCookie).expect(200);
+      expect(res.body.user).toMatchObject({ id: bobId, username: 'bob', role: 'user', status: 'active' });
+      expect(res.body.user.last_seen_at).toEqual(expect.any(String));
+
+      await app.get(AuthService).ensureLocalSystemActor();
+      await request(app.getHttpServer()).get('/api/v1/admin/users/local-system').set('Cookie', adminCookie).expect(404);
+      await request(app.getHttpServer()).get('/api/v1/admin/users/nope').set('Cookie', adminCookie).expect(404);
+      await request(app.getHttpServer()).get(`/api/v1/admin/users/${bobId}`).set('Cookie', aliceCookie).expect(403);
+    });
+  });
+
+  describe('create: duplicate errors name the field', () => {
+    it('409 with reason username_taken or email_taken', async () => {
+      const dupName = await request(app.getHttpServer())
+        .post('/api/v1/admin/users')
+        .set('Cookie', adminCookie)
+        .send({ email: 'someone-new@example.com', username: 'alice', password: 'another-password-1' })
+        .expect(409);
+      expect(dupName.body).toMatchObject({ reason: 'username_taken', message: expect.stringMatching(/username/) });
+
+      const dupEmail = await request(app.getHttpServer())
+        .post('/api/v1/admin/users')
+        .set('Cookie', adminCookie)
+        .send({ email: 'alice@example.com', username: 'alice-two', password: 'another-password-1' })
+        .expect(409);
+      expect(dupEmail.body).toMatchObject({ reason: 'email_taken', message: expect.stringMatching(/email/) });
     });
   });
 

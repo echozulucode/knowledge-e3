@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
-import { makeApp, seedAdminAndLogin } from './helpers.js';
+import { curateCategories, makeApp, seedAdminAndLogin } from './helpers.js';
 
 describe('items e2e', () => {
   let app: INestApplication;
@@ -15,11 +15,21 @@ describe('items e2e', () => {
   afterEach(async () => app.close());
 
   it('creates, lists, gets, and updates items through item-named DTOs while pages remain available', async () => {
+    // The update below is the draft→published transition, which the publish gate
+    // holds to the content-model rules, so these documents carry `type`, a known
+    // primary category and a `description`. Nothing else about the test changed.
+    await request(app.getHttpServer())
+      .post('/api/v1/taxonomy/categories')
+      .set('Cookie', cookie)
+      .send({ slug: 'runbook', name: 'Runbook' })
+      .expect(201);
+
     const created = await request(app.getHttpServer())
       .post('/api/v1/items')
       .set('Cookie', cookie)
       .send({
-        raw_markdown: '---\ntitle: Item Runbook\nstatus: draft\ntags:\n  - ops\n---\nInitial body',
+        raw_markdown:
+          '---\ntitle: Item Runbook\nstatus: draft\ntype: Runbook\ncategories: [runbook]\ndescription: Item DTO round-trip fixture.\ntags:\n  - ops\n---\nInitial body',
       })
       .expect(201);
 
@@ -53,7 +63,10 @@ describe('items e2e', () => {
       .put(`/api/v1/items/${id}`)
       .set('Cookie', cookie)
       .set('If-Match', String(created.body.item.version_token))
-      .send({ raw_markdown: '---\ntitle: Item Runbook Updated\nstatus: published\ntags:\n  - ops\n  - mvp\n---\nUpdated body' })
+      .send({
+        raw_markdown:
+          '---\ntitle: Item Runbook Updated\nstatus: published\ntype: Runbook\ncategories: [runbook]\ndescription: Item DTO round-trip fixture.\ntags:\n  - ops\n  - mvp\n---\nUpdated body',
+      })
       .expect(200);
     expect(updated.body.item).toMatchObject({
       id,
@@ -202,11 +215,14 @@ describe('items e2e', () => {
   });
 
   it('persists status and taxonomy metadata updates across item, list, and search boundaries', async () => {
+    // It is created published, which the publish gate holds to the content-model
+    // rules (issue 98): a `type`, a `description`, and a curated category.
+    await curateCategories(app, 'ops');
     const created = await request(app.getHttpServer())
       .post('/api/v1/items')
       .set('Cookie', cookie)
       .send({
-        raw_markdown: '---\ntitle: Metadata Boundary Runbook\ntopic: Product\nstatus: published\ntags: [alpha]\ncategories: [ops]\ngroups: [launch]\n---\nOriginal metadata boundary needle.',
+        raw_markdown: '---\ntitle: Metadata Boundary Runbook\ntopic: Product\nstatus: published\ntype: Runbook\ndescription: Metadata boundary fixture.\ntags: [alpha]\ncategories: [ops]\ngroups: [launch]\n---\nOriginal metadata boundary needle.',
       })
       .expect(201);
 

@@ -91,12 +91,39 @@ describe('Images e2e', () => {
     expect(list[0].orphan).toBe(false);
   });
 
+  it("hides an unlinked upload from a different signed-in member", async () => {
+    const img = await upload(PNG);
+    const member = await seedUserAndLogin(app, 'unlinked-reader', 'unlinked-reader-password-123');
+
+    await request(app.getHttpServer()).get(img.url).set('Cookie', member.cookie).expect(404);
+    await request(app.getHttpServer()).get(img.url).set('Cookie', cookie).expect(200);
+  });
+
   it('deletes an image and its bytes', async () => {
     const img = await upload(PNG);
     await request(app.getHttpServer()).delete(`/api/v1/admin/images/${img.id}`).set('Cookie', cookie).expect(200);
     await request(app.getHttpServer()).get(`/api/v1/assets/${img.file}`).set('Cookie', cookie).expect(404);
     const list = (await request(app.getHttpServer()).get('/api/v1/admin/images').set('Cookie', cookie).expect(200)).body.images;
     expect(list).toHaveLength(0);
+  });
+
+  it('refuses to delete an image while a page references it', async () => {
+    const img = await upload(PNG);
+    await items.create(adminId, {
+      title: 'Keeps Image',
+      body: `![shot](${img.url})`,
+      status: 'published',
+    });
+
+    const deletion = await request(app.getHttpServer())
+      .delete(`/api/v1/admin/images/${img.id}`)
+      .set('Cookie', cookie)
+      .expect(409);
+    expect(deletion.body.message).toContain('referenced');
+
+    await request(app.getHttpServer()).get(img.url).set('Cookie', cookie).expect(200);
+    const list = (await request(app.getHttpServer()).get('/api/v1/admin/images').set('Cookie', cookie).expect(200)).body.images;
+    expect(list[0]).toMatchObject({ id: img.id, used_by: 1, orphan: false });
   });
 
   it('hides draft-only assets from anonymous visitors on a public instance', async () => {
@@ -118,6 +145,8 @@ describe('Images e2e', () => {
     await request(app.getHttpServer()).get(img.url).expect(404);
     const asAuthor = await request(app.getHttpServer()).get(img.url).set('Cookie', cookie).expect(200);
     expect(asAuthor.headers['cache-control']).toContain('private');
+    const member = await seedUserAndLogin(app, 'draft-reader', 'draft-reader-password-123');
+    await request(app.getHttpServer()).get(img.url).set('Cookie', member.cookie).expect(404);
 
     // Once a PUBLISHED page embeds it, the same asset becomes public and
     // shared-cacheable.
@@ -129,6 +158,33 @@ describe('Images e2e', () => {
     const anon = await request(app.getHttpServer()).get(img.url).expect(200);
     expect(anon.headers['cache-control']).toContain('public');
     expect(draft.id).toBeTruthy();
+  });
+
+  it('hides assets linked only from a published private-space page from anonymous visitors', async () => {
+    await request(app.getHttpServer())
+      .put('/api/v1/admin/access')
+      .set('Cookie', cookie)
+      .send({ read_mode: 'public' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/topics')
+      .set('Cookie', cookie)
+      .send({ name: 'Private Files', visibility: 'private' })
+      .expect(201);
+
+    const img = await upload(PNG);
+    await items.create(adminId, {
+      title: 'Private Published Image',
+      body: `![shot](${img.url})`,
+      status: 'published',
+      frontmatter: { topic: 'Private Files' },
+    });
+
+    await request(app.getHttpServer()).get(img.url).expect(404);
+    const member = await seedUserAndLogin(app, 'asset-reader', 'asset-reader-password-123');
+    const asMember = await request(app.getHttpServer()).get(img.url).set('Cookie', member.cookie).expect(200);
+    expect(asMember.headers['cache-control']).toContain('private');
   });
 
   it('requires admin to manage; rejects off-allowlist and mislabelled files; blocks traversal', async () => {

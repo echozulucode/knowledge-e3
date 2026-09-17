@@ -6,8 +6,8 @@
  * anonymous visitor read over MCP when the instance is in `public` mode.
  *
  * The contract these tests pin down:
- *   - `authenticated` mode (the default) is unchanged: anonymous MCP is 401.
- *   - `public` mode: anonymous may read, sees ONLY read-only tools, and gets
+ *   - `authenticated` mode: anonymous MCP is 401.
+ *   - `public` mode (the default): anonymous may read, sees ONLY read-only tools, and gets
  *     only published content.
  *   - Write tools are refused for anonymous callers even when called directly
  *     without listing — hiding is not enforcing.
@@ -16,7 +16,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
-import { makeApp, seedAdminAndLogin } from './helpers.js';
+import { conformant, curateCategories, makeApp, seedAdminAndLogin } from './helpers.js';
 
 const WRITE_TOOLS = ['knowledge.create_item', 'knowledge.import_okf'];
 
@@ -52,11 +52,12 @@ describe('anonymous MCP e2e', () => {
   beforeEach(async () => {
     app = await makeApp();
     ({ cookie: adminCookie, userId: adminId } = await seedAdminAndLogin(app));
+    await curateCategories(app);
     // One published and one draft item, so visibility is observable.
     await request(app.getHttpServer())
       .post('/api/v1/pages')
       .set('Cookie', adminCookie)
-      .send({ title: 'Public Thing', body: 'findme published', status: 'published' })
+      .send({ title: 'Public Thing', body: 'findme published', status: 'published', frontmatter: conformant() })
       .expect(201);
     await request(app.getHttpServer())
       .post('/api/v1/pages')
@@ -66,7 +67,9 @@ describe('anonymous MCP e2e', () => {
   });
   afterEach(async () => app.close());
 
-  describe('authenticated mode (default)', () => {
+  describe('authenticated mode', () => {
+    beforeEach(async () => setReadMode(app, adminCookie, 'authenticated'));
+
     it('rejects anonymous MCP entirely', async () => {
       await mcp(app, { jsonrpc: '2.0', id: 1, method: 'tools/list' }).expect(401);
     });
@@ -77,8 +80,7 @@ describe('anonymous MCP e2e', () => {
     });
   });
 
-  describe('public mode', () => {
-    beforeEach(async () => setReadMode(app, adminCookie, 'public'));
+  describe('public mode (default)', () => {
 
     it('lets an anonymous caller initialize and list read-only tools', async () => {
       const init = await mcp(app, {

@@ -1,0 +1,138 @@
+# Relevance eval set for @echozedlabs/search. See README.md in this folder.
+#
+# Each case runs `query` through a SearchProvider as an anonymous viewer and
+# requires every id in `expect` to appear in the top k (k is chosen by the
+# runner; tests/eval.test.ts uses k=3). Ids refer to tests/fixtures/corpus.ts.
+
+cases:
+  - query: docker cache
+    expect: [troubleshoot-docker-build-cache]
+    note: Two-term query; title and tag matches must beat the CI guide that only mentions both in its body.
+
+  - query: postgres failover
+    expect: [runbook-postgres-failover]
+    note: Runbook lookup by the two words an on-call engineer would type.
+
+  - query: vpn split tunneling
+    expect: [faq-vpn-access]
+    note: FAQ wording taken from the title.
+
+  - query: kysely
+    expect: [blog-prisma-to-kysely]
+    note: Single tool name; the draft ADR also mentions Kysely but must stay hidden from anonymous readers.
+
+  - query: heap out of memory
+    expect: [troubleshoot-node-heap-oom]
+    note: Error string as typed from a crash log.
+
+  - query: drain node
+    expect: [runbook-kubernetes-node-drain]
+    note: '"node" also matches the Node.js troubleshooting page; the all-terms bonus must lift the runbook.'
+
+  - query: '"FTS5"'
+    expect: [blog-sqlite-fts5-search]
+    note: Quoted acronym; exercises the phrase path.
+
+  - query: cert-manager renewal
+    expect: [runbook-tls-cert-renewal]
+    note: Stale items are demoted by the lifecycle policy but must still be findable.
+
+  - query: github actions
+    expect: [guide-github-actions-ci]
+    note: The deprecated Jenkins guide mentions GitHub Actions in its body; the current guide must rank above it.
+
+  # Topic-specific lookup: "when I'm looking for something on a specific topic,
+  # I can find it". These exercise the query language end to end, so a filter
+  # that stops reaching the results fails the gate instead of failing quietly.
+  - query: 'type:Runbook drain'
+    expect: [runbook-kubernetes-node-drain]
+    note: Content type narrowing a text query; `type:` was parsed and thrown away until §5.2.
+
+  - query: 'tag:fts5'
+    expect: [blog-sqlite-fts5-search]
+    note: Tag lookup with no free text at all.
+
+  - query: 'topic:sre kubectl'
+    expect: [runbook-kubernetes-node-drain, runbook-tls-cert-renewal]
+    note: Scoping to one Topic, which is the reader's stated test for search.
+
+  - query: 'category:build -tag:jenkins'
+    expect: [guide-github-actions-ci, troubleshoot-docker-build-cache]
+    note: Curated category plus an exclusion; the deprecated Jenkins guide must be gone, not just demoted.
+
+  - query: postgr
+    expect: [runbook-postgres-failover]
+    note: The word still being typed matches as a prefix, so the palette answers before the word is finished.
+
+  # The item's own one-line `description` is an indexed field (§5.4). Before it
+  # was, these two returned nothing at all from `SearchService`: every term FTS5
+  # is given has to be present, and the words below live only in the summary the
+  # author wrote. They are the cases that prove the change, so they stay.
+  - query: reusable workflow conventions
+    expect: [guide-github-actions-ci]
+    note: Every word is in the description and nowhere else; before §5.4 the FTS pass matched nothing.
+
+  - query: drain node safely
+    expect: [runbook-kubernetes-node-drain]
+    note: >-
+      "safely" is description-only. It also pins the tightened taxonomy net:
+      the old substring net answered this with the Node.js page, because `node`
+      is a substring of the tag `nodejs`.
+
+  # Identifiers, the new filter keys and a prefix on an identifier (reader UX
+  # plan §5.2–§5.3). These carry an `id` so the server's run can name them; the
+  # filter cases fail on a provider that parses a key and then drops it.
+  - id: identifier-acronym-title
+    query: MQTT
+    expect: [reference-mqtt-topic-hierarchy]
+    top: 1
+    note: >-
+      An acronym ranks the page titled and tagged with it FIRST, above the gateway
+      guide that uses MQTT in its description and body. `top: 1` because order is
+      the point of the identifier boost, not mere presence.
+
+  - id: prefix-plain-trailing
+    query: mqt
+    expect: [reference-mqtt-topic-hierarchy]
+    top: 1
+    note: The word still being typed; the acronym-titled page is still first before the word is finished.
+
+  - id: prefix-identifier-trailing
+    query: cert-man
+    expect: [runbook-tls-cert-renewal]
+    note: A hyphenated identifier mid-typing — `cert` exact, `man` as a prefix of `manager`, as FTS5 expands a quoted token sequence.
+
+  - id: author-exact-name
+    query: 'author:"Ada Lovelace"'
+    expect: [reference-mqtt-topic-hierarchy]
+    note: Frontmatter `authors` list, quoted two-word name, no free text.
+
+  - id: author-single-field-any-case
+    query: 'author:"grace hopper" gateway'
+    expect: [guide-sensor-gateway-onboarding]
+    note: Frontmatter `author` (single), matched case-insensitively, AND a text term.
+
+  - id: updated-year
+    query: 'kubernetes updated:2025'
+    expect: [runbook-tls-cert-renewal]
+    note: A bare year is that whole year; the 2026 drain runbook, also tagged kubernetes, is filtered out.
+
+  - id: updated-after-month
+    query: 'runbook updated:>=2026-08'
+    expect: [runbook-kubernetes-node-drain]
+    note: A comparator on a month; the July and 2025 runbooks are filtered out.
+
+  - id: is-verified-machine-confirmed
+    query: 'is:verified heap'
+    expect: [troubleshoot-node-heap-oom]
+    note: '`verified` includes machine-confirmed, not only human-reviewed.'
+
+  - id: is-unverified
+    query: 'is:unverified deploy'
+    expect: [metric-weekly-deploy-frequency]
+    note: The process-generated metric nobody has reviewed yet.
+
+  - id: is-needs-review
+    query: 'is:needs-review kubectl'
+    expect: [runbook-tls-cert-renewal]
+    note: The stale runbook, past its `stale_after`; the current drain runbook also says kubectl and is filtered out.

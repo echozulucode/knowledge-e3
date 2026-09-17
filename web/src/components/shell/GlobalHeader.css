@@ -195,8 +195,15 @@
   flex-shrink: 0;
 }
 
+/* The label can be the tenant's own wording (site.searchPlaceholder), which may
+   be longer than the trigger; it ellipsizes rather than wrapping the pill. */
 .kp-palette-trigger span:nth-of-type(1) {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
 }
 
 .kp-palette-trigger kbd {
@@ -344,7 +351,16 @@
   cursor: not-allowed;
 }
 
+/* Fixed-size controls never shrink or wrap; the topic switcher is the header's
+   only flexible item, so it absorbs a narrow width by truncating instead. */
+.kp-theme-toggle,
+.kp-user-menu-container,
 .kp-header-cta {
+  flex: 0 0 auto;
+}
+
+.kp-header-cta {
+  white-space: nowrap;
   padding: var(--kp-space-2) var(--kp-space-4);
   background: var(--kp-accent);
   color: var(--kp-accent-fg);
@@ -358,4 +374,38 @@
 
 .kp-header-cta:hover {
   background: var(--kp-accent-hover);
+}
+
+/* Phones. A 360px header has to hold the menu button, the topic switcher,
+   search and Sign In / the account chip. Rather than let any of them wrap or
+   squeeze below a ~40px tap target, the header drops what has another home:
+   the theme toggle (the drawer carries it — Sidebar) and the username (the
+   chip's accessible name still says whose menu it is). The switcher is the
+   one flexible item and truncates its label (SpaceSwitcher.css). */
+@media (max-width: 640px) {
+  .kp-header-content {
+    gap: var(--kp-space-2);
+    padding: 0 var(--kp-space-3);
+  }
+  .kp-header-hamburger,
+  .kp-header-search-mobile {
+    width: 40px;
+    height: 40px;
+  }
+  .kp-header-theme {
+    display: none;
+  }
+  .kp-user-name {
+    display: none;
+  }
+  .kp-user-chip {
+    min-height: 40px;
+    min-width: 40px;
+    justify-content: center;
+    gap: var(--kp-space-1);
+  }
+  .kp-header-cta {
+    min-height: 40px;
+    padding: 0 var(--kp-space-3);
+  }
 }

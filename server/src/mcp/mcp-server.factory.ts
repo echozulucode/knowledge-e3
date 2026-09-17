@@ -4,19 +4,28 @@ import {
   GetPromptRequestSchema,
   ListPromptsRequestSchema,
   ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
   McpError,
   ErrorCode,
 } from '@modelcontextprotocol/sdk/types.js';
-import { HttpException } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
+import { findContentType, listContentTypes, schemaFor, templateFor } from '@echozedlabs/content-model';
+import { toolErrorResult, toolSuccessResult } from '@echozedlabs/mcp-tools';
 import type { McpService } from './mcp.service.js';
+import { mapMcpToolError } from './mcp-errors.js';
 import type { McpToolContext } from './tools/schemas.js';
 import type { PagesService } from '../pages/pages.service.js';
+import type { KnowledgeQueryService } from '../query/knowledge-query.service.js';
+import { viewerFrom } from '../query/viewer.js';
+import type { SpacesService } from '../taxonomy/spaces.service.js';
 
 export interface McpServerDeps {
   mcp: McpService;
   pages: PagesService;
+  query: KnowledgeQueryService;
+  spaces: SpacesService;
 }
 
 const SERVER_INFO = { name: 'knowledge-e3', version: '0.1.0' } as const;
@@ -24,8 +33,51 @@ const SERVER_INFO = { name: 'knowledge-e3', version: '0.1.0' } as const;
 const INSTRUCTIONS =
   'Knowledge E3 is a Markdown-first, OKF/Git-backed knowledge base. Use tools to ' +
   'search, read, and create source-backed knowledge; resources expose concept ' +
-  'Markdown at okf://concept/<id>; prompts scaffold typed content (troubleshooting, ' +
-  'FAQ, runbook, review).';
+  'Markdown at okf://concept/<id> (alias knowledge://item/<id>); prompts scaffold typed content (troubleshooting, ' +
+  'FAQ, runbook, review). To write: read knowledge://templates/<type> and knowledge://taxonomy, draft the ' +
+  'document, run knowledge.validate_item (fix every error) and knowledge.suggest_metadata, then knowledge.create_item. ' +
+  'Call knowledge.publish_item with reviewed: true only after the user has read the result; it records their verification.';
+
+/** Static knowledge:// resources, listed alongside the concrete concept resources. */
+const STATIC_RESOURCES = [
+  {
+    uri: 'knowledge://templates',
+    name: 'Content-type templates',
+    description: 'Index of content types with the URI of each template resource.',
+    mimeType: 'application/json',
+  },
+  {
+    uri: 'knowledge://taxonomy',
+    name: 'Taxonomy',
+    description: 'Topics, primary categories, tags, and groups visible to the caller.',
+    mimeType: 'application/json',
+  },
+];
+
+const RESOURCE_TEMPLATES = [
+  {
+    uriTemplate: 'knowledge://templates/{content-type-key}',
+    name: 'Content-type template',
+    description: 'Template body and frontmatter schema fields for one content type (keys from knowledge://templates).',
+    mimeType: 'application/json',
+  },
+  {
+    uriTemplate: 'knowledge://item/{id}',
+    name: 'Knowledge item',
+    description: 'Raw Markdown of one item by stable id (alias of okf://concept/{id}).',
+    mimeType: 'text/markdown',
+  },
+  {
+    uriTemplate: 'knowledge://topic/{slug}',
+    name: 'Topic',
+    description: 'Topic metadata and counts as JSON.',
+    mimeType: 'application/json',
+  },
+];
+
+function jsonContents(uri: string, value: unknown) {
+  return { contents: [{ uri, mimeType: 'application/json', text: JSON.stringify(value, null, 2) }] };
+}
 
 /** Prompt templates (north-star §10). Kept small and content-type oriented. */
 const PROMPTS: Array<{
@@ -74,15 +126,19 @@ function summaryOf(fm: Record<string, unknown> | undefined): string | undefined 
   return s || undefined;
 }
 
-function errorResult(err: unknown): { content: Array<{ type: 'text'; text: string }>; isError: true } {
-  let text = 'Tool failed.';
-  if (err instanceof HttpException) {
-    const resp = err.getResponse();
-    text = typeof resp === 'string' ? resp : ((resp as Record<string, unknown>)['message'] as string) ?? err.message;
-  } else if (err instanceof Error) {
-    text = err.message;
-  }
-  return { content: [{ type: 'text', text }], isError: true };
+const errorLogger = new Logger('McpServer');
+
+/**
+ * Render a tool failure as an MCP `isError` result. What the exception may say
+ * is decided by `mapMcpToolError`, the same mapping the legacy JSON-RPC surface
+ * uses (issue 45) — this function only chooses the envelope. The public message
+ * is the first text block, so a model reading prose gets the refusal; the
+ * structured fields (`duplicate_title`, `code`, `correlation_id`, …) ride in
+ * `structuredContent.error` for a client that acts on them, and are repeated as
+ * a JSON text block for clients that predate `structuredContent`.
+ */
+function errorResult(err: unknown) {
+  return toolErrorResult(mapMcpToolError(err, errorLogger));
 }
 
 /**
@@ -111,11 +167,7 @@ export function createMcpServer(deps: McpServerDeps, ctx: McpToolContext): Serve
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     try {
       const result = await deps.mcp.callToolByName(req.params.name, req.params.arguments ?? {}, ctx);
-      const structured = result && typeof result === 'object' && !Array.isArray(result) ? (result as Record<string, unknown>) : undefined;
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        ...(structured ? { structuredContent: structured } : {}),
-      };
+      return toolSuccessResult(result);
     } catch (err) {
       return errorResult(err);
     }
@@ -124,24 +176,72 @@ export function createMcpServer(deps: McpServerDeps, ctx: McpToolContext): Serve
   server.setRequestHandler(ListResourcesRequestSchema, async () => {
     const items = await deps.pages.list({ limit: 200 }, actor);
     return {
-      resources: items.map((p) => ({
-        uri: `okf://concept/${p.id}`,
-        name: p.title,
-        description: summaryOf(p.frontmatter),
-        mimeType: 'text/markdown',
-      })),
+      resources: [
+        ...STATIC_RESOURCES,
+        ...items.map((p) => ({
+          uri: `okf://concept/${p.id}`,
+          name: p.title,
+          description: summaryOf(p.frontmatter),
+          mimeType: 'text/markdown',
+        })),
+      ],
     };
   });
 
+  server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: RESOURCE_TEMPLATES }));
+
   server.setRequestHandler(ReadResourceRequestSchema, async (req) => {
     const uri = req.params.uri;
-    const m = /^okf:\/\/concept\/([^/]+)(?:\/raw)?$/.exec(uri);
-    if (!m) throw new McpError(ErrorCode.InvalidParams, `Unsupported resource URI: ${uri}`);
-    const page = await deps.pages.getById(m[1]!, { actor });
-    if (!page) throw new McpError(ErrorCode.InvalidParams, `No concept for ${uri}`);
-    return {
-      contents: [{ uri, mimeType: 'text/markdown', text: page.raw_markdown || page.body_markdown || '' }],
-    };
+    const concept = /^(?:okf:\/\/concept|knowledge:\/\/item)\/([^/]+)(?:\/raw)?$/.exec(uri);
+    if (concept) {
+      const page = await deps.pages.getById(concept[1]!, { actor });
+      if (!page) throw new McpError(ErrorCode.InvalidParams, `No concept for ${uri}`);
+      return {
+        contents: [{ uri, mimeType: 'text/markdown', text: page.raw_markdown || page.body_markdown || '' }],
+      };
+    }
+    if (uri === 'knowledge://templates') {
+      return jsonContents(
+        uri,
+        listContentTypes().map((t) => ({ key: t.key, label: t.label, description: t.description, uri: `knowledge://templates/${t.key}` })),
+      );
+    }
+    const template = /^knowledge:\/\/templates\/([^/]+)$/.exec(uri);
+    if (template) {
+      const def = findContentType(decodeURIComponent(template[1]!));
+      if (!def) throw new McpError(ErrorCode.InvalidParams, `Unknown content type for ${uri}`);
+      return jsonContents(uri, {
+        key: def.key,
+        label: def.label,
+        description: def.description,
+        defaultFrontmatter: def.defaultFrontmatter,
+        fields: schemaFor(def.label),
+        template: templateFor(def.label),
+      });
+    }
+    const viewer = viewerFrom(ctx.user);
+    if (uri === 'knowledge://taxonomy') {
+      const anonymousViewer = viewer.role === 'anonymous';
+      const [topics, categories, tags, groups] = await Promise.all([
+        deps.query.topics(viewer),
+        deps.spaces.listCategories(undefined, { anonymousViewer }),
+        deps.spaces.listTags(undefined, { anonymousViewer }),
+        deps.spaces.listGroups(undefined, { anonymousViewer }),
+      ]);
+      return jsonContents(uri, {
+        topics: topics.map((t) => ({ slug: t.slug, name: t.name, description: t.description })),
+        categories,
+        tags,
+        groups,
+      });
+    }
+    const topic = /^knowledge:\/\/topic\/([^/]+)$/.exec(uri);
+    if (topic) {
+      const view = await deps.query.topic(decodeURIComponent(topic[1]!), viewer);
+      if (!view) throw new McpError(ErrorCode.InvalidParams, `No topic for ${uri}`);
+      return jsonContents(uri, view);
+    }
+    throw new McpError(ErrorCode.InvalidParams, `Unsupported resource URI: ${uri}`);
   });
 
   server.setRequestHandler(ListPromptsRequestSchema, async () => ({

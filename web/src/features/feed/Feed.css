@@ -1,0 +1,196 @@
+/* Feed — /latest cards, /series reading order. Token-driven, light/dark. */
+
+.Feed {
+  max-width: none;
+  margin: 0;
+  padding-block: var(--kp-space-6) var(--kp-space-16);
+  /* The shared list-page cap (tokens.css, 2026-09-13; was 900px), so /latest
+     lines up with Topics, Search and a topic landing instead of sitting in a
+     narrower column of its own. The card's brief keeps a prose measure
+     (`.Feed__list .kp-item-card__preview` below), so the wider row does not
+     mean longer lines. */
+  padding-inline: max(var(--kp-page-gutter), calc((100% - var(--kp-page-width)) / 2));
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-5);
+}
+.Feed > * {
+  flex-shrink: 0;
+}
+
+.Feed__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--kp-space-4);
+}
+.Feed__header h1 {
+  margin: 0;
+  font-size: var(--kp-text-2xl);
+  letter-spacing: -0.02em;
+  color: var(--kp-text-primary);
+}
+.Feed__eyebrow {
+  display: block;
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-bold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--kp-brand);
+}
+.Feed__lead {
+  margin: var(--kp-space-1) 0 0;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+}
+.Feed__atom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  min-height: 34px;
+  padding: 0 var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-medium);
+  text-decoration: none;
+}
+.Feed__atom:hover { border-color: var(--kp-border-strong); background: var(--kp-surface-sunken); }
+
+.Feed__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+  container: feed-list / inline-size;
+}
+/* A covered card is a 200px cover beside the body. In a column narrower than
+   ~34rem that leaves the title a word per line, so the cover goes on top, at
+   a banner's height. A container query, not the viewport (home plan R3.1): the
+   same list sits full-width on /latest and inside a topic landing's column.
+   The package's own phone rule for this loses to its `[data-layout='row']`
+   rule on specificity (and that sheet can load after this one), hence the
+   list-scoped selector. */
+@container feed-list (width < 34rem) {
+  .Feed__list .kp-item-card[data-layout='row']:has(.kp-item-card__cover) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .Feed__list .kp-item-card[data-layout='row'] .kp-item-card__cover {
+    aspect-ratio: 2 / 1;
+    height: auto;
+    min-height: 0;
+  }
+}
+
+/* The card is `@echozedlabs/ui`'s ItemCard (plan R1.3): cover, badges, title,
+   preview and byline all live in the package now, so a feed card and a Section
+   card cannot drift apart. What is left here is this page's own business — the
+   trust badge's size in a dense list, and the series chip. */
+.Feed__trust .kp-badge { font-size: 11px; }
+/* Prose keeps its measure at the 85rem page cap — the same 70ch Home gives a
+   card's brief — while the title and byline use the whole card. */
+.Feed__list .kp-item-card__preview { max-width: 70ch; }
+.Feed__seriesChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-secondary);
+  font-weight: var(--kp-weight-semibold);
+  text-decoration: none;
+}
+.Feed__seriesChip:hover { border-color: var(--kp-border-strong); color: var(--kp-text-primary); }
+
+.Feed__more {
+  align-self: center;
+  min-height: 36px;
+  padding: 0 var(--kp-space-5);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font: inherit;
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  cursor: pointer;
+}
+.Feed__more:hover { background: var(--kp-surface-sunken); border-color: var(--kp-border-strong); }
+.Feed__more:disabled { opacity: 0.6; cursor: default; }
+
+.Feed__muted { color: var(--kp-text-muted); font-size: var(--kp-text-sm); margin: 0; }
+.Feed__empty {
+  padding: var(--kp-space-8);
+  border: 1px dashed var(--kp-border-strong);
+  border-radius: var(--kp-radius-md);
+}
+
+/* ---- Series ---- */
+.Feed__series {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+}
+.Feed__seriesItem {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  border: 1px solid var(--kp-border-subtle);
+  background: var(--kp-surface-base);
+  border-radius: var(--kp-radius-md);
+  box-shadow: var(--kp-shadow-xs);
+}
+.Feed__seriesNumber {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: var(--kp-space-4);
+  font-size: var(--kp-text-xl);
+  font-weight: var(--kp-weight-bold);
+  letter-spacing: -0.03em;
+  color: var(--kp-text-muted);
+  border-right: 1px solid var(--kp-border-subtle);
+}
+/* The series item IS the card's frame, so the card inside it drops its own. */
+.Feed__seriesCard {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.Feed__seriesCard:hover { border-color: transparent; }
+.Feed__seriesNav {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--kp-space-3);
+  margin-top: var(--kp-space-2);
+  padding-top: var(--kp-space-2);
+  border-top: 1px solid var(--kp-border-subtle);
+  font-size: var(--kp-text-sm);
+}
+.Feed__seriesNav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--kp-accent);
+  text-decoration: none;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.Feed__seriesNav a:hover { color: var(--kp-accent-hover); }
+
+@media (max-width: 640px) {
+  .Feed { padding: var(--kp-space-4) var(--kp-space-4) var(--kp-space-12); }
+  .Feed__header { flex-direction: column; align-items: flex-start; }
+  .Feed__atom { min-height: 40px; } /* a touch target on a phone */
+  .Feed__seriesNav { flex-direction: column; }
+}

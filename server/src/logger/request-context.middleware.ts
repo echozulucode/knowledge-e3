@@ -14,9 +14,9 @@ export function createRequestContextMiddleware(logger: pino.Logger) {
     // Generate a unique correlation ID for this request.
     const requestId = randomUUID();
     (req as any).requestId = requestId;
+    res.setHeader('X-Request-ID', requestId);
 
     const startTime = Date.now();
-    const originalSend = res.send.bind(res);
 
     // Log after the response is sent.
     res.on('finish', () => {

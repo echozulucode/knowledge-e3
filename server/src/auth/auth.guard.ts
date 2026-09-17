@@ -8,10 +8,14 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthService, AuthedUser } from './auth.service.js';
-import { getAuthMode, ANONYMOUS_ACTOR } from './auth-mode.js';
+import { ANONYMOUS_ACTOR } from './auth-mode.js';
 import { ConfigService } from '../config/config.service.js';
+import { ApiTokensService, bearerTokenFrom } from './tokens.service.js';
 
 export const SESSION_COOKIE = 'kp_session';
+
+/** Methods a `read`-scoped personal access token may use over plain HTTP. */
+const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 declare module 'express' {
   interface Request {
@@ -29,6 +33,7 @@ export class SessionGuard implements CanActivate {
     @Inject(AuthService) private readonly auth: AuthService,
     @Inject(Reflector) private readonly reflector: Reflector,
     @Inject(ConfigService) private readonly config: ConfigService,
+    @Inject(ApiTokensService) private readonly tokens: ApiTokensService,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -51,17 +56,26 @@ export class SessionGuard implements CanActivate {
 
     const req = ctx.switchToHttp().getRequest();
 
-    if (getAuthMode() === 'disabled') {
-      req.user = await this.auth.ensureLocalSystemActor();
-      req.sessionId = undefined;
-      return true;
-    }
-
+    // A request is a session user, a token's owner, the anonymous public-read
+    // visitor, or nobody on a @Public route. There is no "authentication off"
+    // branch: that mode refuses the boot (auth-mode.ts assertAuthenticationEnabled).
     const cookies = req.cookies ?? {};
     const sid = cookies[SESSION_COOKIE];
 
-    // Resolve a session if one is present.
-    const user = sid ? await this.auth.resolveSession(sid) : null;
+    // Resolve a session if one is present. The cookie wins; a bearer personal
+    // access token is only consulted when no valid session was found.
+    let user = sid ? await this.auth.resolveSession(sid) : null;
+
+    if (!user) {
+      const raw = bearerTokenFrom(req.headers?.['authorization']);
+      if (raw) {
+        user = await this.tokens.authenticate(raw);
+        if (!user) {
+          if (isPublic) return true;
+          throw new UnauthorizedException('Invalid or expired token');
+        }
+      }
+    }
 
     if (!user) {
       if (isPublic) return true;
@@ -85,7 +99,14 @@ export class SessionGuard implements CanActivate {
     }
 
     req.user = user;
-    req.sessionId = sid;
+    req.sessionId = user.token ? undefined : sid;
+
+    // A read-scoped token may only read. The MCP transport tunnels everything
+    // over POST, so @PublicRpc handlers are exempt here and gate write tools
+    // themselves (McpService.callToolByName).
+    if (user.token?.scope === 'read' && !READ_METHODS.has(req.method) && !isPublicRpc) {
+      throw new ForbiddenException('Token scope is read-only');
+    }
 
     if (requireAdmin && user.role !== 'admin') {
       throw new ForbiddenException('Admin only');

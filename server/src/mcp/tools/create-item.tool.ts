@@ -1,8 +1,11 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { parse } from '@echozedlabs/codec';
+import type { Diagnostic } from '@echozedlabs/knowledge-types';
 import { slugify } from '../../common/slug.js';
 import { AuditService } from '../../audit/audit.service.js';
+import { actorFrom } from '../../content/actor.js';
+import { ContentCommandsService } from '../../content/content-commands.service.js';
 import { ItemsService, type ItemView } from '../../items/items.service.js';
 import type { McpTool, McpToolDescriptor } from './schemas.js';
 import { stringProp } from './schemas.js';
@@ -38,6 +41,13 @@ export interface McpCreateItemResponse {
   version_token: number;
   indexing_status: 'indexed';
   warnings: string[];
+  /**
+   * Content-model lint findings for the stored document (warn mode for a
+   * create that lands as a draft). A create with `status: "published"` is a
+   * publication and is gated like publish_item: an error refuses it with 422
+   * `lint_failed` and nothing is written (issue 98).
+   */
+  diagnostics: Diagnostic[];
   duplicate_title: DuplicateTitleDiagnostics;
   idempotency: { replayed: boolean; key: string | null };
   item: ItemView;
@@ -73,7 +83,7 @@ export class CreateItemTool implements McpTool<McpCreateItemInput & { actor_id?:
     title: 'Create a draft knowledge item',
     write: true,
     description:
-      'Create a validated draft knowledge item from an MCP client. Returns canonical id first, slug/title display metadata, id-based path, legacy slug URL, version token, indexing status, validation warnings, duplicate-title diagnostics, and idempotency replay metadata.',
+      'Create a validated draft knowledge item from an MCP client. Returns canonical id first, slug/title display metadata, id-based path, legacy slug URL, version token, indexing status, validation warnings, duplicate-title diagnostics, and idempotency replay metadata. Lint diagnostics are returned and never block a create that lands as a DRAFT. Publishing is what is gated, including here: creating with `status: "published"`, publish_item, and update_item taking a draft to `status: "published"` all refuse an item that still has error-severity diagnostics, with 422 `lint_failed` (nothing is written). So create as a draft, run validate_item with `published: true`, fix every error, then publish_item.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -98,6 +108,7 @@ export class CreateItemTool implements McpTool<McpCreateItemInput & { actor_id?:
 
   constructor(
     private readonly items: ItemsService,
+    private readonly content: ContentCommandsService,
     private readonly audit: AuditService,
   ) {}
 
@@ -122,6 +133,7 @@ export class CreateItemTool implements McpTool<McpCreateItemInput & { actor_id?:
       if (replay) {
         return buildResponse(replay, {
           warnings: ['idempotent replay: returning existing MCP-created item'],
+          diagnostics: [],
           duplicateTitle: await this.duplicateDiagnostics(normalized),
           idempotency: { replayed: true, key: idempotencyKey },
         });
@@ -136,21 +148,27 @@ export class CreateItemTool implements McpTool<McpCreateItemInput & { actor_id?:
       });
     }
 
-    const item = await this.items.create(actorId, {
-      title: normalized.title,
-      body: normalized.body,
-      raw: normalized.raw,
-      raw_markdown: normalized.raw_markdown,
-      status: normalized.status,
-      tags: normalized.tags,
-      frontmatter: {
-        ...normalized.frontmatter,
-        ...(normalized.space ? { space: normalized.space } : {}),
-        ...(normalized.categories ? { categories: normalized.categories } : {}),
-        ...(normalized.groups ? { groups: normalized.groups } : {}),
-        source,
+    // The one write path (ContentCommands, source `mcp`); the mirror side-effect
+    // stays inside ItemsService, where the seam delegates for this door.
+    const { item, diagnostics } = await this.content.create(
+      actorFrom({ id: actorId }, 'mcp'),
+      {
+        title: normalized.title,
+        body: normalized.body,
+        raw: normalized.raw,
+        raw_markdown: normalized.raw_markdown,
+        status: normalized.status,
+        tags: normalized.tags,
+        frontmatter: {
+          ...normalized.frontmatter,
+          ...(normalized.space ? { space: normalized.space } : {}),
+          ...(normalized.categories ? { categories: normalized.categories } : {}),
+          ...(normalized.groups ? { groups: normalized.groups } : {}),
+          source,
+        },
       },
-    });
+      'mcp',
+    );
 
     await this.audit.record({
       actor_id: actorId,
@@ -167,6 +185,7 @@ export class CreateItemTool implements McpTool<McpCreateItemInput & { actor_id?:
 
     return buildResponse(item, {
       warnings: [],
+      diagnostics,
       duplicateTitle,
       idempotency: { replayed: false, key: idempotencyKey },
     });
@@ -322,6 +341,7 @@ function buildResponse(
   item: ItemView,
   opts: {
     warnings: string[];
+    diagnostics: Diagnostic[];
     duplicateTitle: DuplicateTitleDiagnostics;
     idempotency: { replayed: boolean; key: string | null };
   },
@@ -335,6 +355,7 @@ function buildResponse(
     version_token: item.version_token,
     indexing_status: 'indexed',
     warnings: opts.warnings,
+    diagnostics: opts.diagnostics,
     duplicate_title: opts.duplicateTitle,
     idempotency: opts.idempotency,
     item,

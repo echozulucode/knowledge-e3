@@ -257,48 +257,24 @@
 /* Sidebar label (hidden when collapsed) */
 .kp-sidebar-label {
   flex: 1;
+  /* The label fills the row (flex: 1) inside a <button>, whose UA style
+     centres text; without this the drawer's labels floated mid-row. */
+  text-align: left;
 }
 
 .kp-sidebar.collapsed .kp-sidebar-label {
   display: none;
 }
 
-/* Search input (expanded only) */
-.kp-sidebar-search {
-  padding: var(--kp-space-3) var(--kp-space-2);
-  border-top: 1px solid var(--kp-border-subtle);
-}
-
-.kp-sidebar.collapsed .kp-sidebar-search {
+/* Theme row: only in the phone drawer. Wider, the header's own theme icon is
+   visible (GlobalHeader.css), and two controls for one setting would be noise. */
+.kp-sidebar-theme {
   display: none;
 }
-
-.kp-sidebar-search-input {
-  width: 100%;
-  padding: var(--kp-space-2) var(--kp-space-3);
-  background: var(--kp-surface-sunken);
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: var(--kp-radius-sm);
-  color: var(--kp-text-primary);
-  font-size: var(--kp-text-sm);
-  transition: background-color var(--kp-duration) var(--kp-ease),
-              border-color var(--kp-duration) var(--kp-ease);
-}
-
-.kp-sidebar-search-input::placeholder {
-  color: var(--kp-text-muted);
-}
-
-.kp-sidebar-search-input:hover {
-  background: var(--kp-surface-muted);
-  border-color: var(--kp-border-strong);
-}
-
-.kp-sidebar-search-input:focus {
-  outline: none;
-  background: var(--kp-surface-base);
-  border-color: var(--kp-border-focus);
-  box-shadow: 0 0 0 2px var(--kp-accent-bg);
+@media (max-width: 640px) {
+  .kp-sidebar-theme {
+    display: flex;
+  }
 }
 
 /* Mobile drawer (overlay) — slides in from the left; opened via the header
@@ -322,10 +298,14 @@
     transform: translateX(0);
   }
 
+  /* Touch: drawer rows are the primary navigation, so give them a 40px target. */
+  .kp-sidebar-item {
+    height: 40px;
+  }
+
   /* Force the expanded content in the drawer even if the desktop state is collapsed. */
   .kp-sidebar.collapsed .brand-copy,
-  .kp-sidebar.collapsed .kp-sidebar-label,
-  .kp-sidebar.collapsed .kp-sidebar-search {
+  .kp-sidebar.collapsed .kp-sidebar-label {
     display: initial;
   }
   .kp-sidebar.collapsed .kp-sidebar-item,

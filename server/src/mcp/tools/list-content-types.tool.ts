@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { listContentTypes } from '../../content-types/content-types.registry.js';
-import type { McpTool, McpToolDescriptor } from './schemas.js';
+import { callReadTool, LIST_CONTENT_TYPES_TOOL } from '@echozedlabs/mcp-tools';
+import { McpReadBackend } from '../mcp-read-backend.js';
+import type { McpTool, McpToolContext, McpToolDescriptor } from './schemas.js';
 
 /**
  * Expose the first-class content-type vocabulary to agents. Each entry's `label`
@@ -10,15 +11,11 @@ import type { McpTool, McpToolDescriptor } from './schemas.js';
  */
 @Injectable()
 export class ListContentTypesTool implements McpTool {
-  readonly descriptor: McpToolDescriptor = {
-    name: 'knowledge.list_content_types',
-    title: 'List content types',
-    description:
-      'List the first-class content types (OKF concept kinds) this knowledge base recognizes. Each has a `label` (write it to frontmatter `type`), a `description`, `defaultFrontmatter` (domain fields to seed), and a `template` (starter Markdown body). Use before create_item to choose the right kind and scaffold. Unknown types remain accepted, but prefer these.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-  };
+  readonly descriptor: McpToolDescriptor = LIST_CONTENT_TYPES_TOOL;
 
-  async call() {
-    return { content_types: listContentTypes() };
+  constructor(private readonly backend: McpReadBackend) {}
+
+  async call(input: Record<string, unknown> = {}, context: McpToolContext = {}) {
+    return callReadTool('knowledge.list_content_types', this.backend, input, context);
   }
 }

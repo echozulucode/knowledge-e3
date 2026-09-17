@@ -1,0 +1,169 @@
+/* Admin → Tags & groups and Admin → Primary categories: the page shell, the
+   toolbar, name cells and the usage bar. Both pages share these rules (the
+   categories page imports this file) instead of a third near-duplicate admin
+   stylesheet (review §3.1). Token-driven, light/dark. */
+
+.TaxonomyAdmin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-4);
+  min-height: 100%;
+  padding: var(--kp-space-6) clamp(var(--kp-space-5), 2vw, var(--kp-space-8)) var(--kp-space-16);
+  color: var(--kp-text-primary);
+  min-width: 0;
+}
+
+.TaxonomyAdmin__panel,
+.TaxonomyAdmin__view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+  min-width: 0;
+}
+
+.TaxonomyAdmin__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2);
+}
+
+.TaxonomyAdmin__search {
+  flex: 1 1 14rem;
+  min-width: min(14rem, 100%);
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-primary);
+  font: inherit;
+  font-size: var(--kp-text-sm);
+}
+
+.TaxonomyAdmin__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+}
+
+.TaxonomyAdmin__sort select {
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-primary);
+  font: inherit;
+  font-size: var(--kp-text-sm);
+}
+
+.TaxonomyAdmin__search:focus-visible,
+.TaxonomyAdmin__sort select:focus-visible,
+.TaxonomyAdmin__chip:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 1px;
+}
+
+/* A toggle filter: pressed is filled AND carries a check mark, never colour alone. */
+.TaxonomyAdmin__chip {
+  min-height: 36px;
+  padding: 6px 14px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font: inherit;
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-medium);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.TaxonomyAdmin__chip[aria-pressed='true'] {
+  border-color: var(--kp-border-focus);
+  background: var(--kp-accent-bg);
+}
+
+.TaxonomyAdmin__chip[aria-pressed='true']::before {
+  content: '✓ ';
+}
+
+.TaxonomyAdmin__note {
+  margin: 0;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+}
+
+.TaxonomyAdmin__nameCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: start;
+}
+
+.TaxonomyAdmin__nameCell strong {
+  font-weight: var(--kp-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.TaxonomyAdmin__muted {
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-xs);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.TaxonomyAdmin__muted code,
+code.TaxonomyAdmin__muted {
+  font-family: var(--kp-font-mono, ui-monospace, monospace);
+}
+
+.TaxonomyAdmin__itemsLink {
+  color: var(--kp-accent);
+  font-weight: var(--kp-weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.TaxonomyAdmin__itemsLink:hover {
+  text-decoration: underline;
+}
+
+.TaxonomyAdmin__usage {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-3);
+  min-width: 0;
+  width: 100%;
+}
+
+.TaxonomyAdmin__usage .TaxonomyAdmin__itemsLink {
+  min-width: 5.5rem;
+}
+
+/* Decorative (aria-hidden): the count beside it is the information. */
+.TaxonomyAdmin__bar {
+  flex: 1 1 8rem;
+  max-width: 14rem;
+  height: 6px;
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-sunken);
+  overflow: hidden;
+}
+
+.TaxonomyAdmin__barFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--kp-accent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .TaxonomyAdmin__barFill {
+    transition: width var(--kp-duration-fast) var(--kp-ease);
+  }
+}

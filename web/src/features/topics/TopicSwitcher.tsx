@@ -76,7 +76,7 @@ export function TopicSwitcher({ activeTopic, topics, onSelectTopic }: TopicSwitc
         >
           <span className="TopicSwitcher__TopicMain">
             <span className="TopicSwitcher__TopicName">{topic.label}</span>
-            <span className="TopicSwitcher__TopicDescription">{topic.description || (topic.kind === 'unassigned' ? 'Items without a space yet' : topic.slug)}</span>
+            <span className="TopicSwitcher__TopicDescription">{topic.description || (topic.kind === 'unassigned' ? 'Items without a topic yet' : topic.slug)}</span>
           </span>
           <span className="TopicSwitcher__Count">{topic.count} item{topic.count === 1 ? '' : 's'}</span>
         </button>
@@ -105,7 +105,7 @@ export function TopicSwitcher({ activeTopic, topics, onSelectTopic }: TopicSwitc
         aria-haspopup="dialog"
         aria-expanded={isOpen}
       >
-        <span>Space:</span>
+        <span>Topic:</span>
         <strong>{activeTopic.label}</strong>
       </button>
 
@@ -120,28 +120,28 @@ export function TopicSwitcher({ activeTopic, topics, onSelectTopic }: TopicSwitc
           >
             <div className="TopicSwitcher__Header">
               <div>
-                <h2 id="topic-switcher-title">Space directory</h2>
-                <p>Search, star, and switch spaces without losing your other browse filters.</p>
+                <h2 id="topic-switcher-title">Topic directory</h2>
+                <p>Search, star, and switch topics without losing your other browse filters.</p>
               </div>
-              <button type="button" className="TopicSwitcher__Close" onClick={() => setIsOpen(false)} aria-label="Close space directory">
+              <button type="button" className="TopicSwitcher__Close" onClick={() => setIsOpen(false)} aria-label="Close topic directory">
                 ×
               </button>
             </div>
 
             <label className="TopicSwitcher__Search">
-              <span>Search spaces</span>
+              <span>Search topics</span>
               <input
                 autoFocus
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search spaces…"
+                placeholder="Search topics…"
               />
             </label>
 
             <div className="TopicSwitcher__Section">
-              <h3>{query ? 'Matching spaces' : 'All spaces'}</h3>
+              <h3>{query ? 'Matching topics' : 'All topics'}</h3>
               {filteredTopics.length > 0 ? filteredTopics.map((topic) => renderTopicButton(topic, 'all')) : (
-                <div className="TopicSwitcher__Empty">No spaces match “{query}”.</div>
+                <div className="TopicSwitcher__Empty">No topics match “{query}”.</div>
               )}
             </div>
           </section>

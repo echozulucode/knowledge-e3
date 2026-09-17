@@ -1,295 +1,734 @@
-/* Home — editorial landing (mock v5). Token-driven, flat, warm/teal. */
+/**
+ * Home — the front page. Token-driven; no new colours, and **no media query**.
+ *
+ * Three rules govern every length in this file, and they are the answer to
+ * Eric's "use space wisely for multiple screens … via proven methods" and, in
+ * his second round, "what is the appropriate display for ultrawide and mobile":
+ *
+ * 1. **Intrinsic before extrinsic, and the page's width before the device's.**
+ *    Inside a region the shape follows the content — `repeat(auto-fill,
+ *    minmax(…, 1fr))` for the pin grid, the Popular list and the curated
+ *    Sections. Where the first screen genuinely changes arrangement (a chip
+ *    strip on a phone, a third column on a large monitor) it is a CONTAINER
+ *    query on this page's own content width, never a viewport media query: the
+ *    rail, the drawer and the scrollbar all change how much of the viewport the
+ *    page gets, and only the container knows the answer. `web/src` already
+ *    carries `max-width` media breakpoints at 640, 760, 860, 900, 980, 1000 and
+ *    1180 with no coherent scale; this file adds none of them. "First screen"
+ *    below lists the three container widths and the arithmetic behind each.
+ *
+ * 2. **Width inside regions, air between them** (home plan R2.2). The columns
+ *    sit side by side when there is room; the vertical gap between the
+ *    masthead, the first screen and what follows scales with the viewport's HEIGHT,
+ *    so a tall screen gets rhythm between regions instead of one block of
+ *    emptiness under the last. Prose gets a measure (`--kp-measure`, 70ch) —
+ *    a card's brief, a section's lead, the landing prose — while the layout
+ *    around it uses the width.
+ *
+ * 3. **Fluid, not stepped.** `clamp()` carries the gutter, the rhythm and the
+ *    headline sizes across the whole range, so 360px and 2560px are ends of one
+ *    continuum rather than two designs.
+ *
+ * The shell this lives in is viewport-locked (`Root.css`: `.kp-app` is
+ * `height: 100vh; overflow: hidden`) and **this element is the scroll
+ * container** — `.kp-main > :not(header)` gets `flex: 1 1 auto; overflow-y:
+ * auto`. Two consequences the rules below depend on:
+ *   - it must be full-width or its scrollbar sits at the max-width edge, so the
+ *     content is centred with padding rather than an auto margin;
+ *   - `flex-grow: 1` from the shell already stretches this box to the space
+ *     under the header even when the content is short, which is what lets the
+ *     footer's `margin-top: auto` sit it flush against the bottom of the
+ *     viewport (see `.Home .SiteFooter`) with no `min-height`, no `vh` maths
+ *     and nothing to keep in step with the header's height.
+ */
 
-/* This <main> is the scroll container, so it must be full-width — otherwise its
-   scrollbar sits at the max-width edge, leaving a gap to the window. Center the
-   content with padding (max of page-gutter and the auto-margin equivalent). */
 .Home {
+  /* The reading measure. Local, so nothing outside this page inherits it. */
+  --kp-measure: 70ch;
+  /* The content cap (R2.2). A feed list's line length stops improving at
+     roughly 48rem, and past ~1536px extra width only makes the eye travel
+     further between the two columns — so past this the extra width becomes
+     gutter. A cap, not a breakpoint: nothing changes shape as it is crossed.
+     The value is the shared multi-column cap (tokens.css, 2026-09-13); the
+     local name stays because the notes and queries below reason in it. */
+  --kp-home-max: var(--kp-page-width-wide);
+  /* The gap between side-by-side regions: 20px at 360, 32px past ~1500. */
+  --kp-home-gap: clamp(var(--kp-space-5), 2.2vw, var(--kp-space-8));
+  /* The rhythm between stacked regions, with a `vh` term so it follows the
+     screen's height: ~28px on a 700px-tall laptop, the 64px ceiling on a
+     portrait monitor. */
+  --kp-home-rhythm: clamp(var(--kp-space-6), 0.75rem + 2.25vh, var(--kp-space-16));
+  /* Secondary card borders, one step quieter than the default hairline (R2.7):
+     on a page of many cards, a full-strength border on each is the loudest
+     thing on it. Hover still reaches `--kp-border-strong`. */
+  --kp-home-border: color-mix(in srgb, var(--kp-border-subtle) 60%, transparent);
+
+  /* The first screen's arrangement queries THIS box's content width (the
+     width inside the gutters and the 96rem cap), never the viewport. Only
+     descendants are styled by it, which is all the queries below do. */
+  container: home / inline-size;
+
   max-width: none;
   margin: 0;
-  padding-block: var(--kp-space-6) var(--kp-space-16);
-  padding-inline: max(clamp(var(--kp-space-5), 2.6vw, var(--kp-space-10)), calc((100% - 1640px) / 2));
+  /* No bottom padding: the colophon owns the last strip of the page, so its
+     bottom edge really is the bottom of the viewport. Its own padding supplies
+     the breathing room. */
+  padding-block: var(--kp-home-rhythm) 0;
+  padding-inline: max(var(--kp-page-gutter), calc((100% - var(--kp-home-max)) / 2));
   display: flex;
   flex-direction: column;
-  gap: var(--kp-space-5);
+  gap: var(--kp-home-rhythm);
 }
+
+/* The scroll container's children must not shrink when the content overflows. */
 .Home > * {
   flex-shrink: 0;
 }
 
-/* ---- Hero + pulse ---- */
-.Home__hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
-  gap: var(--kp-space-4);
-  align-items: stretch;
-}
-
-.Home__heroPanel,
-.Home__pulse {
-  border: 1px solid var(--kp-border-subtle);
-  background: var(--kp-surface-base);
-  border-radius: var(--kp-radius-lg);
-  box-shadow: var(--kp-shadow-xs);
-}
-.Home__heroPanel {
-  padding: clamp(20px, 3vw, 34px);
-}
-.Home__pulse {
-  padding: var(--kp-space-5);
-}
-
-.Home__eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 27px;
-  padding: 0 10px;
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: var(--kp-radius-pill);
-  background: var(--kp-surface-sunken);
-  color: var(--kp-text-secondary);
-  font-size: 12px;
-  font-weight: var(--kp-weight-semibold);
-}
-.Home__eyebrow svg { color: var(--kp-accent); }
-.Home__eyebrow sup {
-  font-size: 0.72em;
-  line-height: 0;
-  position: relative;
-  top: -0.4em;
-  vertical-align: baseline;
-}
-
-.Home__heroPanel h1 {
-  margin: var(--kp-space-4) 0 var(--kp-space-3);
-  font-size: clamp(1.9rem, 1.4rem + 1.6vw, 3rem);
-  line-height: 1.05;
-  letter-spacing: -0.04em;
-  color: var(--kp-text-primary);
-}
-
-.Home__lead {
-  margin: 0;
-  max-width: 64ch;
-  color: var(--kp-text-secondary);
-  font-size: var(--kp-text-md);
-  line-height: 1.6;
-}
-
-/* Search */
-.Home__search {
+/* ---- Masthead ---- */
+.Home__masthead {
   display: flex;
   align-items: center;
-  gap: var(--kp-space-2);
-  margin-top: var(--kp-space-5);
-  background: var(--kp-surface-2, var(--kp-surface-sunken));
-  border: 1px solid var(--kp-border-strong);
-  border-radius: var(--kp-radius-md);
-  padding: var(--kp-space-1) var(--kp-space-1) var(--kp-space-1) var(--kp-space-3);
-}
-.Home__search:focus-within {
-  border-color: var(--kp-border-focus);
-  box-shadow: 0 0 0 3px var(--kp-brand-ring);
-}
-.Home__searchIcon { color: var(--kp-text-muted); display: inline-flex; }
-.Home__searchInput {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  color: var(--kp-text-primary);
-  font-size: var(--kp-text-base);
-  padding: var(--kp-space-2) 0;
-}
-.Home__searchInput:focus { outline: none; }
-.Home__searchInput::placeholder { color: var(--kp-text-muted); }
-.Home__searchGo {
-  flex: 0 0 auto;
-  border: 0;
-  border-radius: var(--kp-radius-sm);
-  background: var(--kp-accent);
-  color: var(--kp-accent-fg);
-  font-weight: var(--kp-weight-semibold);
-  font-size: var(--kp-text-sm);
-  padding: var(--kp-space-2) var(--kp-space-4);
-  cursor: pointer;
-}
-.Home__searchGo:hover { background: var(--kp-accent-hover); }
-
-/* Actions */
-.Home__actions {
-  display: flex;
+  gap: var(--kp-space-4) var(--kp-space-6);
   flex-wrap: wrap;
-  gap: var(--kp-space-2);
-  margin-top: var(--kp-space-4);
 }
-.Home__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 0 var(--kp-space-4);
-  border: 1px solid var(--kp-accent);
-  border-radius: var(--kp-radius-md);
-  background: var(--kp-accent);
-  color: var(--kp-accent-fg);
-  font-size: var(--kp-text-sm);
-  font-weight: var(--kp-weight-semibold);
-  text-decoration: none;
-  box-shadow: var(--kp-shadow-xs);
-}
-.Home__btn:hover { background: var(--kp-accent-hover); border-color: var(--kp-accent-hover); }
-.Home__btn--ghost {
-  background: var(--kp-surface-base);
-  color: var(--kp-text-primary);
-  border-color: var(--kp-border-subtle);
-}
-.Home__btn--ghost:hover { background: var(--kp-surface-sunken); border-color: var(--kp-border-strong); }
 
-/* Pulse */
-.Home__pulse h2 { margin: 0; font-size: var(--kp-text-md); letter-spacing: -0.01em; color: var(--kp-text-primary); }
-.Home__pulse p { margin: var(--kp-space-2) 0 0; color: var(--kp-text-secondary); font-size: var(--kp-text-sm); line-height: 1.5; }
-.Home__statGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--kp-space-2);
-  margin-top: var(--kp-space-4);
-}
-.Home__stat {
-  border: 1px solid var(--kp-border-subtle);
-  background: var(--kp-surface-sunken);
-  border-radius: var(--kp-radius-md);
-  padding: var(--kp-space-3);
-}
-.Home__stat b { display: block; font-size: var(--kp-text-xl); letter-spacing: -0.03em; color: var(--kp-text-primary); }
-.Home__stat span { color: var(--kp-text-muted); font-size: 12px; }
-
-/* ---- Section titles ---- */
-.Home__sectionTitle {
+.Home__brand {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--kp-space-4);
-  margin-top: var(--kp-space-3);
-}
-.Home__sectionTitle h2 {
-  display: inline-flex;
   align-items: center;
-  gap: var(--kp-space-2);
+  flex-wrap: wrap;
+  gap: var(--kp-space-1) var(--kp-space-3);
   margin: 0;
-  font-size: var(--kp-text-lg);
+  min-width: 0;
+  /* 20px at 360, 30px past ~1200. */
+  font-size: clamp(var(--kp-text-lg), 1.1rem + 0.8vw, var(--kp-text-2xl));
   font-weight: var(--kp-weight-semibold);
-  letter-spacing: -0.015em;
+  letter-spacing: -0.02em;
   color: var(--kp-text-primary);
 }
-.Home__sectionTitle h2 svg { color: var(--kp-text-muted); font-size: 0.85em; }
-.Home__sectionTitle p { margin: 4px 0 0; color: var(--kp-text-muted); font-size: var(--kp-text-sm); }
-.Home__seeAll {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
-  font-size: var(--kp-text-sm);
-  font-weight: var(--kp-weight-medium);
-  color: var(--kp-accent);
-  text-decoration: none;
-}
-.Home__seeAll:hover { color: var(--kp-accent-hover); }
-.Home__muted { color: var(--kp-text-muted); font-size: var(--kp-text-sm); }
 
-/* ---- Featured cards ---- */
-.Home__cardGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
-  gap: var(--kp-space-3);
+.Home__logo {
+  height: clamp(28px, 2.4vw, 40px);
+  width: auto;
+  display: block;
 }
-.Home__card {
+
+.Home__name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The tenant's tagline, if they wrote one: small, secondary, beside the name —
+   never the headline. Ours is gone from this page entirely. */
+.Home__tagline {
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-regular, 400);
+}
+
+/* An unconfigured instance still needs a labelled <main> for assistive
+   technology; the wordmark it would have repeated is already in the rail. */
+.Home__srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* `Start here →`, when the home topic names one: at the end of the masthead
+   row, or on a row of its own when there is no masthead to share. Quiet — it
+   is orientation for a newcomer, not the page's headline. */
+.Home__startHere {
+  margin-inline-start: auto;
+  color: var(--kp-accent);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.Home__startHere:hover {
+  text-decoration: underline;
+}
+/* With no masthead it is the first line of the page, so it reads from the start. */
+.Home__masthead--bare .Home__startHere {
+  margin-inline-start: 0;
+}
+
+/* ---- First screen: Updates | Key topics | Popular ----
+
+   A grid whose arrangement is chosen by three container widths — the page's
+   content width, inside the gutters and under the 96rem cap:
+
+   | container      | arrangement                                              |
+   |----------------|----------------------------------------------------------|
+   | < 40rem        | one column: key topics as a chip strip, Updates, Popular |
+   | 40rem – 52rem  | one column: Updates, key topics as a grid, Popular       |
+   | 52rem – 84rem  | Updates | key topics, with Popular under them            |
+   | ≥ 84rem        | Updates | key topics | Popular + curated links           |
+
+   The numbers are arithmetic, not taste:
+   - **40rem (640px) is where a pin card stops fitting beside anything.** Under
+     it a stacked pin grid is one card per row — four full-width cards pushing
+     the first story a screen down — so the pins become a one-line strip of
+     chips above Updates instead. A 390px phone's content box is ~22rem and a
+     768px tablet's ~44rem (there is no rail under 860px), so they land on
+     either side of it.
+   - **52rem keeps a 1024px laptop two-column.** With the collapsed rail, the
+     3vw gutters and a scrollbar, the content box there is ~55rem: 18rem of
+     pins, the gap, and ≥ 32rem of feed. The retired flex-wrap bases (32rem +
+     20rem) broke at ~54rem, so this is the same layout with some margin.
+   - **84rem (1344px) is three columns only where each keeps its job.** The
+     feed wants ~46rem for a two-line title beside a thumbnail, the pins ~17rem
+     for a thumbnail, a name and a two-line description, Popular ~16rem for a
+     rank and a two-line title: 79rem, plus two gaps. A 1440px desktop (~80rem
+     of content) stays two-column; ~1600px and up gets the third column.
+   - **An ultrawide gets a third column, not a wider page.** Past the cap the
+     extra width is gutter (see `--kp-home-max`): a reading site caps its line
+     length rather than stretching text across 2560px, and spends the capped
+     width on one more narrow list instead.
+
+   `data-pins`, `data-popular` and `data-side` (Home.tsx) say which regions
+   exist — a column for a list with nothing in it is a hole — so each template
+   below is written for the regions actually present. No width is undefined,
+   and no JavaScript measures anything. */
+.Home__top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: var(--kp-home-rhythm) var(--kp-home-gap);
+}
+
+.Home__feedCol {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--kp-space-3);
-  min-height: 158px;
-  padding: var(--kp-space-4);
-  border: 1px solid var(--kp-border-subtle);
-  background: var(--kp-surface-base);
-  border-radius: var(--kp-radius-md);
-  box-shadow: var(--kp-shadow-xs);
-  text-decoration: none;
-  transition: transform var(--kp-duration-fast) var(--kp-ease), border-color var(--kp-duration) var(--kp-ease), background var(--kp-duration) var(--kp-ease);
 }
-.Home__card:hover {
-  transform: translateY(-1px);
-  border-color: var(--kp-border-strong);
-  background: color-mix(in srgb, var(--kp-surface-base), var(--kp-accent-bg) 30%);
-}
-.Home__cardHead { display: flex; align-items: center; justify-content: space-between; gap: var(--kp-space-2); }
-.Home__cardMain h3 { margin: 0 0 5px; font-size: var(--kp-text-md); line-height: 1.25; letter-spacing: -0.01em; color: var(--kp-text-primary); }
-.Home__cardMain p {
-  margin: 0;
-  color: var(--kp-text-secondary);
-  font-size: var(--kp-text-sm);
-  line-height: 1.45;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.Home__cardMeta { margin-top: auto; display: flex; gap: 7px; flex-wrap: wrap; color: var(--kp-text-muted); font-size: 12px; }
 
-/* ---- Recently updated rows ---- */
-.Home__rows { display: grid; gap: var(--kp-space-2); }
-.Home__row {
+/* No pins curated is the state of every existing instance on day one, so it is
+   the good-looking default rather than a hole: the aside is not rendered at all
+   and the feed simply takes the full width. */
+.Home__pins {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+}
+
+/* Popular, and the curated links when three columns fit. */
+.Home__side {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-home-rhythm);
+}
+
+/* Below three columns the curated links live below the fold
+   (`.Home__foldLinks`) and this copy is not rendered; the side then holds
+   Popular alone, and is not rendered at all when Popular is empty — an empty
+   grid item would still cost a row gap. */
+.Home__sideLinks {
+  display: none;
+}
+.Home__top[data-popular='no'] > .Home__side {
+  display: none;
+}
+
+/* 16rem is the narrowest a thumbnail + name + two-line description reads well
+   at; below one column's worth it collapses to a single column rather than
+   overflowing. In a side column (≤ 26rem) that is always one column; stacked
+   under the feed, it is a grid. */
+.Home__pinGrid {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: var(--kp-space-4);
-  align-items: center;
-  padding: var(--kp-space-3) var(--kp-space-4);
-  border: 1px solid var(--kp-border-subtle);
-  background: var(--kp-surface-base);
-  border-radius: var(--kp-radius-md);
-  box-shadow: var(--kp-shadow-xs);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: var(--kp-space-3);
+}
+
+/* ---- A phone: < 40rem ---- */
+@container home (width < 40rem) {
+  /* The key topics lead: on a phone they are the page's navigation, and one
+     line of chips costs less height than the lead story's cover. DOM order is
+     left as the wide screen's reading order (Updates first). */
+  .Home__pins {
+    order: -1;
+  }
+
+  /* A horizontal scroll-snap strip of chips. The chip width is a share of the
+     strip, so two chips and part of a third are always in view — the cut-off
+     chip is the affordance that says "this scrolls", with no arrow buttons and
+     no script. It scrolls inside itself, so the page never does (every
+     ancestor up to the grid track is `min-width: 0`). The block padding keeps
+     a chip's focus ring clear of the scroller's own clipping. */
+  .Home__pinGrid {
+    display: flex;
+    gap: var(--kp-space-2);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    padding-block: 3px;
+    scrollbar-width: none;
+  }
+  .Home__pinGrid::-webkit-scrollbar {
+    display: none;
+  }
+  .Home__pinGrid > .kp-pin {
+    flex: 0 0 clamp(8.5rem, 42%, 12rem);
+    /* …but never narrower than the name's longest word (see the title rule
+       below), so a chip widens for "Architecture" rather than splitting it. */
+    min-width: min-content;
+    scroll-snap-align: start;
+    gap: var(--kp-space-2);
+    padding: var(--kp-space-2) var(--kp-space-3) var(--kp-space-2) calc(var(--kp-space-2) + 3px);
+    border-radius: var(--kp-radius-md);
+  }
+  /* A chip is a thumbnail and a name: the description is the first thing a
+     narrow screen cannot afford, and the topic's own page carries it. */
+  .Home__pinGrid .kp-pin__desc {
+    display: none;
+  }
+  .Home__pinGrid .kp-pin__thumb {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--kp-radius-sm, 6px);
+  }
+  .Home__pinGrid .kp-pin__icon {
+    font-size: 1.125rem;
+  }
+  .Home__pinGrid .kp-pin__icon svg,
+  .Home__pinGrid .kp-pin__glyph {
+    width: 1.125rem;
+    height: 1.125rem;
+  }
+  .Home__pinGrid .kp-pin__title {
+    font-size: var(--kp-text-sm);
+    /* The chip's name column is ~5rem, narrower than a long single word, and
+       the card's `overflow-wrap: anywhere` split "Architecture" as
+       "Architectur / e". `normal` wraps between words only, which also makes
+       the longest word the chip's min-content width (the rule above). */
+    overflow-wrap: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+  /* The chip is one stretched link; its focus ring goes on the whole chip, and
+     inset, so the strip's overflow cannot clip it. */
+  .Home__pinGrid > .kp-pin:has(:focus-visible) {
+    outline: 2px solid var(--kp-border-focus);
+    outline-offset: -2px;
+  }
+  .Home__pinGrid .kp-pin__titleLink:focus-visible {
+    outline: none;
+  }
+
+  /* A shorter lead cover: 16:9 across a phone is most of the first screen. */
+  .Home__lead .kp-item-card__cover {
+    aspect-ratio: 2 / 1;
+  }
+  /* Smaller, square row thumbnails, so the title keeps the row. */
+  .Home__row .kp-item-row__trailing {
+    flex-basis: 3.5rem;
+  }
+  .Home__row .Home__thumb {
+    aspect-ratio: 1;
+  }
+}
+
+/* ---- Two columns: ≥ 52rem ----
+   Updates on the left across two rows; key topics, then Popular, on the right.
+   The rows are `auto 1fr` so the feed's extra height (it is nearly always the
+   tallest region) lands in the second row, under Popular, instead of being
+   shared out as a gap between the key topics and Popular. Auto-placement fills
+   column 2 in DOM order, so whichever of the two exists takes the top. */
+@container home (width >= 52rem) {
+  .Home__top:is([data-pins='yes'], [data-popular='yes']) {
+    grid-template-columns: minmax(0, 1fr) clamp(18rem, 30%, 26rem);
+    grid-template-rows: auto 1fr;
+  }
+  .Home__top:is([data-pins='yes'], [data-popular='yes']) > .Home__feedCol {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .Home__top:is([data-pins='yes'], [data-popular='yes']) > :is(.Home__pins, .Home__side) {
+    grid-column: 2;
+  }
+}
+
+/* ---- Three columns: ≥ 84rem ----
+   Updates (the widest) | Key topics | Popular + curated links. The side column
+   shows whenever it has anything — the curated links alone are enough — and
+   the copy of the links below the fold stands down. */
+@container home (width >= 84rem) {
+  .Home__top[data-side='yes'] > .Home__side {
+    display: flex;
+  }
+  .Home__top[data-side='yes'] .Home__sideLinks {
+    display: block;
+  }
+  .Home__top[data-side='yes'] ~ .Home__foldLinks {
+    display: none;
+  }
+
+  .Home__top[data-side='yes'][data-pins='yes'] {
+    grid-template-columns: minmax(0, 1fr) clamp(17rem, 21%, 21rem) clamp(16rem, 19%, 19rem);
+    grid-template-rows: auto;
+  }
+  .Home__top[data-side='yes'][data-pins='yes'] > .Home__feedCol {
+    grid-row: 1;
+  }
+  .Home__top[data-side='yes'][data-pins='yes'] > .Home__pins {
+    grid-column: 2;
+  }
+  .Home__top[data-side='yes'][data-pins='yes'] > .Home__side {
+    grid-column: 3;
+  }
+
+  /* No pins: Updates | Popular + links. */
+  .Home__top[data-side='yes'][data-pins='no'] {
+    grid-template-columns: minmax(0, 1fr) clamp(16rem, 24%, 22rem);
+    grid-template-rows: auto;
+  }
+  .Home__top[data-side='yes'][data-pins='no'] > .Home__feedCol {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .Home__top[data-side='yes'][data-pins='no'] > .Home__side {
+    grid-column: 2;
+  }
+
+  /* In a 16-19rem column the curated links are one stack, not a row of
+     220px chips. */
+  .Home__sideLinks .CuratedLinks__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- Popular (features/home/PopularList.tsx) ---- */
+.Home__popular {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+}
+.Home__popularHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--kp-space-3);
+  flex-wrap: wrap;
+}
+.Home__popularHead h2 {
+  margin: 0;
+  font-size: var(--kp-text-md);
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-primary);
+}
+.Home__popularWindow {
+  color: var(--kp-text-meta);
+  font-size: var(--kp-text-xs);
+}
+/* One column in a side column, two or more when stacked at full width. */
+.Home__popularList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: var(--kp-space-3) var(--kp-home-gap);
+}
+.Home__popularItem {
+  display: flex;
+  align-items: baseline;
+  gap: var(--kp-space-3);
+  min-width: 0;
+}
+/* The rank is a quiet numeral, not a badge: it orders the list, and the title
+   is what is read. Tabular, so 1–5 align. */
+.Home__popularRank {
+  flex: none;
+  min-width: 1.25ch;
+  color: var(--kp-text-meta);
+  font-size: var(--kp-text-md);
+  font-weight: var(--kp-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+}
+.Home__popularBody {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.Home__popularTitle {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  line-height: 1.35;
   text-decoration: none;
 }
-.Home__row:hover { border-color: var(--kp-border-strong); }
-.Home__rowMain { min-width: 0; }
-.Home__rowBadges { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 6px; }
-.Home__rowMain h3 { margin: 0 0 3px; font-size: var(--kp-text-base); letter-spacing: -0.01em; color: var(--kp-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.Home__rowMain p { margin: 0; color: var(--kp-text-secondary); font-size: var(--kp-text-sm); line-height: 1.42; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.Home__rowSide { text-align: right; color: var(--kp-text-muted); font-size: 12px; display: grid; gap: 2px; max-width: 220px; }
-
-/* ---- Status badge ---- */
-.Home__status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  padding: 0 8px;
-  border-radius: var(--kp-radius-pill);
-  font-size: 11.5px;
-  font-weight: var(--kp-weight-semibold);
-  border: 1px solid var(--kp-border-subtle);
+.Home__popularTitle:hover {
+  color: var(--kp-accent);
 }
-.Home__status--published { color: var(--kp-success); background: var(--kp-success-bg); border-color: color-mix(in srgb, var(--kp-success), transparent 70%); }
-.Home__status--draft { color: var(--kp-text-secondary); background: var(--kp-surface-sunken); }
+/* ---- The Updates feed (features/home/UpdatesFeed.tsx) ---- */
+.Home__feed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+}
 
-/* ---- Empty ---- */
+.Home__feedHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--kp-space-4);
+  flex-wrap: wrap;
+}
+.Home__feedHead h2,
+.Home__empty h2 {
+  margin: 0;
+  font-size: clamp(var(--kp-text-md), 1rem + 0.4vw, var(--kp-text-xl));
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--kp-text-primary);
+}
+
+.Home__more {
+  align-self: flex-start;
+  color: var(--kp-accent);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.Home__more:hover {
+  text-decoration: underline;
+}
+
+/* Secondary cards: the quieter border, no drop shadow. */
+.Home__lead,
+.Home__row {
+  border-color: var(--kp-home-border);
+  box-shadow: none;
+}
+.Home__lead:hover,
+.Home__row:hover {
+  border-color: var(--kp-border-strong);
+}
+
+/* The lead story's cover: 16:9, but never taller than a third of the screen or
+   so, so a wide feed column on a short laptop still shows the lead's title and
+   the first rows without scrolling. `object-fit: cover` (from item.css) crops
+   rather than letterboxes when the cap applies. */
+.Home__lead .kp-item-card__cover {
+  max-block-size: clamp(9rem, 26vh, 17rem);
+}
+.Home__lead .kp-item-card__title {
+  font-size: clamp(var(--kp-text-lg), 1.05rem + 0.5vw, var(--kp-text-xl));
+}
+
+/* A vertical list, not a grid (R2.4): every title gets the column's width. */
+.Home__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+}
+
+.Home__row .kp-item-row__title {
+  font-size: var(--kp-text-md);
+}
+
+/* The row's cover, on the trailing edge. A share of the row rather than a fixed
+   size, so a phone keeps most of its width for the title: the percentage is a
+   flex-basis, so it resolves against the row itself. It sits under the row's
+   stretched title link (`pointer-events: none`), so clicking the picture opens
+   the story like clicking anywhere else on the row. */
+.Home__row .kp-item-row__trailing {
+  flex: 0 0 clamp(4rem, 22%, 7.5rem);
+  pointer-events: none;
+}
+.Home__thumb {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: var(--kp-radius-sm, 6px);
+  background: var(--kp-surface-sunken);
+}
+
+/* Metadata and briefs one type step larger than the shared default (R2.7):
+   they are what a reader uses to choose a story, and at 11px/13px they were
+   the hardest text on the page to read. They keep the shared one-step gap
+   (13px metadata under a 15px brief) and their colours from item.css — the
+   brief in `--kp-text-secondary`, the metadata in the quieter `--kp-text-meta`
+   — and the e2e asserts both are AA in both themes, and that the metadata is
+   the quieter of the two. */
+.Home__feed .kp-item-meta {
+  font-size: var(--kp-text-sm);
+}
+
+/* The story's topic, first on its metadata line. Metadata-coloured like the
+   rest of the line — a fact about the story, not a call to action — and it
+   shows it is a link only when pointed at. */
+.Home__topic {
+  color: inherit;
+  font-weight: var(--kp-weight-medium, 500);
+  text-decoration: none;
+}
+a.Home__topic:hover {
+  color: var(--kp-accent);
+  text-decoration: underline;
+}
+.Home__lead .kp-item-card__preview,
+.Home__row .kp-item-row__preview {
+  font-size: var(--kp-text-base);
+}
+
+/* Prose keeps its measure wherever it lands. A 1200px-wide line of brief is the
+   thing that makes a wide layout feel broken. */
+.Home__lead .kp-item-card__preview,
+.Home__row .kp-item-row__preview,
+.Home__section .TopicLanding__sectionLead {
+  max-width: var(--kp-measure);
+}
+
 .Home__empty {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: var(--kp-space-3);
-  padding: var(--kp-space-8);
-  border: 1px dashed var(--kp-border-strong);
-  border-radius: var(--kp-radius-md);
+  align-items: flex-start;
+  padding: var(--kp-space-6);
+  border: 1px dashed var(--kp-border-subtle);
+  border-radius: var(--kp-radius-lg);
+}
+
+.Home__muted {
+  margin: 0;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+}
+
+.Home__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-accent);
+  color: var(--kp-accent-fg);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  text-decoration: none;
+}
+
+/* Admin-only, and quiet: a reader never sees setup instructions. */
+.Home__adminHint {
+  align-self: flex-start;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-xs);
+  text-decoration: none;
+}
+.Home__adminHint:hover {
+  color: var(--kp-accent);
+  text-decoration: underline;
+}
+
+/* ---- Below the fold ---- */
+.Home__section {
+  margin: 0;
+}
+
+/* The curator's Sections reflow into columns as the page widens. Scoped to this
+   page: a topic landing is a narrower surface and keeps its single column. */
+.Home__section .TopicLanding__items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr));
+  gap: var(--kp-space-3);
+  align-items: start;
+}
+
+.Home__prose {
+  border-top: 1px solid var(--kp-home-border);
+  padding-top: var(--kp-space-5);
   color: var(--kp-text-secondary);
 }
 
-/* ---- Responsive ---- */
-@media (max-width: 900px) {
-  .Home__hero { grid-template-columns: 1fr; }
+/* The one thing on the page that must NOT use the extra width. */
+.Home__prose > * {
+  max-width: var(--kp-measure);
 }
-@media (max-width: 640px) {
-  .Home { padding: var(--kp-space-4) var(--kp-space-4) var(--kp-space-12); }
-  .Home__heroPanel { padding: var(--kp-space-5); }
-  .Home__row { grid-template-columns: 1fr; }
-  .Home__rowSide { text-align: left; max-width: none; flex-direction: row; gap: var(--kp-space-2); }
-  .Home__statGrid { grid-template-columns: 1fr 1fr; }
+
+/* ---- The colophon, flush against the bottom ---- ("Powered by" should be at
+   the bottom … flush against the bottom if there isn't enough content to
+   fill.")
+
+   `margin-top: auto` and nothing else. The shell stretches this page to the
+   height of the content area (`flex: 1 1 auto` in Root.css), so when the
+   content is short the leftover space lands above the footer and its bottom
+   edge is the viewport's; when the content is long there is no free space, the
+   auto margin resolves to zero and the footer simply follows the last block
+   (still one rhythm gap below it), reached by scrolling. No `100vh`, no
+   JavaScript, and nothing that has to be kept in step with the header's
+   height. */
+.Home .SiteFooter {
+  margin-top: auto;
 }
+
+/* ---- Reading pane open (extra-wide; ReadingPaneLayout) ----
+   Eric, 2026-09-13: with an article open beside it, "the updates section
+   should be centered and at a maximum width like before", and closing the pane
+   should bring it back to centre "without a significant width change". So the
+   list half does not squeeze Home's multi-column first screen into itself —
+   that halved Updates to ~510px with the key topics wedged beside it. Instead
+   the page becomes ONE centred column at Updates' own width, with Key topics and
+   Popular beneath it:
+
+   - `--kp-home-feed-max` is the width Updates has in the CLOSED layout on an
+     extra-wide screen, where Home is at its full cap: derived below from the
+     same column rules the closed templates use, for whichever regions exist
+     (no side regions / key topics or Popular beside it / both). So on a 2560px
+     screen opening the pane changes Updates' width by nothing, and on a 1920px
+     screen (a ~926px half) it narrows at most to the half less its gutters.
+   - The selectors outrank the container-query templates above ((0,4,1) against
+     at most (0,4,0)); nothing else about the page changes. */
+.Home {
+  --kp-home-feed-max: var(--kp-home-max);
+}
+/* Key topics or Popular beside Updates: the ≥ 52rem template. */
+.Home:has(.Home__top:is([data-pins='yes'], [data-popular='yes'])) {
+  --kp-home-feed-max: calc(var(--kp-home-max) - clamp(18rem, 0.3 * var(--kp-home-max), 26rem) - var(--kp-home-gap));
+}
+/* Three columns (≥ 84rem): Updates | Key topics | Popular + links. */
+.Home:has(.Home__top[data-side='yes'][data-pins='yes']) {
+  --kp-home-feed-max: calc(var(--kp-home-max) - clamp(17rem, 0.21 * var(--kp-home-max), 21rem) - clamp(16rem, 0.19 * var(--kp-home-max), 19rem) - 2 * var(--kp-home-gap));
+}
+/* No key topics: Updates | Popular + links. */
+.Home:has(.Home__top[data-side='yes'][data-pins='no']) {
+  --kp-home-feed-max: calc(var(--kp-home-max) - clamp(16rem, 0.24 * var(--kp-home-max), 22rem) - var(--kp-home-gap));
+}
+.kp-reading-layout[data-pane='open'] > main.Home {
+  padding-inline: max(var(--kp-page-gutter), calc((100% - var(--kp-home-feed-max)) / 2));
+}
+.kp-reading-layout[data-pane='open'] > main.Home .Home__top {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto;
+}
+.kp-reading-layout[data-pane='open'] > main.Home .Home__top > * {
+  grid-column: 1;
+  grid-row: auto;
+}
+

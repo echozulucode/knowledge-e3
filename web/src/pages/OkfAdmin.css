@@ -1,32 +1,9 @@
 .OkfAdmin {
-  /* Fill the container with a consistent gutter so the admin tab row sits in the
-     same place on every admin page (matches AdminHome) and never wraps. */
+  /* Fill the container. Inside AdminLayout (every /admin page) the layout owns
+     the gutter and this padding is reset; it applies only outside it. */
   max-width: none;
   margin: 0;
   padding: var(--kp-space-6) clamp(var(--kp-space-5), 2vw, var(--kp-space-8)) var(--kp-space-16);
-}
-
-.OkfAdmin__hero {
-  margin: 1rem 0 1.5rem;
-}
-
-.OkfAdmin__eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.7;
-}
-
-.OkfAdmin__hero h1 {
-  margin: 0.4rem 0;
-}
-
-.OkfAdmin__hero p {
-  opacity: 0.85;
-  line-height: 1.5;
 }
 
 .OkfAdmin__panel {
@@ -101,6 +78,24 @@
   margin-bottom: 1rem;
 }
 
+/* An editable admin table has more columns than a phone has width, and the
+   page's scroll container hides horizontal overflow, so the right-hand columns
+   (Slot, Tags, the row actions) were cut off with no way to reach them. Below
+   the width where every column fits, the table scrolls sideways inside itself
+   instead. display:block on the table keeps its rows laid out as a table (the
+   anonymous table box inside it) while the block box owns the overflow. */
+@media (max-width: 860px) {
+  .OkfAdmin__table {
+    display: block;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .OkfAdmin__table input,
+  .OkfAdmin__table select {
+    min-width: 6rem;
+  }
+}
+
 .OkfAdmin__table th,
 .OkfAdmin__table td {
   text-align: left;
@@ -148,4 +143,144 @@
 .OkfAdmin__error {
   color: var(--danger, #cf222e);
   font-weight: 600;
+}
+
+.OkfAdmin__audit {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.OkfAdmin__auditStats,
+.OkfAdmin__reportStats {
+  list-style: none;
+  padding: 0.75rem 1rem;
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 8px;
+  background: var(--surface-muted, rgba(127, 127, 127, 0.06));
+  font-size: 0.92rem;
+}
+
+.OkfAdmin__audit details {
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+}
+
+.OkfAdmin__audit summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.OkfAdmin__audit details ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.88rem;
+}
+
+/* Import: validate first, then an explicit Import (the admin UX plan A3). */
+.OkfAdmin__importStatus {
+  min-height: 1.5em;
+  font-weight: 600;
+}
+
+.OkfAdmin__importStatus:empty {
+  margin: 0;
+}
+
+.OkfAdmin__importStatus[data-readiness='blocked'] {
+  color: var(--danger, #cf222e);
+}
+
+.OkfAdmin__importStatus[data-readiness='clean'] {
+  color: var(--success, #1a7f37);
+}
+
+.OkfAdmin__importActions {
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.OkfAdmin__panel .OkfAdmin__report p {
+  margin: 0;
+}
+
+.OkfAdmin__reportSummary {
+  line-height: 1.5;
+}
+
+.OkfAdmin__audit details .OkfAdmin__issueTable {
+  margin: 0.5rem 0;
+  font-size: 0.88rem;
+}
+
+/* Messages and paths are long and unbroken; let them wrap inside the cell
+   rather than push the table past the panel. */
+.OkfAdmin__issueTable td {
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.OkfAdmin__issueTable td:first-child {
+  min-width: 10rem;
+}
+
+.OkfAdmin__reportActions {
+  align-items: center;
+}
+
+.OkfAdmin__copyNote {
+  font-size: 0.88rem;
+}
+
+.OkfAdmin__srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* An action's outcome, inside the card whose button ran it (review §2 #12). */
+.OkfAdmin__outcome {
+  margin-top: 0.75rem;
+}
+.OkfAdmin__outcome p {
+  margin: 0;
+}
+.OkfAdmin__outcome a {
+  color: var(--kp-accent);
+}
+
+/* Pinned topics: "N of 6" beside the heading. */
+.OkfAdmin__count {
+  margin-left: 0.4rem;
+  color: var(--kp-text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* A field's own error, under the control it names. */
+.OkfAdmin__fieldError {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--kp-danger, #cf222e);
+  font-size: var(--kp-text-xs, 12px);
+  font-weight: 600;
+}
+
+/* Why a control is disabled, in text (review §3.3). */
+.OkfAdmin__hint {
+  margin: 0.5rem 0 0;
+  color: var(--kp-text-secondary);
+  font-size: 0.88rem;
 }

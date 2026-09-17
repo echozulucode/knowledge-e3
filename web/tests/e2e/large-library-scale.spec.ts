@@ -1,4 +1,4 @@
-import { test, expect, createPageViaApi } from './fixtures.js';
+import { test, expect, createPageViaApi, ensureCategories } from './fixtures.js';
 
 const enabled = process.env['LARGE_LIBRARY_BROWSER'] === '1';
 const itemCount = Number.parseInt(process.env['LARGE_LIBRARY_BROWSER_PAGES'] ?? '250', 10);
@@ -10,6 +10,8 @@ test.describe('large-library browser performance smoke', () => {
 
   test('initial browse, topic drawer, search, item open, create/edit stay usable with hundreds of items', async ({ signedInPage, apiAsAdmin }) => {
     let firstSeededItem: { id: string; title: string } | null = null;
+    // Published items need a curated primary category.
+    await ensureCategories(apiAsAdmin, ...Array.from({ length: 8 }, (_, idx) => `Scale Category ${idx}`));
     for (let idx = 1; idx <= itemCount; idx += 1) {
       const title = `Browser Scale Item ${marker} ${String(idx).padStart(4, '0')}`;
       const created = await createPageViaApi(apiAsAdmin, {

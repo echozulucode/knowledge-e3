@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ItemsModule } from '../items/items.module.js';
+import { ImagesModule } from '../images/images.module.js';
 import { OkfController } from './okf.controller.js';
 import { OkfExportService } from './okf-export.service.js';
 import { OkfImportService } from './okf-import.service.js';
@@ -11,7 +12,7 @@ import { OkfImportService } from './okf-import.service.js';
  * the MCP `knowledge.export_okf` / `import_okf` tools and the `export:okf` script.
  */
 @Module({
-  imports: [ItemsModule],
+  imports: [ItemsModule, ImagesModule],
   controllers: [OkfController],
   providers: [OkfImportService, OkfExportService],
   exports: [OkfImportService, OkfExportService],

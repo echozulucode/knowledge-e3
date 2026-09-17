@@ -11,9 +11,12 @@
 #
 # Quick start:
 #   docker build -t knowledge-e3 .
-#   docker run -p 3000:3000 -v knowledge-e3-data:/data knowledge-e3
-#   # then seed the first admin (once):
-#   docker exec -it <container> node server/dist/seed.js
+#   docker run -p 3000:3000 -v knowledge-e3-data:/data \
+#     -e SEED_ADMIN_USERNAME=admin -e SEED_ADMIN_PASSWORD='choose-a-strong-one' \
+#     knowledge-e3
+#   # The entrypoint idempotently creates that admin on first boot (admin only, no
+#   # demo data). Omit SEED_ADMIN_PASSWORD to skip it and seed manually later.
+# Or just `docker compose up` (see docker-compose.yml).
 
 # ---------- Stage 1: install workspace dependencies ----------
 FROM node:22-alpine AS deps
@@ -26,6 +29,17 @@ WORKDIR /build
 COPY pnpm-workspace.yaml .npmrc package.json pnpm-lock.yaml ./
 COPY packages/codec/package.json ./packages/codec/
 COPY packages/okf/package.json ./packages/okf/
+COPY packages/knowledge-types/package.json ./packages/knowledge-types/
+COPY packages/content-model/package.json ./packages/content-model/
+COPY packages/content-store/package.json ./packages/content-store/
+COPY packages/repo-sync/package.json ./packages/repo-sync/
+COPY packages/search/package.json ./packages/search/
+COPY packages/api-client/package.json ./packages/api-client/
+COPY packages/ui/package.json ./packages/ui/
+COPY packages/mcp-tools/package.json ./packages/mcp-tools/
+# Not built into the image; its manifest is here only so the frozen lockfile's
+# importer set matches the workspace (apps/* is a workspace glob).
+COPY apps/knowledge-mcp/package.json ./apps/knowledge-mcp/
 COPY server/package.json ./server/
 COPY web/package.json ./web/
 RUN pnpm install --frozen-lockfile
@@ -39,9 +53,17 @@ COPY tsconfig.base.json ./
 COPY packages/ ./packages/
 COPY server/ ./server/
 COPY web/ ./web/
-# Topological order: codec -> okf -> server (imports both) ; codec -> web.
+# Topological order: codec -> okf -> knowledge-types -> content-model/search/ui/api-client -> server -> web.
 RUN pnpm --filter @echozedlabs/codec build \
  && pnpm --filter @echozedlabs/okf build \
+ && pnpm --filter @echozedlabs/knowledge-types build \
+ && pnpm --filter @echozedlabs/content-model build \
+ && pnpm --filter @echozedlabs/content-store build \
+ && pnpm --filter @echozedlabs/repo-sync build \
+ && pnpm --filter @echozedlabs/search build \
+ && pnpm --filter @echozedlabs/ui build \
+ && pnpm --filter @echozedlabs/api-client build \
+ && pnpm --filter @echozedlabs/mcp-tools build \
  && pnpm --filter @echozedlabs/server build \
  && pnpm --filter @echozedlabs/web build
 
@@ -63,6 +85,9 @@ ENV NODE_ENV=production \
 # builder stays intact. Bigger image, but correct and simple.
 COPY --from=builder --chown=node:node /build /app
 COPY --chown=node:node docker-entrypoint.sh /app/docker-entrypoint.sh
+# First-run admin bootstrap (admin only, no demo data). Run by the entrypoint when
+# SEED_ADMIN_PASSWORD is set; idempotent, so it is safe on every boot.
+COPY --chown=node:node scripts/seed-admin.mjs /app/scripts/seed-admin.mjs
 
 # Persistent data dir (SQLite + git mirror) + a writable HOME for gitconfig.
 RUN chmod +x /app/docker-entrypoint.sh \

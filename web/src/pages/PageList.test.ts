@@ -30,7 +30,7 @@ function topic(overrides: Partial<Topic>): Topic {
 }
 
 describe('PageList topic options', () => {
-  it('uses authoritative API topics only so the new item composer can select catalog topics without invented fallbacks', () => {
+  it('uses authoritative API topics only, so browse and Compose offer catalog topics without invented fallbacks', () => {
     expect(
       buildTopicOptions({
         pages: [page({ frontmatter: { topic: 'Product Discovery' } })],

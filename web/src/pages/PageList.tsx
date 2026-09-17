@@ -4,18 +4,20 @@
  */
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import type { CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent, RefObject } from 'react';
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent, RefObject } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { usePages, useSearch, useCreatePage, useTopics, usePrimaryCategories, useContentTypes, useMe, type Page, type SearchResult, type TaxonomyCategory, type Topic } from '../queries.js';
+import { usePages, useSearch, useTopics, usePrimaryCategories, useMe, type Page, type SearchResult, type TaxonomyCategory } from '../queries.js';
 import { extractCopyableEntries } from '../features/items/copyableContent.js';
-import { buildItemDraftMarkdown } from '../features/items/titleHeadingSync.js';
+import { okfDisplaySignals } from '../features/okf/signals.js';
 import { TopicSwitcher } from '../features/topics/TopicSwitcher.js';
 import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
-import { ContentTypeBadge } from '../components/ContentTypeBadge.js';
+import { ContentTypeBadge, FreshnessBadge, TrustBadge } from '@echozedlabs/ui';
+import { displayStateForHit, groupByType, reviewUrlForHit } from '../features/search/grouping.js';
+import { openReviewOf, reviewDisplayState } from '../features/review/reviewModel.js';
+import { SearchResultRow } from '../features/search/SearchResultRow.js';
 import {
   buildTopicDirectory,
   buildTopicLookup,
-  buildTopicOptions,
   describeActiveTopicFilter,
   displayFromSlug,
   matchesFilter,
@@ -29,8 +31,10 @@ import { Icon, appIcons } from '../icons.js';
 import './PageList.css';
 
 type SortKey = 'updated_desc' | 'created_desc' | 'title_asc';
+/** Rows shown per content-type group in the "By type" browse view. */
+const TYPE_GROUP_PREVIEW = 8;
 type StatusFilter = 'draft' | 'published';
-type BrowseView = 'tags' | 'grouped' | 'cards' | 'list';
+type BrowseView = 'tags' | 'grouped' | 'cards' | 'list' | 'types';
 type MetadataFilterKey = 'topic' | 'category' | 'tag' | 'group';
 
 interface BrowseSearchParams {
@@ -48,34 +52,6 @@ interface BrowseSearchParams {
   group?: string;
 }
 
-interface ComposerState {
-  title: string;
-  type: string;
-  space: string;
-  status: 'draft' | 'published';
-  category: string;
-  tags: string;
-  tagEntry: string;
-  groups: string;
-  summary: string;
-  body: string;
-}
-
-function createInitialComposer(seedTag = ''): ComposerState {
-  return {
-    title: '',
-    type: 'concept',
-    space: '',
-    status: 'draft',
-    category: '',
-    tags: seedTag,
-    tagEntry: '',
-    groups: '',
-    summary: '',
-    body: '',
-  };
-}
-
 function searchParamString(value: unknown): string | undefined {
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
@@ -83,7 +59,7 @@ function searchParamString(value: unknown): string | undefined {
 }
 
 function asBrowseView(value: string | undefined): BrowseView {
-  if (value === 'tags' || value === 'grouped' || value === 'list') return value;
+  if (value === 'tags' || value === 'grouped' || value === 'list' || value === 'types') return value;
   return 'cards';
 }
 
@@ -136,7 +112,7 @@ function searchReasonsForPage(page: Page, query: string, topicLookup?: TopicLook
     if (fieldMatches(group, query)) reasons.push(`Group: ${group}`);
   }
   const topic = topicForPage(page, topicLookup);
-  if (fieldMatches(topic, query)) reasons.push(`Space: ${topic}`);
+  if (fieldMatches(topic, query)) reasons.push(`Topic: ${topic}`);
   return [...new Set(reasons)].slice(0, 5);
 }
 
@@ -180,91 +156,6 @@ function uniqueChipKey(kind: MetadataFilterKey, value: string): string {
   return `${kind}:${value.toLowerCase()}`;
 }
 
-function uniqueSorted(values: string[]): string[] {
-  return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort((a, b) =>
-    a.localeCompare(b, undefined, { sensitivity: 'base' }),
-  );
-}
-
-function splitComposerList(value: string): string[] {
-  return value
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean);
-}
-
-function slugifyComposerValue(value: string): string {
-  return slugifyFilterValue(value);
-}
-
-function normalizeComposerList(value: string): string[] {
-  return splitComposerList(value)
-    .map((part) => slugifyComposerValue(part))
-    .filter(Boolean);
-}
-
-const CATEGORY_USAGE_GUIDANCE = 'Use one primary purpose category such as Research notes, Decision record, How-to, Reference, Runbook, Experiment, or Meeting notes. Extra categories are useful only when an item genuinely serves two durable purposes; prefer tags or groups for looser cross-cutting labels.';
-
-type HelpKey = 'type' | 'topic' | 'status' | 'primary-category' | 'tags' | 'groups' | 'summary' | 'body';
-
-const HELP_TEXT: Record<HelpKey, string> = {
-  type: 'The kind of content (an OKF concept type). It picks a starter template and domain fields — e.g. a Troubleshooting Guide scaffolds symptom → checks → fix → verify.',
-  topic: 'The space this item belongs to. Pick the space where you would expect to browse for it later.',
-  status: 'Draft is work-in-progress. Published means it is ready to rely on in search, links, and reviews.',
-  'primary-category': CATEGORY_USAGE_GUIDANCE,
-  tags: 'Short searchable labels. Use tags for technologies, people, concepts, or recurring details that may span many spaces.',
-  groups: 'Temporary or cross-cutting workstreams such as roadmap, onboarding, or ops-review. Groups are useful for projects that cut across spaces.',
-  summary: 'A concise card preview. Put the most useful takeaway here, especially when the body has longer context and references.',
-  body: 'Starter notes for the editor. Add enough context that the draft is useful when it opens.',
-};
-
-function HelpIcon({ id, activeHelp, onToggle }: { id: HelpKey; activeHelp: HelpKey | null; onToggle: (id: HelpKey) => void }) {
-  const active = activeHelp === id;
-  return (
-    <span className="PageList__HelpWrap">
-      <button
-        type="button"
-        className="PageList__HelpIcon"
-        aria-label="Help info"
-        data-help-key={id}
-        aria-expanded={active}
-        title={HELP_TEXT[id]}
-        onMouseEnter={() => {
-          if (!active) onToggle(id);
-        }}
-        onFocus={() => {
-          if (!active) onToggle(id);
-        }}
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          if (!active) onToggle(id);
-        }}
-      >
-        i
-      </button>
-      {active ? <span role="tooltip" className="PageList__HelpTooltip">{HELP_TEXT[id]}</span> : null}
-    </span>
-  );
-}
-
-function FieldLabel({ children, help, activeHelp, onToggle }: { children: string; help: HelpKey; activeHelp: HelpKey | null; onToggle: (id: HelpKey) => void }) {
-  return (
-    <span className="PageList__FieldLabelText">
-      <span>{children}</span>
-      <HelpIcon id={help} activeHelp={activeHelp} onToggle={onToggle} />
-    </span>
-  );
-}
-
-function errorMessageFromUnknown(error: unknown): string {
-  if (error && typeof error === 'object' && 'message' in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim()) return message.trim();
-  }
-  return 'Failed to create the draft. Please check the title and try again.';
-}
-
 /**
  * How many rows were rendered for a given result window, remembered per
  * filter-set for the life of the tab.
@@ -301,14 +192,9 @@ function writeScrollWindow(key: string, count: number): void {
 
 export function PageList() {
   const navigate = useNavigate();
-  const createPage = useCreatePage();
   const { data: currentUser } = useMe();
   const canWrite = !!currentUser; // anonymous visitors (public read mode) get a read-only browse
-  const [isComposerOpen, setIsComposerOpen] = useState(false);
-  const [composer, setComposer] = useState<ComposerState>(() => createInitialComposer());
-  const [composerError, setComposerError] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
-  const [activeHelp, setActiveHelp] = useState<HelpKey | null>(null);
   const [tagFilter, setTagFilter] = useState('');
   // Browse filter URL shape (for MCP/deep-link handoff):
   // /?view=all|recent|tags|settings&q=text&status=draft,published&topic=name&category=slug&tag=slug&group=slug&sort=updated_desc|created_desc|title_asc
@@ -334,19 +220,14 @@ export function PageList() {
     if (routeView === 'settings') navigate({ to: '/profile' });
   }, [routeView, navigate]);
 
-  // Home hands off "create by type" via ?new=<typeKey>: open the composer
-  // preseeded with that content type, then strip the param so a refresh/back
-  // doesn't reopen it.
+  // Home and the sidebar hand off "create by type" via ?new=<typeKey>, which
+  // used to open the in-browse composer. Creation is Compose's now, so the
+  // handoff forwards there; `replace` keeps the redirect out of the history.
   const routeNew = searchParamString((routeSearch as { new?: unknown }).new);
   useEffect(() => {
     if (!routeNew) return;
-    setComposer((prev) => ({ ...createInitialComposer(), ...prev, type: routeNew }));
-    setIsComposerOpen(true);
-    const rest = { ...(routeSearch as Record<string, unknown>) };
-    delete rest.new;
-    navigate({ to: '/browse', search: rest as any, replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeNew]);
+    void navigate({ to: '/new', search: { type: routeNew } as any, replace: true });
+  }, [routeNew, navigate]);
   const queryText = routeQuery?.trim().toLowerCase() ?? '';
   const statusFilters = useMemo(() => asStatusFilters(routeStatus), [routeStatus]);
   const sortKey = asSortKey(routeSort);
@@ -399,7 +280,6 @@ export function PageList() {
   const isLoading = pagesLoading || (queryText.length > 0 && searchLoading);
   const { data: topics = [] } = useTopics();
   const { data: primaryCategories = [] } = usePrimaryCategories();
-  const { data: contentTypes = [] } = useContentTypes();
   const topicLookup = useMemo(() => buildTopicLookup(topics), [topics]);
   // Hydrate server hits to full pages (for previews/fields), preserving the
   // server's order; fall back to the snippet-only shape for out-of-window hits.
@@ -526,6 +406,10 @@ export function PageList() {
   const visiblePages = useMemo(() => sortedPages.slice(0, visibleCount), [sortedPages, visibleCount]);
   // For the grouped view, the set of page ids currently within the scroll window.
   const visibleIds = useMemo(() => new Set(visiblePages.map((p) => p.id)), [visiblePages]);
+  // "By type" view (§3.5): the same content-type grouping the palette shows,
+  // over the facet-filtered result set. Each group previews a few items and
+  // "See all" focuses that type in the Cards view, which handles long sets.
+  const typeGroups = useMemo(() => groupByType(sortedPages, TYPE_GROUP_PREVIEW), [sortedPages]);
 
   const groupedTopicPreviewLimit = 50;
   const categoryForBrowseGroup = (page: Page): string => {
@@ -533,12 +417,12 @@ export function PageList() {
     return category ? displayCategorySlug(category, categoryLookup) : 'Uncategorized';
   };
   const groupedByPrimaryCategory = activeTopic.kind === 'topic';
-  const scrollspyGroupLabel = groupedByPrimaryCategory ? 'Primary category groups' : 'Spaces';
-  const scrollspyHeading = groupedByPrimaryCategory ? 'Primary categories' : 'Spaces';
+  const scrollspyGroupLabel = groupedByPrimaryCategory ? 'Primary category groups' : 'Topics';
+  const scrollspyHeading = groupedByPrimaryCategory ? 'Primary categories' : 'Topics';
   const groupedTopicGroups = useMemo(() => {
     const groups = new Map<string, Page[]>();
     for (const page of sortedPages) {
-      const groupName = groupedByPrimaryCategory ? categoryForBrowseGroup(page) : topicForPage(page, topicLookup) || 'Default space';
+      const groupName = groupedByPrimaryCategory ? categoryForBrowseGroup(page) : topicForPage(page, topicLookup) || 'Default topic';
       groups.set(groupName, [...(groups.get(groupName) ?? []), page]);
     }
     const topicGroups = [...groups.entries()]
@@ -635,19 +519,13 @@ export function PageList() {
     return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [pages]);
 
-  const topicOptions = useMemo(() => buildTopicOptions({ pages, topics }), [pages, topics]);
   const topicDirectoryPages = queryText || hasBrowseFilters ? filteredPages : pages;
   const topicDirectory = useMemo(() => buildTopicDirectory({ pages: topicDirectoryPages, topics }), [topicDirectoryPages, topics]);
 
-  const categoryOptions = useMemo(() => {
-    const catalogCategories = primaryCategories.map((category) => category.name.trim() || displayFromSlug(category.slug));
-    return uniqueSorted(catalogCategories);
-  }, [primaryCategories]);
+  const viewTitle = activeView === 'tags' ? 'Tags' : activeView === 'grouped' ? 'Grouped by topic' : activeView === 'types' ? 'Grouped by type' : 'Library';
 
-  const viewTitle = activeView === 'tags' ? 'Tags' : activeView === 'grouped' ? 'Grouped by space' : 'Library';
-
-  const groupedUnitSingular = groupedByPrimaryCategory ? 'primary category' : 'space';
-  const groupedUnitPlural = groupedByPrimaryCategory ? 'primary categories' : 'spaces';
+  const groupedUnitSingular = groupedByPrimaryCategory ? 'primary category' : 'topic';
+  const groupedUnitPlural = groupedByPrimaryCategory ? 'primary categories' : 'topics';
   const viewSubtitle = activeView === 'tags'
     ? `${tagGroups.length} tags`
     : queryText
@@ -674,8 +552,8 @@ export function PageList() {
     activeTopic.kind !== 'all'
       ? {
           key: 'topic',
-          label: `Space: ${activeTopic.label}`,
-          removeLabel: `Remove space filter ${activeTopic.label}`,
+          label: `Topic: ${activeTopic.label}`,
+          removeLabel: `Remove topic filter ${activeTopic.label}`,
           remove: () => updateBrowseSearch({ topic: undefined, space: undefined }),
         }
       : null,
@@ -740,11 +618,10 @@ export function PageList() {
   };
 
   // Keyboard navigation: j/k and arrow up/down to move, Enter to open, Tab for native focus.
-  // Scope shortcuts to the browse surface so composer fields, controls, links, and dialogs
+  // Scope shortcuts to the browse surface so form controls, links, and dialogs
   // keep normal typing/activation behavior.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (isComposerOpen) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       const target = e.target as HTMLElement | null;
@@ -781,90 +658,26 @@ export function PageList() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [focusedIndex, sortedPages, navigate, isComposerOpen]);
+  }, [focusedIndex, sortedPages, navigate]);
 
+  /**
+   * "New item" opens Compose (plan §4.1), handing over the browse context as
+   * seeds: the space being browsed, and — when the author creates straight out
+   * of a filtered search — the query as the title plus whichever tag, category,
+   * and group were filtering the results.
+   */
   const onNewPage = (seedFromSearch = false) => {
-    const isUnassignedTopicContext = activeTopic.kind === 'unassigned';
-    const selectedTopic = activeTopic.kind === 'topic'
-      ? activeTopic.label
-      : activeTopic.kind === 'unassigned'
-        ? ''
-        : '';
-    const selectedCategory = routeCategory?.trim() || '';
-    const selectedTag = routeTag?.trim() || (seedFromSearch ? slugifyComposerValue(routeQuery?.trim() ?? '') : '');
-    const selectedGroup = routeGroup?.trim() || '';
-    setComposer({
-      ...createInitialComposer(seedFromSearch ? selectedTag : ''),
-      title: seedFromSearch ? routeQuery?.trim() ?? '' : '',
-      space: isUnassignedTopicContext ? '' : selectedTopic || topicOptions[0] || '',
-      category: seedFromSearch ? selectedCategory : '',
-      groups: seedFromSearch ? selectedGroup : '',
-    });
-    setComposerError(null);
-    setIsComposerOpen(true);
-  };
-
-  const closeComposer = () => {
-    if (createPage.isPending) return;
-    setIsComposerOpen(false);
-  };
-
-  const updateComposer = <K extends keyof ComposerState>(key: K, value: ComposerState[K]) => {
-    setComposer((current) => ({ ...current, [key]: value }));
-    setComposerError(null);
-  };
-
-  const addComposerTag = (rawTag: string) => {
-    const normalized = slugifyComposerValue(rawTag);
-    if (!normalized) return;
-    setComposer((current) => {
-      const tags = normalizeComposerList(current.tags);
-      if (!tags.includes(normalized)) tags.push(normalized);
-      return { ...current, tags: tags.join(', '), tagEntry: '' };
-    });
-  };
-
-  const removeComposerTag = (tagToRemove: string) => {
-    setComposer((current) => ({
-      ...current,
-      tags: normalizeComposerList(current.tags).filter((tag) => tag !== tagToRemove).join(', '),
-    }));
-  };
-
-  const submitComposer = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const title = composer.title.trim();
-    if (!title) return;
-
-    const tags = normalizeComposerList(composer.tags);
-    const categories = normalizeComposerList(composer.category);
-    const groups = normalizeComposerList(composer.groups);
-    const summary = composer.summary.trim();
-    const space = composer.space.trim();
-    const typeDef = contentTypes.find((t) => t.key === composer.type);
-    const frontmatter: Record<string, unknown> = {
-      ...(typeDef ? typeDef.defaultFrontmatter : {}),
-      ...(typeDef ? { type: typeDef.label } : {}),
-      ...(summary ? { summary } : {}),
-      ...(space ? { topic: space } : {}),
-      ...(categories.length ? { categories } : {}),
-      ...(groups.length ? { groups } : {}),
-    };
-
-    setComposerError(null);
-    try {
-      const page = await createPage.mutateAsync({
-        title,
-        body: buildItemDraftMarkdown({ title, summary, body: composer.body, template: typeDef?.template }),
-        status: composer.status,
-        tags,
-        frontmatter,
-      });
-      setIsComposerOpen(false);
-      void navigate({ to: '/p/$slug', params: { slug: page.slug }, search: { edit: '1' } });
-    } catch (error) {
-      setComposerError(errorMessageFromUnknown(error));
+    const seed: Record<string, string> = {};
+    if (activeTopic.kind === 'topic') seed.topic = activeTopic.label;
+    if (seedFromSearch) {
+      const query = routeQuery?.trim() ?? '';
+      const tag = routeTag?.trim() || slugifyFilterValue(query);
+      if (query) seed.title = query;
+      if (tag) seed.tag = tag;
+      if (routeCategory?.trim()) seed.category = routeCategory.trim();
+      if (routeGroup?.trim()) seed.group = routeGroup.trim();
     }
+    void navigate({ to: '/new', search: seed as any });
   };
 
   const updateBrowseSearch = (
@@ -921,7 +734,7 @@ export function PageList() {
 
   const handleEditClick = (event: MouseEvent, page: Page) => {
     event.stopPropagation();
-    navigate({ to: '/p/$slug', params: { slug: page.slug }, search: { edit: '1' } });
+    void navigate({ to: '/p/$slug/edit', params: { slug: page.slug } });
   };
 
   const handleCopyClick = async (event: MouseEvent, command: string) => {
@@ -975,9 +788,11 @@ export function PageList() {
   };
 
   const summaryForPage = (page: Page): string => {
-    const frontmatterSummary = page.frontmatter?.['summary'];
-    if (typeof frontmatterSummary === 'string' && frontmatterSummary.trim()) {
-      return frontmatterSummary.trim().slice(0, 220);
+    // Compose's Publish drawer writes `description`; items created before it
+    // carry `summary`. Both are read so neither vintage loses its card preview.
+    for (const key of ['summary', 'description'] as const) {
+      const value = page.frontmatter?.[key];
+      if (typeof value === 'string' && value.trim()) return value.trim().slice(0, 220);
     }
 
     const sectionSummary = extractSummarySection(page.body_markdown ?? '');
@@ -1035,6 +850,12 @@ export function PageList() {
     const category = categoryForPage(page);
     const cardStyle = { '--PageList-category-color': colorForCategory(category) } as CSSProperties;
     const searchReasons = searchReasonsForPage(page, queryText, topicLookup, categoryLookup);
+    // Derived OKF v0.2 signals — only surfaced when the concept carries the
+    // relevant frontmatter, so ordinary pages stay uncluttered.
+    const okf = okfDisplaySignals(page.frontmatter as Record<string, unknown> | undefined);
+    // An open change request (plan §8.2) reads "In review" and links to the PR,
+    // the same treatment the read page gives it.
+    const openReview = openReviewOf(page);
 
     return (
       <li
@@ -1055,6 +876,13 @@ export function PageList() {
           </div>
           <div className="PageList__CardHeaderMeta">
             {page.type ? <ContentTypeBadge type={page.type} size="sm" /> : null}
+            <FreshnessBadge
+              displayState={reviewDisplayState(okf.stale ? 'needs-review' : null, openReview)}
+              staleAfter={okf.staleAfter}
+              reviewUrl={openReview?.url}
+            />
+            {/* Index surface: the quiet `mark` volume (home plan R2.4). */}
+            <TrustBadge tier={okf.trustTier} variant="mark" />
             <div className={`PageList__Status ${page.status}`}>
               {page.status === 'draft' ? 'Draft' : 'Published'}
             </div>
@@ -1125,7 +953,7 @@ export function PageList() {
 
         <div className="PageList__CardFooter">
           <span>Updated {formatDate(page.updated_at)}</span>
-          <span>{topicForPage(page, topicLookup) || 'Default space'}</span>
+          <span>{topicForPage(page, topicLookup) || 'Default topic'}</span>
         </div>
       </li>
     );
@@ -1145,7 +973,7 @@ export function PageList() {
           {preview ? <p className="PageList__RowPreview">{preview}</p> : null}
         </div>
         <div className="PageList__RowSide">
-          <span>{topicForPage(page, topicLookup) || 'Default space'}</span>
+          <span>{topicForPage(page, topicLookup) || 'Default topic'}</span>
           <span>{formatDate(page.updated_at)}</span>
         </div>
       </li>
@@ -1179,7 +1007,7 @@ export function PageList() {
         )}
         {spaceFacets.length > 0 && (
           <details className="PageList__FacetGroup" open>
-            <summary>Spaces</summary>
+            <summary>Topics</summary>
             <div className="PageList__FacetBody">
               {spaceFacets.map((s) => {
                 const active = activeTopic.value === s.slug;
@@ -1212,185 +1040,6 @@ export function PageList() {
 
   return (
     <div className="PageList">
-      {isComposerOpen && (
-        <div className="PageList__ComposerBackdrop" role="presentation" onMouseDown={closeComposer}>
-          <form
-            className="PageList__Composer"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="new-item-composer-title"
-            onMouseDown={(event) => event.stopPropagation()}
-            onSubmit={(event) => void submitComposer(event)}
-          >
-            <div className="PageList__ComposerHeader">
-              <div>
-                <h2 id="new-item-composer-title">New item composer</h2>
-                <p>Capture the basics first, then start in the editor with a useful scaffold.</p>
-              </div>
-              <button type="button" className="PageList__ComposerGhost" onClick={closeComposer} aria-label="Close composer">
-                ×
-              </button>
-            </div>
-
-            <label className="PageList__ComposerField">
-              <span>Title</span>
-              <input
-                autoFocus
-                value={composer.title}
-                onChange={(event) => updateComposer('title', event.target.value)}
-                placeholder="Name this item"
-                required
-              />
-            </label>
-
-            <div className="PageList__ComposerGrid">
-              <label className="PageList__ComposerField">
-                <FieldLabel help="type" activeHelp={activeHelp} onToggle={(id) => setActiveHelp(id)}>Type</FieldLabel>
-                <select
-                  aria-label="Content type"
-                  value={composer.type}
-                  onChange={(event) => updateComposer('type', event.target.value)}
-                >
-                  {contentTypes.length === 0 ? (
-                    <option value="concept">Concept</option>
-                  ) : (
-                    uniqueSorted(contentTypes.map((t) => t.group)).map((group) => (
-                      <optgroup key={group} label={group}>
-                        {contentTypes
-                          .filter((t) => t.group === group)
-                          .map((t) => (
-                            <option key={t.key} value={t.key}>{t.label}</option>
-                          ))}
-                      </optgroup>
-                    ))
-                  )}
-                </select>
-              </label>
-              <label className="PageList__ComposerField">
-                <FieldLabel help="topic" activeHelp={activeHelp} onToggle={(id) => setActiveHelp(id)}>Space</FieldLabel>
-                <select
-                  aria-label="Space"
-                  value={composer.space}
-                  onChange={(event) => updateComposer('space', event.target.value)}
-                >
-                  <option value="">No space</option>
-                  {topicOptions.map((space) => (
-                    <option key={space} value={space}>{space}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="PageList__ComposerField">
-                <FieldLabel help="status" activeHelp={activeHelp} onToggle={(id) => setActiveHelp(id)}>Status</FieldLabel>
-                <select
-                  aria-label="Status"
-                  value={composer.status}
-                  onChange={(event) => updateComposer('status', event.target.value as ComposerState['status'])}
-                >
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                </select>
-              </label>
-              <label className="PageList__ComposerField" htmlFor="new-item-category">
-                <FieldLabel help="primary-category" activeHelp={activeHelp} onToggle={(id) => setActiveHelp(id)}>Primary category</FieldLabel>
-                <select
-                  id="new-item-category"
-                  value={composer.category}
-                  onChange={(event) => updateComposer('category', event.target.value)}
-                >
-                  <option value="">Choose category…</option>
-                  {categoryOptions.map((category) => (
-                    <option key={category} value={category}>{category}</option>
-                  ))}
-                </select>
-              </label>
-              <div className="PageList__ComposerField">
-                <label htmlFor="new-item-tags"><FieldLabel help="tags" activeHelp={activeHelp} onToggle={(id) => setActiveHelp(id)}>Tags</FieldLabel></label>
-                <div className="PageList__ComposerTagEditor">
-                  {normalizeComposerList(composer.tags).map((tag) => (
-                    <span key={tag} className="PageList__ComposerTagPill">
-                      #{tag}
-                      <button type="button" onClick={() => removeComposerTag(tag)} aria-label={`Remove ${tag}`}>×</button>
-                    </span>
-                  ))}
-                  <input
-                    id="new-item-tags"
-                    value={composer.tagEntry}
-                    onChange={(event) => updateComposer('tagEntry', event.target.value)}
-                    onBlur={() => addComposerTag(composer.tagEntry)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ',') {
-                        event.preventDefault();
-                        addComposerTag(composer.tagEntry);
-                      }
-                    }}
-                    placeholder={composer.tags ? 'add another tag' : 'add tags...'}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <p className="PageList__ComposerHint">
-              ID and URL slug are generated automatically from the title when you start the draft.
-              Nothing is saved until Start draft succeeds. Manage category choices from Settings.
-            </p>
-
-            {composerError ? (
-              <div className="PageList__ComposerError" role="alert">
-                {composerError}
-              </div>
-            ) : null}
-
-            <label className="PageList__ComposerField">
-              <FieldLabel help="groups" activeHelp={activeHelp} onToggle={(id) => setActiveHelp(id)}>Groups</FieldLabel>
-              <input
-                aria-label="Groups"
-                value={composer.groups}
-                onChange={(event) => updateComposer('groups', event.target.value)}
-                placeholder="Editor UX, Data Entry"
-              />
-            </label>
-
-            <label className="PageList__ComposerField">
-              <FieldLabel help="summary" activeHelp={activeHelp} onToggle={(id) => setActiveHelp(id)}>Optional summary</FieldLabel>
-              <textarea
-                aria-label="Optional summary"
-                value={composer.summary}
-                onChange={(event) => updateComposer('summary', event.target.value)}
-                rows={3}
-                placeholder="One or two sentences that should appear on browse cards."
-              />
-            </label>
-
-            <label className="PageList__ComposerField">
-              <FieldLabel help="body" activeHelp={activeHelp} onToggle={(id) => setActiveHelp(id)}>Body notes</FieldLabel>
-              <textarea
-                aria-label="Body notes"
-                value={composer.body}
-                onChange={(event) => updateComposer('body', event.target.value)}
-                rows={4}
-                placeholder="Seed the first section before opening the editor."
-              />
-            </label>
-
-            <div className="PageList__ComposerActions">
-              <button
-                type="button"
-                className="PageList__ComposerGhost"
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  closeComposer();
-                }}
-              >
-                Discard
-              </button>
-              <button type="submit" className="PageList__NewButton" disabled={createPage.isPending || !composer.title.trim()}>
-                {createPage.isPending ? 'Creating…' : 'Start draft'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
       {/* Header */}
       <div className="PageList__Header">
         {activeView === 'grouped' ? (
@@ -1427,7 +1076,7 @@ export function PageList() {
                   searchTypingRef.current = true;
                   setSearchInput(event.target.value);
                 }}
-                placeholder="Filter items, spaces, tags, categories…"
+                placeholder="Filter items, topics, tags, categories…"
               />
             </label>
           )}
@@ -1436,7 +1085,7 @@ export function PageList() {
 
           {activeView !== 'tags' && (
             <div className="PageList__ViewToggle" role="group" aria-label="Result layout">
-              {([['cards', 'Cards'], ['list', 'List'], ['grouped', 'Grouped']] as const).map(([mode, label]) => (
+              {([['cards', 'Cards'], ['list', 'List'], ['grouped', 'Grouped'], ['types', 'By type']] as const).map(([mode, label]) => (
                 <button
                   key={mode}
                   type="button"
@@ -1462,13 +1111,8 @@ export function PageList() {
             </select>
 
             {canWrite && (
-              <button
-                type="button"
-                onClick={() => onNewPage(hasBrowseFilters)}
-                disabled={createPage.isPending}
-                className="PageList__NewButton"
-              >
-                {createPage.isPending ? 'Creating…' : '+ New item'}
+              <button type="button" onClick={() => onNewPage(hasBrowseFilters)} className="PageList__NewButton">
+                + New item
               </button>
             )}
           </div>
@@ -1565,17 +1209,12 @@ export function PageList() {
           <h2 className="PageList__EmptyTitle">{hasBrowseFilters ? 'No matches found' : 'No pages yet'}</h2>
           <p className="PageList__EmptyText">
             {hasBrowseFilters
-              ? 'No items matched the current search and facet filters. Try clearing a Space, status, tag, category, or group filter; use a broader term or related acronym; or create a new item from this search to capture the missing wording.'
+              ? 'No items matched the current search and facet filters. Try clearing a Topic, status, tag, category, or group filter; use a broader term or related acronym; or create a new item from this search to capture the missing wording.'
               : 'Get started by creating your first page.'}
           </p>
           {canWrite && (
-            <button
-              type="button"
-              onClick={() => onNewPage(hasBrowseFilters)}
-              disabled={createPage.isPending}
-              className="PageList__NewButton"
-            >
-              {createPage.isPending ? 'Creating…' : hasBrowseFilters ? 'Create item from search' : '+ New item'}
+            <button type="button" onClick={() => onNewPage(hasBrowseFilters)} className="PageList__NewButton">
+              {hasBrowseFilters ? 'Create item from search' : '+ New item'}
             </button>
           )}
         </div>
@@ -1601,6 +1240,48 @@ export function PageList() {
             ) : (
               <div className="PageList__ScrollEnd">{sortedPages.length} item{sortedPages.length === 1 ? '' : 's'}</div>
             )}
+          </div>
+          {renderFacetPanel()}
+        </div>
+      )}
+
+      {!isLoading && sortedPages.length > 0 && activeView === 'types' && (
+        <div className="PageList__Library">
+          <div className="PageList__LibraryMain PageList__TypeGroups" ref={listRef as RefObject<HTMLDivElement>} tabIndex={0} aria-label="Browse results grouped by type">
+            {typeGroups.map((group) => (
+              <section key={group.key} className="PageList__TypeGroup" aria-label={`${group.label} type group`}>
+                <div className="PageList__TypeGroupHeader">
+                  <h2>{group.label}</h2>
+                  <button
+                    type="button"
+                    className="PageList__TopicGroupMore"
+                    onClick={() => updateBrowseSearch({ view: 'cards', type: group.label })}
+                    aria-label={`See all ${group.total} ${group.label} items`}
+                  >
+                    See all {group.total}
+                  </button>
+                </div>
+                <ul className="PageList__ResultList" role="list" aria-label={`${group.label} results`}>
+                  {group.hits.map((page) => {
+                    const okf = okfDisplaySignals(page.frontmatter as Record<string, unknown> | undefined);
+                    return (
+                      <li key={page.id} className="PageList__ResultItem">
+                        <button type="button" className="PageList__RowOpen" onClick={() => handleRowClick(page)} aria-label={`Open ${page.title}`} />
+                        <SearchResultRow
+                          title={page.title}
+                          type={page.type}
+                          displayState={displayStateForHit({ stale: okf.stale, review: page.review, status: page.status })}
+                          reviewUrl={reviewUrlForHit(page)}
+                          trustTier={okf.trustTier}
+                          topic={topicForPage(page, topicLookup) || 'Default topic'}
+                          snippet={summaryForPage(page)}
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
           </div>
           {renderFacetPanel()}
         </div>

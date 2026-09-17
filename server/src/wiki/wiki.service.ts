@@ -13,9 +13,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { extractWikiLinks, parse, type ItemLinkOccurrence, type WikiLinkOccurrence } from '@echozedlabs/codec';
+import { excerpt, plainTextForExcerpt, type ExcerptResult } from '@echozedlabs/search';
 import type { Database } from '../db/schema.js';
 import { KYSELY } from '../db/db.module.js';
+import { ANONYMOUS_ACTOR } from '../auth/auth-mode.js';
 import type { ReadActor } from '../pages/pages.service.js';
+import { leadOf } from '../search/snippet.js';
 
 export interface BacklinkRow {
   source_item_id: string;
@@ -133,6 +136,23 @@ export class WikiService {
         eb.or([eb('p.status', '=', 'published'), eb('p.owner_id', '=', actor.id)]),
       );
     }
+    // Space gate, as `PagesService.isSpaceVisibleTo` applies it: an anonymous
+    // visitor must not learn a private Topic's item (title, slug, snippet) just
+    // because it links to a public one.
+    if (actor?.id === ANONYMOUS_ACTOR.id) {
+      q = q.where((eb) =>
+        eb.or([
+          eb('p.space_id', 'is', null),
+          eb.exists(
+            eb
+              .selectFrom('spaces as s')
+              .select('s.id')
+              .whereRef('s.id', '=', 'p.space_id')
+              .where('s.visibility', '!=', 'private'),
+          ),
+        ]),
+      );
+    }
 
     const rows = await q
       .orderBy('p.updated_at', 'desc')
@@ -149,7 +169,7 @@ export class WikiService {
       link_type: r.link_type,
       link_text: r.link_text,
       target_ref: r.target_ref,
-      snippet: snippet(r.body_markdown, r.position),
+      snippet: backlinkSnippet(r.body_markdown, r.position, r.link_text, target.title),
     }));
   }
 
@@ -169,11 +189,56 @@ export class WikiService {
   }
 }
 
-function snippet(body: string, position: number, radius = 60): string {
-  const start = Math.max(0, position - radius);
-  const end = Math.min(body.length, position + radius);
-  let s = body.slice(start, end).replace(/\s+/g, ' ').trim();
-  if (start > 0) s = '...' + s;
-  if (end < body.length) s = s + '...';
-  return s;
+/** A related/backlink snippet's target length, a little shorter than a search row's. */
+const BACKLINK_SNIPPET_CHARS = 160;
+
+/**
+ * Beyond this, the paragraph around a link is narrowed to its line, then to a
+ * window, so one enormous paragraph cannot make every backlink row expensive.
+ */
+const MAX_CONTEXT_CHARS = 2000;
+
+/**
+ * The readable context of one link occurrence (issue 114), e.g. `See Hub for
+ * context.` for `See [[Hub]] for context.`.
+ *
+ * The old snippet sliced ±60 characters of RAW Markdown around the link, so a
+ * cut landed inside `[[Getting Started]]` and rows showed `[[Getting…`. Now the
+ * block containing the link is reduced to prose FIRST (`plainTextForExcerpt`
+ * turns `[[target|label]]` into `label`) and cut SECOND, on word boundaries,
+ * around the link's visible text — or, failing that, the target's title words.
+ * `…` marks a cut edge, because a backlink row has no truncation flags to carry.
+ */
+export function backlinkSnippet(body: string, position: number, linkText: string, targetTitle: string): string {
+  const plain = plainTextForExcerpt(contextAround(body, position));
+  const options = { maxChars: BACKLINK_SNIPPET_CHARS };
+  const found: ExcerptResult | null =
+    (linkText.trim() ? excerpt(plain, { terms: [], phrases: [linkText], prefixTerm: null }, options) : null) ??
+    excerpt(plain, { terms: targetTitle.split(/\s+/).filter(Boolean), phrases: [], prefixTerm: null }, options);
+  const cut = found ?? leadOf(plain, BACKLINK_SNIPPET_CHARS);
+  if (!cut.text) return '';
+  return `${cut.truncatedStart ? '…' : ''}${cut.text}${cut.truncatedEnd ? '…' : ''}`;
+}
+
+/**
+ * The Markdown block the link sits in: its paragraph, else its line, else a
+ * window snapped to whitespace. Blocks are cut at blank lines and newlines,
+ * which Markdown link syntax never spans, so the text handed to
+ * `plainTextForExcerpt` holds whole links rather than halves of them.
+ */
+function contextAround(body: string, position: number): string {
+  const at = Math.max(0, Math.min(position, body.length));
+  const between = (open: string, close: string) => {
+    const start = body.lastIndexOf(open, at);
+    const end = body.indexOf(close, at);
+    return body.slice(start < 0 ? 0 : start + open.length, end < 0 ? body.length : end);
+  };
+  const paragraph = between('\n\n', '\n\n');
+  if (paragraph.length <= MAX_CONTEXT_CHARS) return paragraph;
+  const line = between('\n', '\n');
+  if (line.length <= MAX_CONTEXT_CHARS) return line;
+  const half = MAX_CONTEXT_CHARS / 2;
+  const from = body.lastIndexOf(' ', Math.max(0, at - half));
+  const to = body.indexOf(' ', Math.min(body.length, at + half));
+  return body.slice(from < 0 ? 0 : from, to < 0 ? body.length : to);
 }

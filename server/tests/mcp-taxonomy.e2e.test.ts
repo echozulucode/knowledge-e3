@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
-import { makeApp, seedAdminAndLogin, seedUserAndLogin } from './helpers.js';
+import { curateCategories, makeApp, seedAdminAndLogin, seedUserAndLogin } from './helpers.js';
+
+/** The publish-time fields the published fixtures need beyond their own (curated) categories. */
+const PUBLISHABLE = 'type: Concept\ndescription: A test fixture that satisfies the publish-time rules.\n';
 
 interface JsonRpcResponse<T = unknown> {
   jsonrpc: '2.0';
@@ -17,6 +20,7 @@ describe('MCP taxonomy and search parity e2e', () => {
   beforeEach(async () => {
     app = await makeApp();
     ({ cookie } = await seedAdminAndLogin(app));
+    await curateCategories(app, 'architecture', 'design');
   });
 
   afterEach(async () => app.close());
@@ -42,7 +46,7 @@ describe('MCP taxonomy and search parity e2e', () => {
   }
 
   it('lists spaces and taxonomy with stable ids, display names, counts, and scope metadata', async () => {
-    await createItem('---\ntitle: MCP Taxonomy A\ntopic: Research Lab\ntags: [ai, mcp]\ncategories: [architecture]\ngroups: [roadmap]\nstatus: published\n---\nReusable search context.');
+    await createItem(`---\ntitle: MCP Taxonomy A\n${PUBLISHABLE}topic: Research Lab\ntags: [ai, mcp]\ncategories: [architecture]\ngroups: [roadmap]\nstatus: published\n---\nReusable search context.`);
     await createItem('---\ntitle: MCP Taxonomy B\ntopic: Research Lab\ntags: [ai]\ncategories: [design]\ngroups: [roadmap]\nstatus: draft\n---\nDraft search context.');
 
     const listed = await callTool<{
@@ -85,10 +89,10 @@ describe('MCP taxonomy and search parity e2e', () => {
   });
 
   it('MCP search filters by topic, tag, category, group, status, and limit with REST DTO parity', async () => {
-    await createItem('---\ntitle: Research Published Runbook\ntopic: Research Lab\ntags: [ai, runbook]\ncategories: [architecture]\ngroups: [roadmap]\nstatus: published\n---\nMCP parity needle.');
+    await createItem(`---\ntitle: Research Published Runbook\n${PUBLISHABLE}topic: Research Lab\ntags: [ai, runbook]\ncategories: [architecture]\ngroups: [roadmap]\nstatus: published\n---\nMCP parity needle.`);
     await createItem('---\ntitle: Research Draft Runbook\ntopic: Research Lab\ntags: [ai, runbook]\ncategories: [architecture]\ngroups: [roadmap]\nstatus: draft\n---\nMCP parity needle.');
-    await createItem('---\ntitle: Design Published Runbook\ntopic: Design Lab\ntags: [ai, runbook]\ncategories: [design]\ngroups: [roadmap]\nstatus: published\n---\nMCP parity needle.');
-    await createItem('---\ntitle: Research Other Group\ntopic: Research Lab\ntags: [ai, runbook]\ncategories: [architecture]\ngroups: [archive]\nstatus: published\n---\nMCP parity needle.');
+    await createItem(`---\ntitle: Design Published Runbook\n${PUBLISHABLE}topic: Design Lab\ntags: [ai, runbook]\ncategories: [design]\ngroups: [roadmap]\nstatus: published\n---\nMCP parity needle.`);
+    await createItem(`---\ntitle: Research Other Group\n${PUBLISHABLE}topic: Research Lab\ntags: [ai, runbook]\ncategories: [architecture]\ngroups: [archive]\nstatus: published\n---\nMCP parity needle.`);
 
     const query = 'q=needle&space=research-lab&tag=runbook&category=architecture&group=roadmap&status=published&limit=1';
     const rest = await request(app.getHttpServer())
@@ -130,9 +134,12 @@ describe('MCP taxonomy and search parity e2e', () => {
     expect(mcp.results[0]).not.toHaveProperty('space');
     expect(mcp.total).toBe(1);
     expect(mcp.facets).toEqual(rest.body.facets);
+    // Each facet is counted with the OTHER filters applied but not its own
+    // (reader UX plan §5.5), so the status chips still show the draft this
+    // admin could switch to — narrowing must never hide the way back.
     expect(rest.body.facets).toMatchObject({
       topics: [expect.objectContaining({ label: 'Research Lab', count: 1, active: true })],
-      statuses: [expect.objectContaining({ value: 'published', label: 'Published', count: 1, active: true })],
+      statuses: expect.arrayContaining([expect.objectContaining({ value: 'published', label: 'Published', count: 1, active: true })]),
       tags: expect.arrayContaining([expect.objectContaining({ value: 'runbook', label: 'runbook', count: 1, active: true })]),
     });
   });

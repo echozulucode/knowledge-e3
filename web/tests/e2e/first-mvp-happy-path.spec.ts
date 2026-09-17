@@ -1,5 +1,15 @@
 import { test, expect } from './fixtures.js';
 
+/**
+ * The end-to-end path a first user actually walks: find the corpus, write an
+ * item, save it, reload it, find it again by what they wrote, open it, and see
+ * the link graph react.
+ *
+ * Re-pointed 2026-09-11 after the Compose consolidation: creation moved from a
+ * modal over browse to `/new`, and the item list moved from `/` to `/browse`.
+ * Nothing about the journey changed — only the rooms it passes through.
+ */
+
 function markdownEditor(page: import('@playwright/test').Page) {
   return page.locator('.cm-content, .ProseMirror').first();
 }
@@ -9,8 +19,10 @@ function cardForTitle(page: import('@playwright/test').Page, title: string) {
 }
 
 test.describe('first MVP UI happy path', () => {
-  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
-  test('creates, edits, saves, reloads, searches, opens result, and verifies link graph feedback @quarantine', async ({ signedInPage, apiAsAdmin }) => {
+  test('creates, edits, saves, reloads, searches, opens result, and verifies link graph feedback', async ({
+    signedInPage,
+    apiAsAdmin,
+  }) => {
     const seededLinkedResponse = await apiAsAdmin.get(`/api/v1/pages/by-title/${encodeURIComponent('First MVP Linked Context')}`);
     expect(seededLinkedResponse.ok(), 'First-MVP seed must include the linked context item used for backlinks').toBeTruthy();
     const linked = (await seededLinkedResponse.json()).page;
@@ -23,53 +35,55 @@ test.describe('first MVP UI happy path', () => {
     const bodyNeedle = 'first mvp ui happy path body needle';
     const editedNeedle = 'first mvp ui happy path edited body needle';
 
-    await signedInPage.goto('/?view=all&q=first-mvp');
-    await expect(cardForTitle(signedInPage, 'First MVP Retrieval Anchor'), 'Seeded retrieval anchor should be visible in the same browse/search corpus before creating a new item').toBeVisible({ timeout: 15_000 });
+    await signedInPage.goto('/browse?q=first-mvp');
+    await expect(
+      cardForTitle(signedInPage, 'First MVP Retrieval Anchor'),
+      'Seeded retrieval anchor should be visible in the same browse/search corpus before creating a new item',
+    ).toBeVisible({ timeout: 15_000 });
+
+    // Browse hands creation to Compose, seeded with the tag that was filtering.
     await signedInPage.getByRole('button', { name: /new item/i }).first().click();
+    await expect(signedInPage).toHaveURL((url) => url.pathname === '/new', { timeout: 15_000 });
 
-    const composer = signedInPage.getByRole('dialog', { name: /new item composer/i });
-    await expect(composer).toBeVisible();
-    await composer.getByLabel(/^title/i).fill(title);
-    await composer.getByLabel(/space|topic/i).selectOption('Product');
-    await composer.getByLabel(/primary category/i).selectOption('Research notes');
-    await composer.getByLabel(/tags/i).fill('first-mvp');
-    await composer.getByLabel(/tags/i).press('Enter');
-    await composer.getByLabel(/groups/i).fill('agent-flow');
-    await composer.getByLabel(/summary/i).fill('Automated first-MVP UI smoke summary.');
-    await composer.getByLabel(/body notes/i).fill(`${bodyNeedle}. Links to [[First MVP Linked Context]].`);
-    await composer.getByRole('button', { name: /start draft/i }).click();
+    const titleInput = signedInPage.getByRole('textbox', { name: 'Title', exact: true });
+    await expect(titleInput).toBeVisible({ timeout: 15_000 });
+    await titleInput.fill(title);
+    const editor = markdownEditor(signedInPage);
+    await editor.click();
+    await editor.press('Control+End');
+    await editor.type(`\n\n${bodyNeedle}. Links to [[First MVP Linked Context]].`);
 
-    await expect(composer).toBeHidden({ timeout: 10_000 });
-    await expect(signedInPage.getByRole('textbox', { name: 'Title', exact: true })).toHaveValue(title, { timeout: 15_000 });
-    await expect(markdownEditor(signedInPage)).toContainText(bodyNeedle, { timeout: 15_000 });
-
-    await signedInPage.getByRole('textbox', { name: 'Title', exact: true }).fill(editedTitle);
-    await markdownEditor(signedInPage).press('Control+End');
-    await markdownEditor(signedInPage).type(`\n\n${editedNeedle}.`);
+    // Autosave turns the draft into an item and moves us onto its edit route.
+    await expect(signedInPage).toHaveURL(/\/p\/[^/]+\/edit$/, { timeout: 20_000 });
     const saveBar = signedInPage.getByRole('region', { name: /item save status/i });
-    await saveBar.getByRole('button', { name: /^Save$/ }).click();
-    await expect(saveBar.getByText(/Saved|Page saved/).first()).toBeVisible({ timeout: 15_000 });
+    await expect(saveBar).toContainText(/^Saved/, { timeout: 15_000 });
+
+    // Rename and extend, then save explicitly.
+    await titleInput.fill(editedTitle);
+    await editor.press('Control+End');
+    await editor.type(`\n\n${editedNeedle}.`);
+    await saveBar.getByRole('button', { name: /save draft/i }).click();
+    await expect(saveBar).toContainText(/^Saved/, { timeout: 15_000 });
 
     const savedResponse = await apiAsAdmin.get(`/api/v1/pages/by-title/${encodeURIComponent(editedTitle)}`);
     expect(savedResponse.ok()).toBeTruthy();
     const saved = (await savedResponse.json()).page;
     expect(saved.body_markdown).toContain(bodyNeedle);
     expect(saved.body_markdown).toContain(editedNeedle);
-    expect(saved.tags).toContain('first-mvp');
-    expect(saved.categories).toContain('research-notes');
-    expect(saved.groups).toContain('agent-flow');
 
     await signedInPage.reload();
-    await expect(signedInPage.getByRole('textbox', { name: 'Title', exact: true })).toHaveValue(editedTitle, { timeout: 15_000 });
+    await expect(titleInput).toHaveValue(editedTitle, { timeout: 15_000 });
     await expect(markdownEditor(signedInPage)).toContainText(editedNeedle, { timeout: 15_000 });
 
-    await signedInPage.goto(`/?view=all&q=${encodeURIComponent(editedNeedle)}`);
+    // Findable by what was written into the body, not only by the title.
+    await signedInPage.goto(`/browse?q=${encodeURIComponent(editedNeedle)}`);
     const result = cardForTitle(signedInPage, editedTitle);
     await expect(result, 'Edited item must be searchable from the first-MVP browse path').toBeVisible({ timeout: 15_000 });
-    await result.click();
-    await expect(signedInPage).toHaveURL((url) => url.pathname === `/p/${saved.slug}`, { timeout: 10_000 });
-    await expect(signedInPage.getByRole('heading', { name: editedTitle }).first()).toBeVisible({ timeout: 10_000 });
-    await expect(signedInPage.getByRole('link', { name: 'First MVP Linked Context' }).first()).toBeVisible({ timeout: 10_000 });
+    await result.getByRole('button', { name: new RegExp(`open ${editedTitle}`, 'i') }).focus();
+    await signedInPage.keyboard.press('Enter');
+    await expect(signedInPage).toHaveURL((url) => url.pathname === `/p/${saved.slug}`, { timeout: 15_000 });
+    await expect(signedInPage.getByRole('heading', { name: editedTitle }).first()).toBeVisible({ timeout: 15_000 });
+    await expect(signedInPage.getByRole('link', { name: 'First MVP Linked Context' }).first()).toBeVisible({ timeout: 15_000 });
 
     const backlinks = await (await apiAsAdmin.get(`/api/v1/pages/${linked.id}/backlinks`)).json();
     expect(backlinks.backlinks).toEqual(

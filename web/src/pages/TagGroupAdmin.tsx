@@ -1,234 +1,330 @@
-import { FormEvent, useMemo, useState } from 'react';
-import { useCreateGroup, useGroups, useTags, useTopics, type TaxonomyGroup, type TaxonomyTag } from '../queries.js';
+/**
+ * TagGroupAdmin — `/admin/tags-groups` (the admin UX review §4.6).
+ *
+ * One page, two views behind a `Tags (N) | Groups (N)` switch kept in the URL
+ * (`?view=groups`), so a link opens the view it was copied from.
+ *
+ * Tags are derived from item frontmatter; there is no safe rewrite flow for
+ * them yet, so the page offers none — the old table carried three disabled
+ * buttons on every row (411 of them on this instance) and now there is one
+ * sentence saying rename and merge are not available. What a tag list is good
+ * for today is spotting the long tail: search (on the server, debounced), sort
+ * by usage or name, "Used by only 1 item", and a usage bar per row.
+ *
+ * Groups are admin-created and editable: row click or `⋯ → Edit…` opens the
+ * group dialog; Archive… confirms, and is disabled with the reason in text
+ * while items are in the group (the server refuses it too).
+ */
+import { useMemo, useState } from 'react';
+import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { Icon, appIcons } from '../icons.js';
-import { AdminTabs } from '../components/admin/AdminTabs.js';
-import './TopicAdmin.css';
+import { AdminPageHeader } from '../components/admin/AdminPageHeader.js';
+import { ConfirmDialog } from '../components/admin/ConfirmDialog.js';
+import { DataTable, type DataTableColumn } from '../components/admin/DataTable.js';
+import { EmptyState } from '../components/admin/EmptyState.js';
+import type { OverflowMenuItem } from '../components/admin/OverflowMenu.js';
+import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
+import { useToast } from '../hooks/useToast.js';
+import { useArchiveGroup, useGroups, useTags, useTopics, type TaxonomyGroup, type TaxonomyTag } from '../queries.js';
+import { GroupDialog } from '../features/taxonomy-admin/GroupDialog.js';
+import { ViewSwitch, viewPanelId, viewTabId } from '../features/taxonomy-admin/ViewSwitch.js';
+import {
+  arrangeTags,
+  availableInLabel,
+  errorText,
+  itemsLabel,
+  maxCount,
+  pluralize,
+  readTagGroupView,
+  slugDiffersFromName,
+  sortByName,
+  usagePercent,
+  viewSearch,
+  type TagGroupView,
+  type TagSort,
+} from '../features/taxonomy-admin/taxonomyAdminModel.js';
+import '../features/taxonomy-admin/TaxonomyAdmin.css';
 
-function pluralizeItem(count: number): string {
-  return `${count} ${count === 1 ? 'item' : 'items'}`;
-}
-
-function scopeLabel(group: TaxonomyGroup): string {
-  if (group.scope.type === 'global') return 'Global';
-  return group.scope.space_slug ? `Topic: ${group.scope.space_slug}` : 'Topic-scoped';
-}
-
-function errorToMessage(error: unknown, fallback: string): string {
-  return error && typeof error === 'object' && 'message' in error
-    ? String((error as { message?: unknown }).message)
-    : fallback;
-}
+const SEARCH_DEBOUNCE_MS = 300;
+const TAGS_PAGE_SIZE = 50;
+const VIEW_ID = 'tag-group-view';
 
 export function TagGroupAdmin() {
-  const [query, setQuery] = useState('');
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [groupName, setGroupName] = useState('');
-  const [groupSlug, setGroupSlug] = useState('');
-  const [groupDescription, setGroupDescription] = useState('');
-  const [scope, setScope] = useState<'global' | 'space'>('global');
-  const [spaceId, setSpaceId] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const rawSearch = useSearch({ strict: false }) as Record<string, unknown> | undefined;
+  const view = readTagGroupView(rawSearch);
+  const setView = (next: TagGroupView) => {
+    void navigate({ to: '/admin/tags-groups', search: viewSearch(next, 'tags') as never });
+  };
 
-  const { data: tags = [], isLoading: tagsLoading, isError: tagsError, error: tagError, refetch: refetchTags } = useTags(query);
-  const { data: groups = [], isLoading: groupsLoading, isError: groupsError, error: groupError, refetch: refetchGroups } = useGroups(query);
-  const { data: topics = [] } = useTopics();
-  const createGroup = useCreateGroup();
+  // Unfiltered lists: the header and switch counts, and the usage bar's 100%.
+  // With an empty search the filtered query below shares this cache entry.
+  const allTags = useTags();
+  const groupsQuery = useGroups();
+  const [dialog, setDialog] = useState<{ kind: 'new' } | { kind: 'edit'; group: TaxonomyGroup } | null>(null);
 
-  const sortedTags = useMemo(
-    () => [...tags].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
-    [tags],
-  );
-  const sortedGroups = useMemo(
-    () => [...groups].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
-    [groups],
-  );
-  const totalTagAssignments = sortedTags.reduce((sum, tag) => sum + tag.count, 0);
-  const totalGroupAssignments = sortedGroups.reduce((sum, group) => sum + group.count, 0);
-  const canCreate = groupName.trim().length > 0 && (scope === 'global' || spaceId.length > 0) && !createGroup.isPending;
-  const mutationError = errorToMessage(createGroup.error, 'Unable to create group.');
-
-  function closeCreate() {
-    if (createGroup.isPending) return;
-    setIsCreateOpen(false);
-    setGroupName('');
-    setGroupSlug('');
-    setGroupDescription('');
-    setScope('global');
-    setSpaceId('');
-  }
-
-  async function handleCreate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!canCreate) return;
-    try {
-      const group = await createGroup.mutateAsync({
-        name: groupName.trim(),
-        slug: groupSlug.trim() || undefined,
-        description: groupDescription.trim() || undefined,
-        scope,
-        space_id: scope === 'space' ? spaceId : undefined,
-      });
-      closeCreate();
-      setMessage(`Group created: ${group.name}`);
-    } catch {
-      // TanStack Query exposes the mutation error for inline rendering.
-    }
-  }
+  const tagTotal = allTags.data?.length;
+  const groupTotal = groupsQuery.data?.length;
+  const meta = tagTotal !== undefined && groupTotal !== undefined ? `${pluralize(tagTotal, 'tag', 'tags')} · ${pluralize(groupTotal, 'group', 'groups')}` : undefined;
 
   return (
-    <main className="TopicAdmin" aria-labelledby="tag-group-admin-title">
-      <AdminTabs />
-      <section className="TopicAdmin__hero">
-        <div className="TopicAdmin__eyebrow">
-          <Icon icon={appIcons.tag} />
-          <span>Admin taxonomy</span>
-        </div>
-        <div className="TopicAdmin__heroGrid">
-          <div>
-            <h1 id="tag-group-admin-title">Tags and groups</h1>
-            <p>
-              Review derived tag usage, manage backend-supported groups, and keep risky taxonomy rewrites out of the
-              everyday item editor.
-            </p>
-          </div>
-          <div className="TopicAdmin__stats" aria-label="Tag and group summary">
-            <strong>{sortedTags.length}</strong>
-            <span>tags</span>
-            <strong>{totalTagAssignments}</strong>
-            <span>tag assignments</span>
-            <strong>{sortedGroups.length}</strong>
-            <span>groups</span>
-            <strong>{totalGroupAssignments}</strong>
-            <span>group assignments</span>
-          </div>
-        </div>
-      </section>
+    <main className="TaxonomyAdmin" aria-labelledby="tag-group-admin-title">
+      <AdminPageHeader
+        titleId="tag-group-admin-title"
+        title="Tags & groups"
+        description="See how tags are used across items and manage the groups items can be filed in."
+        meta={meta}
+        primaryAction={
+          view === 'groups' ? (
+            <button type="button" className="kp-admin-button kp-admin-button--primary" onClick={() => setDialog({ kind: 'new' })}>
+              <Icon icon={appIcons.plus} /> New group
+            </button>
+          ) : undefined
+        }
+      />
 
-      <section className="TopicAdmin__panel" aria-label="Taxonomy search">
-        <div className="TopicAdmin__sectionHeader">
-          <div>
-            <h2>Search taxonomy</h2>
-            <p>Filter tag and group picker catalogs by name, slug, or topic scope.</p>
-          </div>
-          <button type="button" className="TopicAdmin__refresh" onClick={() => { void refetchTags(); void refetchGroups(); }}>
-            Refresh
-          </button>
-        </div>
-        <label className="TopicAdmin__formWide">
-          <span>Search tags and groups</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name, slug, or topic" />
-        </label>
-      </section>
+      <ViewSwitch<TagGroupView>
+        label="Tags and groups views"
+        idBase={VIEW_ID}
+        value={view}
+        onChange={setView}
+        options={[
+          { value: 'tags', label: 'Tags', count: tagTotal },
+          { value: 'groups', label: 'Groups', count: groupTotal },
+        ]}
+      />
 
-      <section className="TopicAdmin__panel" aria-live="polite">
-        <div className="TopicAdmin__sectionHeader">
-          <div>
-            <h2>Tags</h2>
-            <p>Tags are derived from existing item frontmatter and are exposed to item-editor pickers.</p>
-          </div>
-        </div>
-        {tagsLoading ? (
-          <div className="TopicAdmin__state" role="status">Loading tags…</div>
-        ) : tagsError ? (
-          <div className="TopicAdmin__state TopicAdmin__state--error" role="alert">{errorToMessage(tagError, 'Unable to load tags.')}</div>
-        ) : sortedTags.length === 0 ? (
-          <div className="TopicAdmin__state">No tags match this filter.</div>
+      <section className="TaxonomyAdmin__panel" role="tabpanel" id={viewPanelId(VIEW_ID)} aria-labelledby={viewTabId(VIEW_ID, view)}>
+        {view === 'tags' ? (
+          <TagsView allTags={allTags.data} />
         ) : (
-          <table className="TopicAdmin__table" aria-label="Tag catalog">
-            <thead>
-              <tr><th scope="col">Tag</th><th scope="col">Slug</th><th scope="col">Usage</th><th scope="col">Actions</th></tr>
-            </thead>
-            <tbody>
-              {sortedTags.map((tag: TaxonomyTag) => (
-                <tr key={tag.id}>
-                  <td>{tag.name}</td>
-                  <td><code>{tag.slug}</code></td>
-                  <td>{pluralizeItem(tag.count)}</td>
-                  <td>
-                    <div className="TopicAdmin__rowActions">
-                      <button type="button" disabled title="Tag rename is deferred until a safe item rewrite flow is available."><Icon icon={appIcons.pencil} /> Rename</button>
-                      <button type="button" disabled title="Tag archive/restore is deferred because tags are derived from item frontmatter."><Icon icon={appIcons.xmark} /> Archive</button>
-                      <button type="button" disabled title="Tag merge is deferred until bulk rewrite review exists."><Icon icon={appIcons.layerGroup} /> Merge</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <GroupsView
+            groups={groupsQuery.data}
+            state={groupsQuery.isError ? 'error' : groupsQuery.isLoading ? 'loading' : 'ready'}
+            errorMessage={errorText(groupsQuery.error, "Couldn't load groups.")}
+            onRetry={() => void groupsQuery.refetch()}
+            onNew={() => setDialog({ kind: 'new' })}
+            onEdit={(group) => setDialog({ kind: 'edit', group })}
+          />
         )}
       </section>
 
-      <section className="TopicAdmin__panel" aria-live="polite">
-        <div className="TopicAdmin__sectionHeader">
-          <div>
-            <h2>Groups</h2>
-            <p>Groups can be global or scoped to a Topic where the backend supports it.</p>
-          </div>
-          <button type="button" onClick={() => setIsCreateOpen(true)}><Icon icon={appIcons.plus} /> New group</button>
-        </div>
-        {groupsLoading ? (
-          <div className="TopicAdmin__state" role="status">Loading groups…</div>
-        ) : groupsError ? (
-          <div className="TopicAdmin__state TopicAdmin__state--error" role="alert">{errorToMessage(groupError, 'Unable to load groups.')}</div>
-        ) : sortedGroups.length === 0 ? (
-          <div className="TopicAdmin__state">No groups match this filter.</div>
-        ) : (
-          <table className="TopicAdmin__table" aria-label="Group catalog">
-            <thead>
-              <tr><th scope="col">Group</th><th scope="col">Slug</th><th scope="col">Scope</th><th scope="col">Usage</th><th scope="col">Actions</th></tr>
-            </thead>
-            <tbody>
-              {sortedGroups.map((group) => (
-                <tr key={group.id}>
-                  <td>{group.name}</td>
-                  <td><code>{group.slug}</code></td>
-                  <td>{scopeLabel(group)}</td>
-                  <td>{pluralizeItem(group.count)}</td>
-                  <td>
-                    <div className="TopicAdmin__rowActions">
-                      <button type="button" disabled title="Group rename is deferred until assignment rewrite review exists."><Icon icon={appIcons.pencil} /> Rename</button>
-                      <button type="button" disabled title="Archive/restore is deferred until restore semantics are implemented."><Icon icon={appIcons.xmark} /> Archive</button>
-                      <button type="button" disabled title="Group merge is deferred until bulk rewrite review exists."><Icon icon={appIcons.layerGroup} /> Merge</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        <p id="tag-group-admin-defer-note" className="TopicAdmin__deferNote">
-          Unsafe tag/group rename, archive/restore, and merge operations are disabled until a reviewed bulk item rewrite flow exists.
-        </p>
-        {message ? <p className="TopicAdmin__success" role="status">{message}</p> : null}
-      </section>
-
-      {isCreateOpen ? (
-        <div className="TopicAdmin__modalBackdrop">
-          <section className="TopicAdmin__modal" role="dialog" aria-modal="true" aria-labelledby="group-create-title">
-            <div className="TopicAdmin__modalHeader">
-              <div>
-                <h2 id="group-create-title">New group</h2>
-                <p>Create a backend group for item-editor pickers.</p>
-              </div>
-              <button type="button" className="TopicAdmin__iconButton" onClick={closeCreate} aria-label="Close new group dialog"><Icon icon={appIcons.xmark} /></button>
-            </div>
-            <form className="TopicAdmin__form" onSubmit={(event) => void handleCreate(event)}>
-              <label><span>Group name</span><input value={groupName} onChange={(event) => setGroupName(event.target.value)} maxLength={200} required /></label>
-              <label><span>Group slug</span><input value={groupSlug} onChange={(event) => setGroupSlug(event.target.value)} maxLength={100} placeholder="auto-generated if blank" /></label>
-              <label><span>Scope</span><select value={scope} onChange={(event) => setScope(event.target.value as 'global' | 'space')}><option value="global">Global</option><option value="space">Topic-scoped</option></select></label>
-              {scope === 'space' ? (
-                <label><span>Space</span><select value={spaceId} onChange={(event) => setSpaceId(event.target.value)} required><option value="">Choose a space</option>{topics.map((topic) => <option key={topic.id} value={topic.id}>{topic.name}</option>)}</select></label>
-              ) : null}
-              <label className="TopicAdmin__formWide"><span>Description</span><textarea value={groupDescription} onChange={(event) => setGroupDescription(event.target.value)} maxLength={1000} rows={3} /></label>
-              <div className="TopicAdmin__modalActions">
-                <button type="button" onClick={closeCreate} disabled={createGroup.isPending}>Cancel</button>
-                <button type="submit" disabled={!canCreate}><Icon icon={appIcons.plus} /> {createGroup.isPending ? 'Creating…' : 'Create group'}</button>
-              </div>
-            </form>
-            {createGroup.isError ? <p className="TopicAdmin__error" role="alert">{mutationError}</p> : null}
-          </section>
-        </div>
+      {dialog ? (
+        <GroupDialog
+          // A different group is a different form: never carry a draft across.
+          key={dialog.kind === 'edit' ? dialog.group.id : 'new'}
+          group={dialog.kind === 'edit' ? dialog.group : undefined}
+          onClose={() => setDialog(null)}
+        />
       ) : null}
     </main>
+  );
+}
+
+// ---------------------------------------------------------------- Tags
+
+function TagsView({ allTags }: { allTags: TaxonomyTag[] | undefined }): JSX.Element {
+  const [qInput, setQInput] = useState('');
+  const q = useDebouncedValue(qInput.trim(), SEARCH_DEBOUNCE_MS);
+  const [sort, setSort] = useState<TagSort>('usage');
+  const [singleUseOnly, setSingleUseOnly] = useState(false);
+  const tagsQuery = useTags(q, { keepPrevious: true });
+
+  const rows = useMemo(() => arrangeTags(tagsQuery.data ?? [], { sort, singleUseOnly }), [tagsQuery.data, sort, singleUseOnly]);
+  // Scale against every tag, not just the matches, so a bar means the same length whatever is typed.
+  const max = maxCount(allTags ?? tagsQuery.data ?? []);
+  const filtered = Boolean(q) || singleUseOnly;
+
+  const columns: DataTableColumn<TaxonomyTag>[] = [
+    {
+      id: 'tag',
+      header: 'Tag',
+      primary: true,
+      cell: (tag) => (
+        <span className="TaxonomyAdmin__nameCell">
+          <strong>{tag.name}</strong>
+          {slugDiffersFromName(tag) ? <span className="TaxonomyAdmin__muted">{tag.slug}</span> : null}
+        </span>
+      ),
+    },
+    {
+      id: 'items',
+      header: 'Items',
+      cell: (tag) => (
+        <span className="TaxonomyAdmin__usage">
+          <Link to="/search" search={{ tag: tag.name } as never} className="TaxonomyAdmin__itemsLink">
+            {itemsLabel(tag.count)}
+          </Link>
+          <span className="TaxonomyAdmin__bar" aria-hidden="true">
+            <span className="TaxonomyAdmin__barFill" style={{ width: `${usagePercent(tag.count, max)}%` }} />
+          </span>
+        </span>
+      ),
+    },
+  ];
+
+  return (
+    <div className="TaxonomyAdmin__view">
+      <div className="TaxonomyAdmin__toolbar" role="search" aria-label="Filter tags">
+        <input
+          className="TaxonomyAdmin__search"
+          type="search"
+          value={qInput}
+          onChange={(e) => setQInput(e.target.value)}
+          placeholder="Search tags…"
+          aria-label="Search tags"
+        />
+        <label className="TaxonomyAdmin__sort">
+          <span>Sort</span>
+          <select value={sort} onChange={(e) => setSort(e.target.value as TagSort)}>
+            <option value="usage">Most used</option>
+            <option value="name">Name</option>
+          </select>
+        </label>
+        <button type="button" className="TaxonomyAdmin__chip" aria-pressed={singleUseOnly} onClick={() => setSingleUseOnly((v) => !v)}>
+          Used by only 1 item
+        </button>
+      </div>
+      <p className="TaxonomyAdmin__note">Renaming and merging tags isn’t available yet.</p>
+      <DataTable
+        // Any change to what is listed starts again at the first page.
+        key={`${q}|${sort}|${singleUseOnly}`}
+        rows={rows}
+        rowKey={(tag) => tag.id}
+        rowLabel={(tag) => tag.name}
+        columns={columns}
+        caption="Tags"
+        state={tagsQuery.isError ? 'error' : tagsQuery.isLoading || tagsQuery.isPlaceholderData ? 'loading' : 'ready'}
+        errorMessage={errorText(tagsQuery.error, "Couldn't load tags.")}
+        onRetry={() => void tagsQuery.refetch()}
+        pageSize={TAGS_PAGE_SIZE}
+        empty={
+          filtered ? (
+            <EmptyState title="No tags match" body="Try a different search, or turn off “Used by only 1 item”." />
+          ) : (
+            <EmptyState title="No tags yet" body="Tags appear here once items carry them in their frontmatter." />
+          )
+        }
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- Groups
+
+interface GroupsViewProps {
+  groups: TaxonomyGroup[] | undefined;
+  state: 'loading' | 'error' | 'ready';
+  errorMessage: string;
+  onRetry: () => void;
+  onNew: () => void;
+  onEdit: (group: TaxonomyGroup) => void;
+}
+
+function GroupsView({ groups, state, errorMessage, onRetry, onNew, onEdit }: GroupsViewProps): JSX.Element {
+  const { data: topics = [] } = useTopics();
+  const archiveGroup = useArchiveGroup();
+  const { push } = useToast();
+  const [archiving, setArchiving] = useState<TaxonomyGroup | null>(null);
+
+  const topicNames = useMemo(() => new Map(topics.map((t) => [t.id, t.name])), [topics]);
+  const rows = useMemo(() => sortByName(groups ?? []), [groups]);
+
+  const navigate = useNavigate();
+
+  const rowActions = (group: TaxonomyGroup): OverflowMenuItem[] => [
+    { id: 'edit', label: 'Edit…', onSelect: () => onEdit(group) },
+    {
+      id: 'items',
+      label: 'View items',
+      onSelect: () => void navigate({ to: '/search', search: { group: group.slug } as never }),
+    },
+    {
+      id: 'archive',
+      label: 'Archive…',
+      danger: true,
+      separatorBefore: true,
+      onSelect: () => {
+        archiveGroup.reset();
+        setArchiving(group);
+      },
+      disabledReason: group.count > 0 ? `In use by ${itemsLabel(group.count)}` : undefined,
+    },
+  ];
+
+  const columns: DataTableColumn<TaxonomyGroup>[] = [
+    {
+      id: 'group',
+      header: 'Group',
+      primary: true,
+      cell: (group) => (
+        <span className="TaxonomyAdmin__nameCell">
+          <strong>{group.name}</strong>
+          {group.description ? <span className="TaxonomyAdmin__muted">{group.description}</span> : null}
+        </span>
+      ),
+    },
+    { id: 'available', header: 'Available in', cell: (group) => availableInLabel(group, topicNames) },
+    {
+      id: 'items',
+      header: 'Items',
+      cell: (group) => (
+        <Link to="/search" search={{ group: group.slug } as never} className="TaxonomyAdmin__itemsLink">
+          {itemsLabel(group.count)}
+        </Link>
+      ),
+    },
+  ];
+
+  const confirmArchive = async () => {
+    if (!archiving) return;
+    try {
+      const archived = await archiveGroup.mutateAsync(archiving.id);
+      setArchiving(null);
+      push({ kind: 'success', message: `Archived group “${archived.name}”` });
+    } catch {
+      // Shown inside the confirm dialog.
+    }
+  };
+
+  return (
+    <div className="TaxonomyAdmin__view">
+      <DataTable
+        rows={rows}
+        rowKey={(group) => group.id}
+        rowLabel={(group) => group.name}
+        columns={columns}
+        caption="Groups"
+        state={state}
+        errorMessage={errorMessage}
+        onRetry={onRetry}
+        onRowOpen={onEdit}
+        rowActions={rowActions}
+        empty={
+          <EmptyState
+            title="No groups yet"
+            body="Groups collect related items across or within topics."
+            action={
+              <button type="button" className="kp-admin-button kp-admin-button--primary" onClick={onNew}>
+                <Icon icon={appIcons.plus} /> New group
+              </button>
+            }
+          />
+        }
+      />
+      {archiving ? (
+        <ConfirmDialog
+          title={`Archive “${archiving.name}”?`}
+          body="The group leaves this list and is no longer offered for new items."
+          consequences={['No items are in it, so nothing else changes.']}
+          confirmLabel="Archive group"
+          tone="danger"
+          pending={archiveGroup.isPending}
+          error={archiveGroup.isError ? errorText(archiveGroup.error, 'Could not archive the group.') : null}
+          onConfirm={() => void confirmArchive()}
+          onCancel={() => setArchiving(null)}
+        />
+      ) : null}
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
-import { makeApp, seedAdminAndLogin } from './helpers.js';
+import { conformant, curateCategories, makeApp, seedAdminAndLogin } from './helpers.js';
 
 describe('pages e2e', () => {
   let app: INestApplication;
@@ -10,6 +10,8 @@ describe('pages e2e', () => {
   beforeEach(async () => {
     app = await makeApp();
     ({ cookie } = await seedAdminAndLogin(app));
+    // The published fixtures below must be publishable (issue 98).
+    await curateCategories(app);
   });
   afterEach(async () => app.close());
 
@@ -17,7 +19,7 @@ describe('pages e2e', () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/pages')
       .set('Cookie', cookie)
-      .send({ title: 'My First Page', body: 'Hello world.', status: 'published' })
+      .send({ title: 'My First Page', body: 'Hello world.', status: 'published', frontmatter: conformant() })
       .expect(201);
     expect(res.body.page.slug).toBe('my-first-page');
     expect(res.body.page.title).toBe('My First Page');
@@ -139,7 +141,7 @@ describe('pages e2e', () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/pages')
       .set('Cookie', cookie)
-      .send({ title: 'Doomed', body: 'x', status: 'published' });
+      .send({ title: 'Doomed', body: 'x', status: 'published', frontmatter: conformant() });
     await request(app.getHttpServer())
       .delete(`/api/v1/pages/${created.body.page.id}`)
       .set('Cookie', cookie)
@@ -207,7 +209,7 @@ describe('pages e2e', () => {
     await request(app.getHttpServer())
       .post('/api/v1/pages')
       .set('Cookie', cookie)
-      .send({ title: 'Service Catalog', body: 'x', status: 'published' });
+      .send({ title: 'Service Catalog', body: 'x', status: 'published', frontmatter: conformant() });
     const res = await request(app.getHttpServer())
       .get(`/api/v1/pages/by-title/${encodeURIComponent('Service Catalog')}`)
       .set('Cookie', cookie)

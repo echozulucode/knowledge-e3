@@ -1,100 +1,473 @@
-.ImagesAdmin__toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
-}
+/* Admin → Files (review §4.9): toolbar, grid or list, detail sheet, upload dialog. Token-driven, light/dark. */
 
-.ImagesAdmin__filter {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.85rem;
-}
-
-.ImagesAdmin__toolbarRight {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-/* File-type glyph for non-image attachments (PDF/zip/data). */
-.ImagesAdmin__fileGlyph {
+/* Inside AdminLayout the layout owns the gutter (`.kp-admin-layout__page > main`). */
+.ImagesAdmin {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
+  gap: var(--kp-space-4);
+  min-width: 0;
+  color: var(--kp-text-primary);
+}
+
+.Files__library {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+  min-width: 0;
+}
+
+/* ---------------------------------------------------------------- toolbar */
+
+.Files__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--kp-space-3);
   width: 100%;
-  height: 100%;
-  color: var(--kp-text-muted, #6a6a6a);
-  font-size: 1.9rem;
+}
+.Files__filter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-medium);
+  color: var(--kp-text-primary);
+}
+.Files__filter--search {
+  flex: 1 1 14rem;
+}
+.Files__filter input,
+.Files__filter select {
+  min-height: 36px;
+  padding: 0 var(--kp-space-3);
+  border: 1px solid var(--kp-border-strong);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font: inherit;
+  font-weight: var(--kp-weight-regular);
+}
+.Files__viewToggle {
+  display: inline-flex;
+  border: 1px solid var(--kp-border-strong);
+  border-radius: var(--kp-radius-sm);
+  overflow: hidden;
+}
+.Files__viewButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-1);
+  min-height: 34px;
+  padding: 0 var(--kp-space-3);
+  border: 0;
+  background: var(--kp-surface-base);
+  color: var(--kp-text-secondary);
+  font: inherit;
+  font-size: var(--kp-text-sm);
+  cursor: pointer;
+}
+.Files__viewButton + .Files__viewButton {
+  border-left: 1px solid var(--kp-border-strong);
+}
+.Files__viewButton[aria-pressed='true'] {
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-primary);
+  font-weight: var(--kp-weight-semibold);
+}
+.Files__viewButton:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: -2px;
 }
 
-.ImagesAdmin__fileGlyphExt {
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+/* ---------------------------------------------------------------- shared bits */
+
+.Files__muted {
+  color: var(--kp-text-muted);
+  font-size: var(--kp-text-sm);
+}
+.Files__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--kp-weight-medium);
+}
+/* Unused: a neutral fact, deliberately not a status colour (review §4.9). */
+.Files__chip {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  padding: 0 var(--kp-space-2);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-medium);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.Files__usage {
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  white-space: nowrap;
+}
+.Files__smallButton {
+  min-height: 2rem;
+  padding: var(--kp-space-1) var(--kp-space-3);
+}
+.Files__danger {
+  border-color: var(--kp-danger);
+  color: var(--kp-danger);
+}
+.Files__danger:hover:not(:disabled) {
+  background: var(--kp-danger-bg);
+}
+.Files__state {
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-3);
+  padding: var(--kp-space-6) 0;
+  color: var(--kp-text-secondary);
+}
+.Files__pager {
+  margin-top: var(--kp-space-2);
 }
 
-.ImagesAdmin__sub {
-  color: var(--kp-text-muted, #6a6a6a);
-}
+/* ---------------------------------------------------------------- grid */
 
-.ImagesAdmin__download {
-  font-size: 0.8rem;
-  text-decoration: none;
-}
-
-.ImagesAdmin__grid {
+.Files__grid {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--kp-space-3);
 }
-
-.ImagesAdmin__card {
-  border: 1px solid var(--border, #d0d0d0);
-  border-radius: 10px;
-  padding: 0.6rem;
+.Files__card {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  background: var(--surface, #fff);
+  gap: var(--kp-space-2);
+  min-width: 0;
+  padding: var(--kp-space-2);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-raised);
 }
-
-.ImagesAdmin__card--orphan {
-  border-color: var(--danger, #cf222e);
+.Files__card[aria-current='true'] {
+  border-color: var(--kp-border-focus);
 }
-
-.ImagesAdmin__thumbWrap {
-  display: block;
+.Files__thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   aspect-ratio: 4 / 3;
   overflow: hidden;
-  border-radius: 6px;
-  background: var(--surface-sunken, #f2f2f2);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-sunken);
+  cursor: pointer;
 }
-
-.ImagesAdmin__thumb {
+.Files__thumb img {
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
-
-.ImagesAdmin__meta {
+.Files__glyph {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  font-size: 0.78rem;
+  align-items: center;
+  justify-content: center;
+  gap: var(--kp-space-1);
+  color: var(--kp-text-muted);
+  font-size: 1.9rem;
+}
+.Files__glyph--large {
+  font-size: 3rem;
+}
+.Files__glyphExt {
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: 0.04em;
+}
+.Files__cardMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: var(--kp-text-sm);
+}
+.Files__cardActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kp-space-2);
+  margin-top: auto;
 }
 
-.ImagesAdmin__file {
-  font-family: var(--kp-font-mono, monospace);
+/* ---------------------------------------------------------------- list */
+
+.Files__nameCell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  min-width: 0;
+  max-width: 100%;
+}
+.Files__rowThumb {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  overflow: hidden;
+  border-radius: var(--kp-radius-xs);
+  background: var(--kp-surface-sunken);
+}
+.Files__rowThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.Files__rowThumbExt {
+  color: var(--kp-text-muted);
+  font-size: 0.6rem;
+  font-weight: var(--kp-weight-semibold);
+}
+
+/* ---------------------------------------------------------------- page drop overlay */
+
+.Files__dropOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--kp-z-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px dashed var(--kp-accent);
+  background: var(--kp-surface-overlay);
+  pointer-events: none;
+}
+.Files__dropOverlay p {
+  padding: var(--kp-space-4) var(--kp-space-6);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-raised);
+  color: var(--kp-text-primary);
+  font-weight: var(--kp-weight-semibold);
+}
+
+/* ---------------------------------------------------------------- upload dialog */
+
+.Files__uploadDialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-4);
+  width: min(100%, 34rem);
+  max-height: calc(100vh - 2 * var(--kp-space-4));
+  overflow-y: auto;
+  padding: var(--kp-space-5);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-raised);
+  color: var(--kp-text-primary);
+  box-shadow: var(--kp-shadow-lg);
+}
+.Files__uploadHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kp-space-3);
+}
+.Files__uploadTitle {
+  margin: 0;
+  font-size: var(--kp-text-lg);
+}
+.Files__drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--kp-space-2);
+  padding: var(--kp-space-6) var(--kp-space-4);
+  border: 2px dashed var(--kp-border-strong);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+  text-align: center;
+}
+.Files__drop[data-over='true'] {
+  border-color: var(--kp-accent);
+  background: var(--kp-surface-sunken);
+}
+.Files__dropText,
+.Files__dropHelp {
+  margin: 0;
+}
+.Files__dropHelp {
+  color: var(--kp-text-muted);
+  font-size: var(--kp-text-xs);
+}
+.Files__fileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+.Files__uploads {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.Files__upload {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1);
+  padding: var(--kp-space-2) var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-sm);
+}
+.Files__upload[data-status='error'] {
+  border-color: var(--kp-danger);
+}
+.Files__uploadLine {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--kp-space-3);
+  min-width: 0;
+  font-size: var(--kp-text-sm);
+}
+.Files__uploadName {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: var(--kp-weight-medium);
+}
+.Files__uploadMeta {
+  flex: none;
+  color: var(--kp-text-muted);
+}
+.Files__progress {
+  width: 100%;
+  height: 0.4rem;
+  accent-color: var(--kp-accent);
+}
+.Files__uploadError {
+  margin: 0;
+  color: var(--kp-danger);
+  font-size: var(--kp-text-sm);
+}
+.Files__uploadFoot {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--kp-space-2);
+}
+
+/* ---------------------------------------------------------------- detail sheet */
+
+.Files__sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-4);
+  min-height: 100%;
+}
+.Files__preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: 16rem;
+  min-height: 8rem;
+  overflow: hidden;
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-sunken);
+}
+.Files__previewImg {
+  max-width: 100%;
+  max-height: 16rem;
+  object-fit: contain;
+}
+.Files__facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--kp-space-2) var(--kp-space-4);
+  margin: 0;
+  font-size: var(--kp-text-sm);
+}
+.Files__facts dt {
+  color: var(--kp-text-muted);
+}
+.Files__facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.Files__urlRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2);
+}
+.Files__url {
+  overflow-wrap: anywhere;
+  font-family: var(--kp-font-mono, monospace);
+}
+.Files__sheetActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-2);
+}
+.Files__sectionTitle {
+  margin: 0 0 var(--kp-space-2);
+  font-size: var(--kp-text-base, 1rem);
+}
+.Files__usedByList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.Files__usedByItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--kp-space-2) 0;
+  border-top: 1px solid var(--kp-border-subtle);
+}
+.Files__usedByTitle {
+  font-weight: var(--kp-weight-medium);
+}
+.Files__usedByMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2);
+  color: var(--kp-text-muted);
+  font-size: var(--kp-text-sm);
+}
+.Files__siteNote {
+  margin: 0 0 var(--kp-space-2);
+  font-size: var(--kp-text-sm);
+}
+/* The delete foot stays in reach at the bottom of a long "Used by" list. */
+.Files__sheetFoot {
+  position: sticky;
+  bottom: calc(-1 * var(--kp-space-6));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--kp-space-3);
+  margin-top: auto;
+  padding: var(--kp-space-3) 0;
+  border-top: 1px solid var(--kp-border-subtle);
+  background: var(--kp-surface-raised);
+}
+.Files__blocked {
+  flex: 1 1 14rem;
+  margin: 0;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
 }

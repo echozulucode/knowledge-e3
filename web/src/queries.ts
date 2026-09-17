@@ -2,8 +2,10 @@
  * TanStack Query hooks for knowledge-e3 API.
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { ItemSourceRef, ReviewRef, SectionSlot } from '@echozedlabs/knowledge-types';
 import { apiClient } from './api.js';
+import { createLimiter, sameSection, upsertSection } from './pages/sectionsAdminModel.js';
 
 export interface User {
   id: string;
@@ -34,6 +36,16 @@ export interface Page {
   groups?: string[];
   space_id?: string;
   frontmatter?: Record<string, unknown>;
+  /** The change request this item's edits are staged on (plan §8.2), or null. */
+  review?: ReviewRef | null;
+  /**
+   * The registered source holding the canonical file (plan §8.3), or null when
+   * the row records none. `role: 'reference'` means the content is another
+   * team's, `mode: 'read-only'` that nothing here writes back; `url` is derived
+   * from the remote and is null whenever we cannot address the host, which is
+   * the normal case rather than an error.
+   */
+  source?: ItemSourceRef | null;
 }
 
 export interface SearchResult {
@@ -51,6 +63,12 @@ export interface SearchResult {
   tags?: string[];
   categories?: string[];
   groups?: string[];
+  /** Derived OKF v0.2 trust tier (§5.3). */
+  trust_tier?: 'unverified' | 'machine-confirmed' | 'human-reviewed';
+  /** Derived OKF v0.2 freshness (§5.5): true when past `stale_after`. */
+  stale?: boolean;
+  /** The change request this item's edits are staged on (plan §8.2), or null. */
+  review?: ReviewRef | null;
 }
 
 export interface TaxonomyScope {
@@ -67,6 +85,8 @@ export interface TaxonomyCategory {
   color?: string | null;
   icon?: string | null;
   scope?: TaxonomyScope;
+  /** Set only on `GET /taxonomy/categories/archived` rows. */
+  archived_at?: string | null;
 }
 
 export interface TaxonomyTag extends TaxonomyCategory {
@@ -77,6 +97,7 @@ export interface TaxonomyTag extends TaxonomyCategory {
 export interface TaxonomyGroup extends TaxonomyCategory {
   id: string;
   scope: TaxonomyScope;
+  description?: string | null;
 }
 
 export interface Topic {
@@ -132,6 +153,8 @@ export function useSetAccess() {
     },
     onSuccess: (mode) => {
       queryClient.setQueryData(['access'], mode);
+      // The provenance line now says who set it and when.
+      queryClient.invalidateQueries({ queryKey: AUTH_SETTINGS_KEY });
     },
   });
 }
@@ -190,6 +213,62 @@ export function useUsers(filters?: { q?: string; role?: string; status?: string 
       const res = await apiClient.get<{ users: AdminUser[] }>(`/admin/users${qs}`);
       return res.users;
     },
+  });
+}
+
+/** One page of `GET /admin/users`; `total` counts every account matching the filters. */
+export interface AdminUsersPage {
+  users: AdminUser[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AdminUsersPageParams {
+  q?: string;
+  role?: 'user' | 'admin';
+  status?: 'active' | 'disabled';
+  limit?: number;
+  offset?: number;
+  sort?: 'username' | 'role' | 'status' | 'last_seen' | 'created';
+  direction?: 'asc' | 'desc';
+}
+
+/**
+ * Server-paged users list (the admin UX review §4.3). Keeps the
+ * previous page on screen while the next one loads (`keepPreviousData`), so
+ * typing in the search box or paging never flashes an empty table. Keyed under
+ * `['admin', 'users']` so every user mutation's invalidation refreshes it.
+ */
+export function useUsersPage(params: AdminUsersPageParams) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== '') search.set(key, String(value));
+  }
+  const qs = search.toString();
+  return useQuery({
+    queryKey: ['admin', 'users', 'page', qs],
+    queryFn: () => apiClient.get<AdminUsersPage>(`/admin/users${qs ? `?${qs}` : ''}`),
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * The header's "N accounts · M active admins", and the "only active admin" rule
+ * in the user sheet. Two `limit=1` requests: only `total` is read.
+ */
+export function useUserCounts() {
+  const all = useUsersPage({ limit: 1 });
+  const admins = useUsersPage({ role: 'admin', status: 'active', limit: 1 });
+  return { accounts: all.data?.total, activeAdmins: admins.data?.total };
+}
+
+/** One account for the user sheet, so `?user=<id>` opens even when that user is not on the current page. */
+export function useAdminUser(id: string | undefined) {
+  return useQuery({
+    queryKey: ['admin', 'users', 'one', id],
+    queryFn: async () => (await apiClient.get<{ user: AdminUser }>(`/admin/users/${encodeURIComponent(id!)}`)).user,
+    enabled: Boolean(id),
   });
 }
 
@@ -257,7 +336,53 @@ export function useUpdatePasswordPolicy() {
     },
     onSuccess: (policy) => {
       queryClient.setQueryData(['admin', 'password-policy'], policy);
+      queryClient.invalidateQueries({ queryKey: AUTH_SETTINGS_KEY });
     },
+  });
+}
+
+/**
+ * Where an auth setting's value comes from (`GET /admin/auth/settings`):
+ * saved in admin, a deploy-time layer, or the built-in default. `env_vars` are
+ * variable NAMES only.
+ */
+export type AuthSettingSource = 'admin' | 'env' | 'config' | 'default';
+
+export interface SettingProvenance {
+  source: AuthSettingSource;
+  updated_at: string | null;
+  updated_by_username: string | null;
+  env_vars: string[];
+}
+
+export interface AuthSettings {
+  read_access: {
+    read_mode: ReadAccessMode;
+    provenance: SettingProvenance;
+    /** What applies when no admin has chosen; an admin choice overrides it. */
+    deploy_default: SettingProvenance & { read_mode: ReadAccessMode };
+    editable: boolean;
+  };
+  password_policy: { policy: PasswordPolicy; provenance: SettingProvenance; editable: boolean };
+  token_policy: { max_days: number | null; provenance: SettingProvenance; editable: boolean };
+  /** Deploy-time only (config file / env); shown read-only. */
+  login_throttle: {
+    window_ms: number;
+    per_username: number | null;
+    per_ip: number | null;
+    provenance: SettingProvenance;
+    editable: false;
+  };
+}
+
+/** Exported so the token-policy mutation (features/tokens) refreshes provenance too. */
+export const AUTH_SETTINGS_KEY = ['admin', 'auth-settings'] as const;
+
+/** Every setting on Admin → Authentication, with provenance. Admin only. */
+export function useAuthSettings() {
+  return useQuery({
+    queryKey: AUTH_SETTINGS_KEY,
+    queryFn: () => apiClient.get<AuthSettings>('/admin/auth/settings'),
   });
 }
 
@@ -289,31 +414,100 @@ export function useSetUserPref() {
 
 // Pages
 
-export function usePages(filters?: {
+/** The `GET /pages` query. */
+export interface PageFilters {
   status?: string;
   tag?: string;
+  /** Any-of tag filter (a Section's tags); ANDs with `type`/`space`. */
+  tags?: string[];
   since?: string;
   limit?: number;
   type?: string;
   space?: string;
   sort?: 'updated' | 'published' | 'created' | 'title';
-}) {
+}
+
+function pagesPath(filters?: PageFilters): string {
+  const params = new URLSearchParams();
+  if (filters?.status) params.set('status', filters.status);
+  if (filters?.tag) params.set('tag', filters.tag);
+  for (const tag of filters?.tags ?? []) params.append('tags', tag);
+  if (filters?.since) params.set('since', filters.since);
+  if (filters?.limit) params.set('limit', String(filters.limit));
+  if (filters?.type) params.set('type', filters.type);
+  if (filters?.space) params.set('space', filters.space);
+  if (filters?.sort) params.set('sort', filters.sort);
+  return `/pages${params.size ? '?' + params.toString() : ''}`;
+}
+
+export function usePages(filters?: PageFilters) {
   return useQuery({
     queryKey: ['pages', filters],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (filters?.status) params.set('status', filters.status);
-      if (filters?.tag) params.set('tag', filters.tag);
-      if (filters?.since) params.set('since', filters.since);
-      if (filters?.limit) params.set('limit', String(filters.limit));
-      if (filters?.type) params.set('type', filters.type);
-      if (filters?.space) params.set('space', filters.space);
-      if (filters?.sort) params.set('sort', filters.sort);
-
-      const path = `/pages${params.size ? '?' + params.toString() : ''}`;
-      const res = await apiClient.get<{ items: Page[]; total: number }>(path);
+      const res = await apiClient.get<{ items: Page[]; total: number }>(pagesPath(filters));
       return res.items;
     },
+  });
+}
+
+/**
+ * `usePages` plus `total` — every match, not the page length (the server
+ * counts it separately since the Sections redesign). A sibling hook rather
+ * than a changed return type, so existing `usePages` callers keep their array.
+ * Keyed under `['pages', …]` so a page write's `invalidateQueries(['pages'])`
+ * refreshes it too.
+ */
+export function usePagesWithTotal(filters: PageFilters, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['pages', 'with-total', filters],
+    queryFn: () => apiClient.get<{ items: Page[]; total: number }>(pagesPath(filters)),
+    enabled: options?.enabled ?? true,
+    // Keep the last preview while the next filter's answer arrives, so the
+    // aside does not collapse to "Loading" on every keystroke.
+    placeholderData: (previous) => previous,
+  });
+}
+
+/**
+ * Match counts for the Sections list share one queue of at most this many
+ * requests. A list of 50 sections would otherwise fire 50 `/pages` reads at
+ * once on every visit; queued, cached for a minute, and asking for one row
+ * each (`limit=1` — the count ignores it), they cost little.
+ */
+const MATCH_COUNT_CONCURRENCY = 4;
+const matchCountQueue = createLimiter(MATCH_COUNT_CONCURRENCY);
+
+/** Query options for one match count — for `useQueries` over a whole list, or `useMatchCount` for one. */
+export function matchCountQueryOptions(filters: PageFilters) {
+  return {
+    queryKey: ['pages', 'match-count', filters] as const,
+    queryFn: () => matchCountQueue(async () => (await apiClient.get<{ total: number }>(pagesPath({ ...filters, limit: 1 }))).total),
+    staleTime: 60_000,
+  };
+}
+
+/** How many items a section's filters match, for the signed-in admin. */
+export function useMatchCount(filters: PageFilters, options?: { enabled?: boolean }) {
+  return useQuery({ ...matchCountQueryOptions(filters), enabled: options?.enabled ?? true });
+}
+
+/**
+ * The same count as an anonymous visitor gets it: the request goes WITHOUT the
+ * session cookie, so the server applies exactly the gates a visitor meets
+ * (private topics dropped, published only) — no new endpoint, and no copy of
+ * the visibility rules in the browser. Null when anonymous reading is closed
+ * or the request fails; ask only when `useAccess()` says `public`.
+ */
+export function useAnonymousMatchCount(filters: PageFilters, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['pages', 'anonymous-match-count', filters],
+    queryFn: async (): Promise<number | null> => {
+      const res = await fetch(`/api/v1${pagesPath({ ...filters, limit: 1 })}`, { credentials: 'omit' });
+      if (!res.ok) return null;
+      return ((await res.json()) as { total?: number }).total ?? null;
+    },
+    enabled: options?.enabled ?? true,
+    staleTime: 60_000,
   });
 }
 
@@ -325,6 +519,14 @@ export interface Section {
   description?: string;
   type?: string;
   space?: string;
+  /** Any-of tag filter; empty or absent means the section does not filter by tag. */
+  tags?: string[];
+  /** Landing-page slot (portal topics and the front page). */
+  slot?: SectionSlot;
+  /** Display order within its placement, ascending; unordered sort last. */
+  order?: number;
+  /** Max items shown (1–50); the site shows 10 when absent. */
+  limit?: number;
 }
 
 export function useSections() {
@@ -347,6 +549,154 @@ export function useSaveSections() {
     },
     onSuccess: (sections) => {
       queryClient.setQueryData(['sections'], sections);
+    },
+  });
+}
+
+/** The list as stored right now, bypassing the cache — every one-entry write starts here. */
+async function fetchSectionsNow(): Promise<Section[]> {
+  return (await apiClient.get<{ sections: Section[] }>('/sections')).sections;
+}
+
+/**
+ * Why a section save was not written. `changed`/`deleted`: someone else saved
+ * this section after the editor loaded it (the caller offers Reload or
+ * Overwrite). `duplicate`: the slug was taken meanwhile — never overwritable,
+ * because "overwriting" would replace a different section.
+ */
+export class SectionSaveConflict extends Error {
+  constructor(
+    readonly kind: 'changed' | 'deleted' | 'duplicate',
+    readonly current: Section | undefined,
+  ) {
+    super(kind === 'duplicate' ? 'Another section already uses that URL.' : 'This section changed since you opened it.');
+  }
+}
+
+/**
+ * Save ONE section over the whole-list `PUT /sections` (review §4.1 save
+ * model): re-fetch the list, check the entry is still what the editor loaded,
+ * replace or insert it, write the list. This config has no version token, so
+ * "still what was loaded" compares the stored entry with `loaded`; `force`
+ * skips that check (Overwrite) but never the duplicate-slug one.
+ */
+export function useSaveSection() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { originalSlug: string | null; loaded: Section | null; next: Section; force?: boolean }) => {
+      const current = await fetchSectionsNow();
+      const stored = input.originalSlug ? current.find((s) => s.slug === input.originalSlug) : undefined;
+      if (!input.force && input.originalSlug) {
+        if (!stored) throw new SectionSaveConflict('deleted', undefined);
+        if (!sameSection(stored, input.loaded ?? undefined)) throw new SectionSaveConflict('changed', stored);
+      }
+      if (input.next.slug !== input.originalSlug && current.some((s) => s.slug === input.next.slug)) {
+        throw new SectionSaveConflict('duplicate', current.find((s) => s.slug === input.next.slug));
+      }
+      const list = upsertSection(current, stored ? input.originalSlug : null, input.next);
+      const res = await apiClient.put<{ sections: Section[] }>('/sections', { sections: list });
+      return { sections: res.sections, saved: res.sections.find((s) => s.slug === input.next.slug) ?? input.next };
+    },
+    onSuccess: ({ sections }) => {
+      queryClient.setQueryData(['sections'], sections);
+    },
+  });
+}
+
+/**
+ * Apply a change to the list AS STORED NOW and write it: delete, undo, reorder.
+ * Re-fetching first means an immediate-save action never writes a list this tab
+ * loaded minutes ago over another admin's edit. Returns the stored list before
+ * and after, which is what Undo needs.
+ */
+export function useUpdateSections() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (change: (current: Section[]) => Section[]) => {
+      const before = await fetchSectionsNow();
+      const res = await apiClient.put<{ sections: Section[] }>('/sections', { sections: change(before) });
+      return { before, after: res.sections };
+    },
+    onSuccess: ({ after }) => {
+      queryClient.setQueryData(['sections'], after);
+    },
+  });
+}
+
+/**
+ * One featured topic on the home page, as an administrator curates it
+ * (home-prototype plan §4). `color` is a palette token name, never a hex.
+ */
+export interface PinnedTopicInput {
+  topic: string;
+  color?: string;
+  icon?: string;
+  cover?: string;
+  cover_dark?: string;
+}
+
+/**
+ * Replace the pin list. Admin-only on the server, which is the constraint this
+ * feature is really about: featuring a topic on the front page is a statement
+ * the company makes, not a personal bookmark. A whole-list PUT because the
+ * ORDER is the curation — the same reason `PUT /sections` replaces the catalog.
+ */
+export function useSavePinnedTopics() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (pinned: PinnedTopicInput[]) => {
+      const res = await apiClient.put<{ pinned: unknown[] }>('/site/pinned', { pinned });
+      return res.pinned;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['site-pinned'] });
+    },
+  });
+}
+
+/** A pin as `GET /site/pinned` answers (the fields the editor round-trips). */
+export interface PinnedTopicViewFields {
+  topic: string;
+  name?: string | null;
+  color?: string | null;
+  icon?: string | null;
+  cover?: string | null;
+  cover_dark?: string | null;
+}
+
+/**
+ * A resolved pin turned back into what `PUT /site/pinned` takes. The server
+ * fills `cover_dark` from `cover` on the way out (the dark cover falls back to
+ * the light one), so a dark cover equal to the cover means "none set" — writing
+ * it back would store a dark cover the curator never chose.
+ */
+export function pinInputFromView(pin: PinnedTopicViewFields): PinnedTopicInput {
+  return {
+    topic: pin.topic,
+    ...(pin.color ? { color: pin.color } : {}),
+    ...(pin.icon ? { icon: pin.icon } : {}),
+    ...(pin.cover ? { cover: pin.cover } : {}),
+    ...(pin.cover && pin.cover_dark && pin.cover_dark !== pin.cover ? { cover_dark: pin.cover_dark } : {}),
+  };
+}
+
+/**
+ * Apply a change to the pin list as stored now and write it (pin, edit,
+ * reorder, unpin — each saves immediately). Same reasoning as
+ * `useUpdateSections`: re-fetch first, so an immediate save never writes an
+ * old list over another admin's. Returns the list before and after, for Undo.
+ */
+export function useUpdatePinnedTopics() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (change: (current: PinnedTopicInput[]) => PinnedTopicInput[]) => {
+      const fresh = await apiClient.get<{ pinned: PinnedTopicViewFields[] }>('/site/pinned');
+      const before = fresh.pinned.map(pinInputFromView);
+      const res = await apiClient.put<{ pinned: PinnedTopicViewFields[] }>('/site/pinned', { pinned: change(before) });
+      return { before, after: res.pinned.map(pinInputFromView), view: res.pinned };
+    },
+    onSuccess: ({ view }) => {
+      queryClient.setQueryData(['site-pinned'], view);
     },
   });
 }
@@ -454,7 +804,12 @@ export function useCreatePage() {
 
 // Taxonomy
 
-export function useTags(query?: string) {
+/**
+ * @param opts.keepPrevious keep the last result on screen while a new query
+ * loads — Admin → Tags & groups searches as you type, and a table that blanks
+ * to a skeleton on every pause reads as flicker. Pickers leave it off.
+ */
+export function useTags(query?: string, opts: { keepPrevious?: boolean } = {}) {
   return useQuery({
     queryKey: ['taxonomy', 'tags', query ?? ''],
     queryFn: async () => {
@@ -463,6 +818,7 @@ export function useTags(query?: string) {
       const res = await apiClient.get<{ tags: TaxonomyTag[]; total: number }>(`/taxonomy/tags${params.size ? '?' + params.toString() : ''}`);
       return res.tags;
     },
+    ...(opts.keepPrevious ? { placeholderData: keepPreviousData } : {}),
   });
 }
 
@@ -519,6 +875,32 @@ export function useArchivePrimaryCategory() {
   });
 }
 
+/** Archived catalog entries (admin-only), for Admin → Primary categories' Archived view. */
+export function useArchivedPrimaryCategories(enabled = true) {
+  return useQuery({
+    queryKey: ['taxonomy', 'categories', 'archived'],
+    queryFn: async () => {
+      const res = await apiClient.get<{ categories: TaxonomyCategory[]; total: number }>('/taxonomy/categories/archived');
+      return res.categories;
+    },
+    enabled,
+  });
+}
+
+/** Un-archive a category — the Restore action and the archive toast's Undo. */
+export function useRestorePrimaryCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (slug: string) => {
+      const res = await apiClient.post<{ category: TaxonomyCategory }>(`/taxonomy/categories/${encodeURIComponent(slug)}/restore`, {});
+      return res.category;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['taxonomy', 'categories'] });
+    },
+  });
+}
+
 export function useGroups(query?: string) {
   return useQuery({
     queryKey: ['taxonomy', 'groups', query ?? ''],
@@ -544,6 +926,35 @@ export function useCreateGroup() {
   });
 }
 
+/** Edit a group's name, description and "Available in"; the slug is fixed at creation. */
+export function useUpdateGroup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; name: string; description: string | null; scope: 'global' | 'space'; space_id?: string }) => {
+      const { id, ...body } = input;
+      const res = await apiClient.put<{ group: TaxonomyGroup }>(`/taxonomy/groups/${encodeURIComponent(id)}`, body);
+      return res.group;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['taxonomy', 'groups'] });
+    },
+  });
+}
+
+/** Soft-archive a group; the server refuses (409) while items are in it. */
+export function useArchiveGroup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiClient.delete<{ group: TaxonomyGroup }>(`/taxonomy/groups/${encodeURIComponent(id)}`);
+      return res.group;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['taxonomy', 'groups'] });
+    },
+  });
+}
+
 export function useTopics() {
   return useQuery({
     queryKey: ['topics'],
@@ -561,6 +972,8 @@ export function useCreateTopic() {
       name: string;
       slug?: string;
       description?: string;
+      /** Settable at creation so a repo-bound topic can start private (review §2 #7). */
+      visibility?: 'public' | 'private';
       repo?: { remote_url: string; branch?: string; pull?: boolean };
     }) => {
       const res = await apiClient.post<{ topic: Topic }>('/topics', input);
@@ -699,10 +1112,15 @@ export interface ImageAsset {
   /** Human-facing download name; null for legacy image rows. */
   original_filename: string | null;
   created_at: string;
+  /** Items that reference it (trashed ones included). */
   used_by: number;
+  /** The site's chrome uses it (logo, favicon, a pinned-topic cover), so it is not deletable. */
+  site_asset: boolean;
+  /** Used by nothing: no item and not the site. */
   orphan: boolean;
 }
 
+/** The whole library, largest first. Admin → Files pages its own list (`features/files/queries.ts`). */
 export function useImages() {
   return useQuery({
     queryKey: ['admin', 'images'],

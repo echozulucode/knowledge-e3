@@ -1,287 +1,303 @@
-import { FormEvent, useMemo, useState } from 'react';
+/**
+ * PrimaryCategoryAdmin — `/admin/primary-categories` (the admin UX review §4.6).
+ *
+ * The curated category catalog as one DataTable: Name (slug muted) · Items
+ * (a link to the search they file) · `⋯` (Rename…, View items, Archive…). The
+ * old page padded the table with an always-empty Metadata column, a hardcoded
+ * "Active" chip and a Refresh button; the API has no colour or icon yet, and
+ * the list refetches itself, so they are gone.
+ *
+ * Archive is a confirm plus a toast with Undo (the server has restore), and is
+ * disabled with "In use by N items" as text while items are filed under the
+ * term. The API still allows that (retiring a term drafts use is how publishes
+ * into it are stopped); the page keeps to the case where Undo is a clean round
+ * trip. `Active | Archived` (`?view=archived`) lists retired terms with Restore.
+ *
+ * The active list is "what exists" (`usePrimaryCategories`: the catalog plus
+ * terms items carry). A term with no catalog row is marked "Not in catalog"
+ * and offers "Add to catalog…" instead of a Rename that would 404; one whose
+ * row is archived is marked "Archived" and offers Restore.
+ */
+import { useMemo, useState } from 'react';
+import { Link, useNavigate, useSearch } from '@tanstack/react-router';
+import { Icon, appIcons } from '../icons.js';
+import { AdminPageHeader } from '../components/admin/AdminPageHeader.js';
+import { ConfirmDialog } from '../components/admin/ConfirmDialog.js';
+import { DataTable, type DataTableColumn } from '../components/admin/DataTable.js';
+import { EmptyState } from '../components/admin/EmptyState.js';
+import type { OverflowMenuItem } from '../components/admin/OverflowMenu.js';
+import { StatusChip } from '../components/admin/StatusChip.js';
+import { useToast } from '../hooks/useToast.js';
+import { useCuratedCategories } from '../features/compose/queries.js';
 import {
   useArchivePrimaryCategory,
-  useCreatePrimaryCategory,
+  useArchivedPrimaryCategories,
   usePrimaryCategories,
-  useUpdatePrimaryCategory,
+  useRestorePrimaryCategory,
   type TaxonomyCategory,
 } from '../queries.js';
-import { Icon, appIcons } from '../icons.js';
-import { AdminTabs } from '../components/admin/AdminTabs.js';
+import { CategoryDialog, type CategoryDialogMode } from '../features/taxonomy-admin/CategoryDialog.js';
+import { ViewSwitch, viewPanelId, viewTabId } from '../features/taxonomy-admin/ViewSwitch.js';
+import {
+  CATEGORY_SEARCH_THRESHOLD,
+  categoryActionRules,
+  errorText,
+  filterByText,
+  itemsLabel,
+  pluralize,
+  readCategoryView,
+  sortByName,
+  viewSearch,
+  type CategoryView,
+} from '../features/taxonomy-admin/taxonomyAdminModel.js';
+import '../features/taxonomy-admin/TaxonomyAdmin.css';
 import './PrimaryCategoryAdmin.css';
 
-function pluralizeItem(count: number): string {
-  return `${count} ${count === 1 ? 'item' : 'items'}`;
-}
+const VIEW_ID = 'primary-category-view';
 
-function categoryDisplayName(category: TaxonomyCategory): string {
+function displayName(category: TaxonomyCategory): string {
   return category.name.trim() || category.slug;
 }
 
-function metadataLabel(category: TaxonomyCategory): string {
-  const metadata = [category.color ? `Color ${category.color}` : null, category.icon ? `Icon ${category.icon}` : null].filter(Boolean);
-  return metadata.length ? metadata.join(' · ') : 'No color/icon metadata yet';
-}
-
-function errorToMessage(error: unknown, fallback: string): string {
-  return error && typeof error === 'object' && 'message' in error
-    ? String((error as { message?: unknown }).message)
-    : fallback;
-}
-
 export function PrimaryCategoryAdmin() {
-  const { data: categories = [], isLoading, isError, error, refetch } = usePrimaryCategories();
-  const createCategory = useCreatePrimaryCategory();
-  const updateCategory = useUpdatePrimaryCategory();
+  const navigate = useNavigate();
+  const rawSearch = useSearch({ strict: false }) as Record<string, unknown> | undefined;
+  const view = readCategoryView(rawSearch);
+  const setView = (next: CategoryView) => {
+    void navigate({ to: '/admin/primary-categories', search: viewSearch(next, 'active') as never });
+  };
+
+  const categoriesQuery = usePrimaryCategories();
+  const curatedQuery = useCuratedCategories();
+  const archivedQuery = useArchivedPrimaryCategories();
   const archiveCategory = useArchivePrimaryCategory();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<TaxonomyCategory | null>(null);
-  const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
-  const sortedCategories = useMemo(
-    () => [...categories].sort((a, b) => categoryDisplayName(a).localeCompare(categoryDisplayName(b), undefined, { sensitivity: 'base' })),
-    [categories],
-  );
-  const totalAssignments = sortedCategories.reduce((sum, category) => sum + category.count, 0);
-  const errorMessage = errorToMessage(error, 'Unable to load primary categories.');
-  const mutationError = errorToMessage(createCategory.error ?? updateCategory.error ?? archiveCategory.error, 'Unable to save primary category.');
-  const canCreate = name.trim().length > 0 && !createCategory.isPending;
-  const canSaveEdit = name.trim().length > 0 && !updateCategory.isPending;
+  const restoreCategory = useRestorePrimaryCategory();
+  const { push } = useToast();
 
-  function closeCreate() {
-    if (createCategory.isPending) return;
-    setIsCreateOpen(false);
-    setName('');
-    setSlug('');
-  }
+  const [dialog, setDialog] = useState<CategoryDialogMode | null>(null);
+  const [archiving, setArchiving] = useState<TaxonomyCategory | null>(null);
+  const [query, setQuery] = useState('');
 
-  function openRename(category: TaxonomyCategory) {
-    setEditingCategory(category);
-    setName(categoryDisplayName(category));
-    setMessage(null);
-  }
+  const curatedSlugs = useMemo(() => new Set((curatedQuery.data ?? []).map((c) => c.slug)), [curatedQuery.data]);
+  // Until the curated list arrives, treat every row as curated rather than
+  // flashing "Not in catalog" on all of them.
+  const isCurated = (category: TaxonomyCategory) => !curatedQuery.data || curatedSlugs.has(category.slug);
 
-  function closeRename() {
-    if (updateCategory.isPending) return;
-    setEditingCategory(null);
-    setName('');
-  }
+  const active = useMemo(() => sortByName(categoriesQuery.data ?? []), [categoriesQuery.data]);
+  const archived = useMemo(() => archivedQuery.data ?? [], [archivedQuery.data]);
+  // An archived term items still carry stays on the Active list (it is "what
+  // exists"). It needs Restore, not Add to catalog — its slug is taken.
+  const archivedSlugs = useMemo(() => new Set(archived.map((c) => c.slug)), [archived]);
+  const isArchivedTerm = (category: TaxonomyCategory) => !isCurated(category) && archivedSlugs.has(category.slug);
+  const source = view === 'archived' ? archived : active;
+  const showSearch = source.length > CATEGORY_SEARCH_THRESHOLD;
+  const rows = useMemo(() => (showSearch ? filterByText(source, query) : source), [showSearch, source, query]);
+  const uncurated = curatedQuery.data ? active.filter((c) => !curatedSlugs.has(c.slug)).length : 0;
 
-  async function handleCreate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!canCreate) return;
+  const meta = categoriesQuery.data
+    ? `${pluralize(active.length, 'category', 'categories')}${uncurated > 0 ? ` · ${uncurated.toLocaleString('en-US')} not in catalog` : ''}`
+    : undefined;
 
+  const restore = async (category: TaxonomyCategory) => {
     try {
-      const category = await createCategory.mutateAsync({
-        name: name.trim(),
-        slug: slug.trim() || undefined,
-      });
-      closeCreate();
-      setMessage(`Primary category created: ${category.name}`);
-    } catch {
-      // TanStack Query exposes the error through createCategory.error for inline rendering.
+      const restored = await restoreCategory.mutateAsync(category.slug);
+      push({ kind: 'success', message: `Restored “${displayName(restored)}”` });
+    } catch (error) {
+      push({ kind: 'error', message: errorText(error, `Could not restore “${displayName(category)}”.`) });
     }
-  }
+  };
 
-  async function handleRename(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!editingCategory || !canSaveEdit) return;
+  const confirmArchive = async () => {
+    if (!archiving) return;
     try {
-      const category = await updateCategory.mutateAsync({ slug: editingCategory.slug, name: name.trim() });
-      closeRename();
-      setMessage(`Primary category saved: ${category.name}`);
+      const done = await archiveCategory.mutateAsync(archiving.slug);
+      setArchiving(null);
+      push({ kind: 'success', message: `Archived “${displayName(done)}”`, action: { label: 'Undo', onAction: () => void restore(done) } });
     } catch {
-      // Inline mutation error is rendered below the dialog.
+      // Shown inside the confirm dialog.
     }
-  }
+  };
 
-  async function handleArchive(category: TaxonomyCategory) {
-    try {
-      await archiveCategory.mutateAsync(category.slug);
-      setMessage(`Category archived: ${categoryDisplayName(category)}`);
-    } catch {
-      // Inline mutation error is rendered below actions.
-    }
-  }
+  const viewItems = (category: TaxonomyCategory) => void navigate({ to: '/search', search: { category: category.slug } as never });
+
+  const activeActions = (category: TaxonomyCategory): OverflowMenuItem[] => {
+    const curated = isCurated(category);
+    const rules = categoryActionRules(category, curated);
+    return [
+      curated
+        ? { id: 'rename', label: 'Rename…', onSelect: () => setDialog({ kind: 'rename', category }) }
+        : isArchivedTerm(category)
+          ? { id: 'restore', label: 'Restore', onSelect: () => void restore(category) }
+          : { id: 'curate', label: 'Add to catalog…', onSelect: () => setDialog({ kind: 'curate', category }) },
+      { id: 'items', label: 'View items', onSelect: () => viewItems(category) },
+      {
+        id: 'archive',
+        label: 'Archive…',
+        danger: true,
+        separatorBefore: true,
+        disabledReason: isArchivedTerm(category) ? 'Already archived' : rules.archiveReason,
+        onSelect: () => {
+          archiveCategory.reset();
+          setArchiving(category);
+        },
+      },
+    ];
+  };
+
+  const archivedActions = (category: TaxonomyCategory): OverflowMenuItem[] => [
+    {
+      id: 'restore',
+      label: 'Restore',
+      onSelect: () => void restore(category),
+      disabledReason: restoreCategory.isPending && restoreCategory.variables === category.slug ? 'Restoring…' : undefined,
+    },
+    { id: 'items', label: 'View items', onSelect: () => viewItems(category) },
+  ];
+
+  const nameColumn: DataTableColumn<TaxonomyCategory> = {
+    id: 'name',
+    header: 'Name',
+    primary: true,
+    cell: (category) => (
+      <span className="TaxonomyAdmin__nameCell">
+        <strong>{displayName(category)}</strong>
+        <span className="PrimaryCategoryAdmin__slugLine">
+          <code className="TaxonomyAdmin__muted">{category.slug}</code>
+          {/* Only on the rare term items carry that nobody curated: a column for it would be empty on every other row. */}
+          {view === 'active' && !isCurated(category) ? (
+            isArchivedTerm(category) ? <StatusChip tone="info" label="Archived" size="sm" /> : <StatusChip tone="warn" label="Not in catalog" size="sm" />
+          ) : null}
+        </span>
+      </span>
+    ),
+  };
+  const itemsColumn: DataTableColumn<TaxonomyCategory> = {
+    id: 'items',
+    header: 'Items',
+    cell: (category) => (
+      <Link to="/search" search={{ category: category.slug } as never} className="TaxonomyAdmin__itemsLink">
+        {itemsLabel(category.count)}
+      </Link>
+    ),
+  };
+  const columns: DataTableColumn<TaxonomyCategory>[] =
+    view === 'archived'
+      ? [
+          nameColumn,
+          itemsColumn,
+          {
+            id: 'archived',
+            header: 'Archived',
+            hideBelow: 'md',
+            cell: (category) =>
+              category.archived_at ? (
+                <time className="PrimaryCategoryAdmin__date" dateTime={category.archived_at} title={new Date(category.archived_at).toLocaleString()}>
+                  {new Date(category.archived_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                </time>
+              ) : null,
+          },
+        ]
+      : [nameColumn, itemsColumn];
+
+  const listQuery = view === 'archived' ? archivedQuery : categoriesQuery;
+  const hasQuery = showSearch && query.trim().length > 0;
 
   return (
-    <main className="PrimaryCategoryAdmin" aria-labelledby="primary-category-admin-title">
-      <AdminTabs />
-      <section className="PrimaryCategoryAdmin__hero">
-        <div className="PrimaryCategoryAdmin__eyebrow">
-          <Icon icon={appIcons.layerGroup} />
-          <span>Admin catalog</span>
-        </div>
-        <div className="PrimaryCategoryAdmin__heroGrid">
-          <div>
-            <h1 id="primary-category-admin-title">Primary categories</h1>
-            <p>
-              Curate the primary category catalog separately from article editing. Existing articles keep their derived
-              category metadata; this screen is the safe admin surface for catalog review.
-            </p>
-          </div>
-          <div className="PrimaryCategoryAdmin__stats" aria-label="Primary category summary">
-            <strong>{sortedCategories.length}</strong>
-            <span>categories</span>
-            <strong>{totalAssignments}</strong>
-            <span>item assignments</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="PrimaryCategoryAdmin__panel" aria-live="polite">
-        <div className="PrimaryCategoryAdmin__sectionHeader">
-          <div>
-            <h2>Existing primary categories</h2>
-            <p>Catalog entries plus derived usage counts from existing item category assignments.</p>
-          </div>
-          <button type="button" className="PrimaryCategoryAdmin__refresh" onClick={() => void refetch()}>
-            Refresh
+    <main className="TaxonomyAdmin" aria-labelledby="primary-category-admin-title">
+      <AdminPageHeader
+        titleId="primary-category-admin-title"
+        title="Primary categories"
+        description="The curated categories an item can be published under."
+        meta={meta}
+        primaryAction={
+          <button type="button" className="kp-admin-button kp-admin-button--primary" onClick={() => setDialog({ kind: 'create' })}>
+            <Icon icon={appIcons.plus} /> New primary category
           </button>
-        </div>
+        }
+      />
 
-        {isLoading ? (
-          <div className="PrimaryCategoryAdmin__state" role="status">
-            <span className="PrimaryCategoryAdmin__spinner" aria-hidden="true" />
-            Loading primary categories…
-          </div>
-        ) : isError ? (
-          <div className="PrimaryCategoryAdmin__state PrimaryCategoryAdmin__state--error" role="alert">
-            <strong>Category catalog unavailable</strong>
-            <span>{errorMessage}</span>
-            <button type="button" onClick={() => void refetch()}>Try again</button>
-          </div>
-        ) : sortedCategories.length === 0 ? (
-          <div className="PrimaryCategoryAdmin__state">
-            <strong>No primary categories yet</strong>
-            <span>Create the first primary category from the action panel below, or import items with category frontmatter.</span>
-          </div>
-        ) : (
-          <table className="PrimaryCategoryAdmin__table" aria-label="Primary category catalog">
-            <thead>
-              <tr>
-                <th scope="col">Category</th>
-                <th scope="col">Slug</th>
-                <th scope="col">Usage</th>
-                <th scope="col">Metadata</th>
-                <th scope="col">Status</th>
-                <th scope="col">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedCategories.map((category) => (
-                <tr key={category.slug}>
-                  <td>{categoryDisplayName(category)}</td>
-                  <td><code>{category.slug}</code></td>
-                  <td>{pluralizeItem(category.count)}</td>
-                  <td>{metadataLabel(category)}</td>
-                  <td><span className="PrimaryCategoryAdmin__badge">Active</span></td>
-                  <td>
-                    <div className="PrimaryCategoryAdmin__rowActions">
-                      <button type="button" onClick={() => openRename(category)} aria-label={`Rename category ${categoryDisplayName(category)}`}>
-                        <Icon icon={appIcons.pencil} /> Rename
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleArchive(category)}
-                        disabled={category.count > 0 || archiveCategory.isPending}
-                        aria-label={`Archive category ${categoryDisplayName(category)}`}
-                        title={category.count > 0 ? 'Categories with assigned items cannot be archived.' : 'Archive category'}
-                      >
-                        <Icon icon={appIcons.xmark} /> Archive
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+      <ViewSwitch<CategoryView>
+        label="Primary category views"
+        idBase={VIEW_ID}
+        value={view}
+        onChange={(next) => {
+          setQuery('');
+          setView(next);
+        }}
+        options={[
+          { value: 'active', label: 'Active', count: categoriesQuery.data ? active.length : undefined },
+          { value: 'archived', label: 'Archived', count: archivedQuery.data?.length },
+        ]}
+      />
 
-      <section className="PrimaryCategoryAdmin__panel" aria-label="Primary category actions">
-        <div>
-          <h2>Catalog actions</h2>
-          <p>
-            Create and rename primary category catalog entries for future items. Color and icon metadata is shown when
-            the backend provides it; merge and reassignment workflows stay out of the editor.
-          </p>
-        </div>
-        <div className="PrimaryCategoryAdmin__actions">
-          <button type="button" onClick={() => setIsCreateOpen(true)}>
-            <Icon icon={appIcons.plus} />
-            Create category
-          </button>
-        </div>
-        <p id="primary-category-admin-defer-note" className="PrimaryCategoryAdmin__deferNote">
-          Categories with assigned items cannot be archived. Article category reassignment stays out of the current MVP path.
-        </p>
-        {message ? <p className="PrimaryCategoryAdmin__success" role="status">{message}</p> : null}
-        {(createCategory.isError || updateCategory.isError || archiveCategory.isError) ? (
-          <p className="PrimaryCategoryAdmin__error" role="alert">{mutationError}</p>
+      <section className="TaxonomyAdmin__panel" role="tabpanel" id={viewPanelId(VIEW_ID)} aria-labelledby={viewTabId(VIEW_ID, view)}>
+        {showSearch ? (
+          <div className="TaxonomyAdmin__toolbar" role="search" aria-label="Filter primary categories">
+            <input
+              className="TaxonomyAdmin__search"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search categories…"
+              aria-label="Search primary categories"
+            />
+          </div>
         ) : null}
+        <DataTable
+          key={view}
+          rows={rows}
+          rowKey={(category) => category.slug}
+          rowLabel={displayName}
+          columns={columns}
+          caption={view === 'archived' ? 'Archived primary categories' : 'Primary categories'}
+          state={listQuery.isError ? 'error' : listQuery.isLoading ? 'loading' : 'ready'}
+          errorMessage={errorText(listQuery.error, "Couldn't load primary categories.")}
+          onRetry={() => void listQuery.refetch()}
+          onRowOpen={
+            view === 'archived'
+              ? undefined
+              : (category) => {
+                  if (isArchivedTerm(category)) return;
+                  setDialog(isCurated(category) ? { kind: 'rename', category } : { kind: 'curate', category });
+                }
+          }
+          rowActions={view === 'archived' ? archivedActions : activeActions}
+          empty={
+            hasQuery ? (
+              <EmptyState title="No categories match" body={`Nothing is named or filed under “${query.trim()}”.`} />
+            ) : view === 'archived' ? (
+              <EmptyState title="Nothing archived" body="Archived categories appear here, ready to restore." />
+            ) : (
+              <EmptyState
+                title="No primary categories yet"
+                body="Items are published under exactly one primary category from this catalog."
+                action={
+                  <button type="button" className="kp-admin-button kp-admin-button--primary" onClick={() => setDialog({ kind: 'create' })}>
+                    <Icon icon={appIcons.plus} /> New primary category
+                  </button>
+                }
+              />
+            )
+          }
+        />
       </section>
 
-      {isCreateOpen ? (
-        <div className="PrimaryCategoryAdmin__modalBackdrop">
-          <section className="PrimaryCategoryAdmin__modal" role="dialog" aria-modal="true" aria-labelledby="primary-category-create-title">
-            <div className="PrimaryCategoryAdmin__modalHeader">
-              <div>
-                <h2 id="primary-category-create-title">New primary category</h2>
-                <p>Create a catalog entry using the backend-supported primary category fields.</p>
-              </div>
-              <button type="button" className="PrimaryCategoryAdmin__iconButton" onClick={closeCreate} aria-label="Close new primary category dialog">
-                <Icon icon={appIcons.xmark} />
-              </button>
-            </div>
-            <form className="PrimaryCategoryAdmin__form" onSubmit={(event) => void handleCreate(event)}>
-              <label>
-                <span>Category name</span>
-                <input value={name} onChange={(event) => setName(event.target.value)} maxLength={200} required />
-              </label>
-              <label>
-                <span>Category slug</span>
-                <input value={slug} onChange={(event) => setSlug(event.target.value)} maxLength={100} placeholder="auto-generated if blank" />
-              </label>
-              <div className="PrimaryCategoryAdmin__modalActions">
-                <button type="button" onClick={closeCreate} disabled={createCategory.isPending}>Cancel</button>
-                <button type="submit" disabled={!canCreate}>
-                  <Icon icon={appIcons.plus} />
-                  {createCategory.isPending ? 'Creating…' : 'Create category'}
-                </button>
-              </div>
-            </form>
-            {createCategory.isError ? <p className="PrimaryCategoryAdmin__error" role="alert">{mutationError}</p> : null}
-          </section>
-        </div>
+      {dialog ? (
+        <CategoryDialog key={dialog.kind === 'create' ? 'create' : `${dialog.kind}:${dialog.category.slug}`} mode={dialog} onClose={() => setDialog(null)} />
       ) : null}
 
-      {editingCategory ? (
-        <div className="PrimaryCategoryAdmin__modalBackdrop">
-          <section className="PrimaryCategoryAdmin__modal" role="dialog" aria-modal="true" aria-labelledby="primary-category-rename-title">
-            <div className="PrimaryCategoryAdmin__modalHeader">
-              <div>
-                <h2 id="primary-category-rename-title">Rename primary category</h2>
-                <p>Update the display name. Slugs and existing item assignments stay unchanged.</p>
-              </div>
-              <button type="button" className="PrimaryCategoryAdmin__iconButton" onClick={closeRename} aria-label="Close rename primary category dialog">
-                <Icon icon={appIcons.xmark} />
-              </button>
-            </div>
-            <form className="PrimaryCategoryAdmin__form" onSubmit={(event) => void handleRename(event)}>
-              <label>
-                <span>Category name</span>
-                <input value={name} onChange={(event) => setName(event.target.value)} maxLength={200} required />
-              </label>
-              <div className="PrimaryCategoryAdmin__modalActions">
-                <button type="button" onClick={closeRename} disabled={updateCategory.isPending}>Cancel</button>
-                <button type="submit" disabled={!canSaveEdit}>{updateCategory.isPending ? 'Saving…' : 'Save category'}</button>
-              </div>
-            </form>
-            {updateCategory.isError ? <p className="PrimaryCategoryAdmin__error" role="alert">{mutationError}</p> : null}
-          </section>
-        </div>
+      {archiving ? (
+        <ConfirmDialog
+          title={`Archive “${displayName(archiving)}”?`}
+          body="It leaves the catalog and can no longer be chosen when publishing."
+          consequences={['No items are filed under it, so nothing else changes.', 'You can restore it from Archived.']}
+          confirmLabel="Archive category"
+          tone="danger"
+          pending={archiveCategory.isPending}
+          error={archiveCategory.isError ? errorText(archiveCategory.error, 'Could not archive the category.') : null}
+          onConfirm={() => void confirmArchive()}
+          onCancel={() => setArchiving(null)}
+        />
       ) : null}
     </main>
   );

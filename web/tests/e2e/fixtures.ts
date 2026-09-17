@@ -81,8 +81,59 @@ export async function createUserApiContext(
 }
 
 /**
+ * The minimum frontmatter the publish gate asks for (issue 98): a `type`, a
+ * `description`, and one primary category from the CURATED catalog — here one
+ * the e2e seed (`global-setup.ts` → `pnpm --filter server seed`) always creates.
+ * A create that lands published without them is refused with 422 `lint_failed`.
+ */
+export const CONFORMANT_FRONTMATTER: Readonly<Record<string, unknown>> = {
+  type: 'Concept',
+  description: 'An e2e fixture that satisfies the publish-time rules.',
+  categories: ['research-notes'],
+};
+
+/**
+ * Put primary categories in the curated catalog, the way an admin does before
+ * anyone may publish into them (primary categories are curated, not emergent).
+ * Pass the display name; the slug is derived from it unless given. Idempotent:
+ * an existing slug (409) is fine. Not cleaned up — the DB is wiped per run, an
+ * in-use category cannot be archived, and the specs that read the catalog
+ * (compose's Publish drawer) compare against the live list rather than a fixed one.
+ */
+export async function ensureCategories(
+  api: APIRequestContext,
+  ...categories: Array<string | { name: string; slug: string }>
+): Promise<void> {
+  for (const category of categories) {
+    const data = typeof category === 'string' ? { name: category } : category;
+    const res = await api.post('/api/v1/taxonomy/categories', { data });
+    if (!res.ok() && res.status() !== 409) {
+      throw new Error(`ensureCategories failed for ${data.name}: ${res.status()} ${await res.text()}`);
+    }
+  }
+}
+
+/**
+ * The conformant defaults for one published fixture: `CONFORMANT_FRONTMATTER`,
+ * plus the two extra keys a published Blog Post must carry (`authors`,
+ * `published_at`) when the caller made it one. Caller keys always win.
+ */
+export function conformantFrontmatter(frontmatter: Record<string, unknown> = {}): Record<string, unknown> {
+  const blogPost = String(frontmatter['type'] ?? '').toLowerCase() === 'blog post';
+  return {
+    ...CONFORMANT_FRONTMATTER,
+    ...(blogPost ? { authors: ['E2E Author'], published_at: new Date().toISOString() } : {}),
+    ...frontmatter,
+  };
+}
+
+/**
  * Convenience: create a page via API and return its slug + id.
  * Avoids the UI bootstrap path when a test just needs a page to exist.
+ *
+ * A published page gets `conformantFrontmatter` underneath the caller's own
+ * frontmatter, so a spec that only needs "a published page" gets one the gate
+ * accepts. A spec that names its own `categories` must name curated ones.
  */
 export async function createPageViaApi(
   api: APIRequestContext,
@@ -94,13 +145,15 @@ export async function createPageViaApi(
     frontmatter?: Record<string, unknown>;
   },
 ): Promise<{ id: string; slug: string; version_token: number }> {
+  const status = input.status ?? 'draft';
   const res = await api.post('/api/v1/pages', {
     data: {
       title: input.title,
       body: input.body ?? '',
-      status: input.status ?? 'draft',
+      status,
       tags: input.tags ?? [],
-      frontmatter: input.frontmatter ?? {},
+      frontmatter:
+        status === 'published' ? conformantFrontmatter(input.frontmatter) : (input.frontmatter ?? {}),
     },
   });
   if (!res.ok()) throw new Error(`createPageViaApi failed: ${res.status()} ${await res.text()}`);

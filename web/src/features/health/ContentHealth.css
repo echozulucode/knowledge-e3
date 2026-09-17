@@ -1,0 +1,444 @@
+/* ContentHealth — Admin → Health → Content. Token-driven, light/dark. */
+
+.ContentHealth {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: none;
+  margin: 0;
+  padding: var(--kp-space-6) clamp(var(--kp-space-5), 2vw, var(--kp-space-8)) var(--kp-space-16);
+  color: var(--kp-text-primary);
+}
+
+.ContentHealth__filter {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 10px;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+}
+.ContentHealth__filter select {
+  /* A <select> sizes itself to its LONGEST option, so one long topic name pushed
+     the page past a 360px screen. Cap it at the space it has; the chosen option
+     truncates inside the control. */
+  min-width: min(220px, 100%);
+  max-width: 100%;
+  flex: 1 1 auto;
+  padding: 8px 10px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-canvas);
+  color: var(--kp-text-primary);
+  font: inherit;
+}
+
+.ContentHealth h2 {
+  margin: 0 0 var(--kp-space-2);
+  font-size: var(--kp-text-md, 15px);
+  font-weight: var(--kp-weight-semibold);
+}
+.ContentHealth h3 {
+  margin: 0 0 var(--kp-space-2);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+}
+
+.ContentHealth__vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Attention strip (review §4.9): first on the page, the one place to start. The
+   tone is also in the icon and the words, never in the border alone (§3.3). */
+.ContentHealth__attention {
+  padding: var(--kp-space-3) var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-left-width: 4px;
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+}
+.ContentHealth__attention[data-tone='ok'] { border-left-color: var(--kp-success); }
+.ContentHealth__attention[data-tone='warn'] { border-left-color: var(--kp-warning, var(--kp-border-subtle)); }
+.ContentHealth__attention[data-tone='alert'] { border-left-color: var(--kp-danger, var(--kp-border-subtle)); }
+.ContentHealth__attention h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  margin: 0;
+}
+.ContentHealth__attention[data-tone='ok'] h2 svg { color: var(--kp-success); }
+.ContentHealth__attention[data-tone='warn'] h2 svg { color: var(--kp-warning, currentColor); }
+.ContentHealth__attention[data-tone='alert'] h2 svg { color: var(--kp-danger, currentColor); }
+.ContentHealth svg.kp-status-chip__icon { flex: none; width: 1.05em; height: 1.05em; }
+.ContentHealth__attentionList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1);
+  margin: var(--kp-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--kp-text-sm);
+}
+.ContentHealth__attentionList li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--kp-space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ContentHealth__attentionList li svg { align-self: center; }
+.ContentHealth__attentionList li[data-tone='warn'] svg { color: var(--kp-warning, currentColor); }
+.ContentHealth__attentionList li[data-tone='alert'] svg { color: var(--kp-danger, currentColor); }
+.ContentHealth__attentionList a { color: var(--kp-accent); font-weight: var(--kp-weight-medium); }
+
+/* Findings tiles: the library audit's counts, each a link to Data → Audit. */
+.ContentHealth__tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: var(--kp-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ContentHealth__tile {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--kp-space-1) var(--kp-space-3);
+  height: 100%;
+  padding: var(--kp-space-3) var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-top-width: 3px;
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  text-decoration: none;
+}
+.ContentHealth__tile:hover { background: var(--kp-surface-sunken); }
+.ContentHealth__tile:focus-visible { outline: 2px solid var(--kp-border-focus); outline-offset: 2px; }
+.ContentHealth__tile[data-tone='ok'] { border-top-color: var(--kp-success); }
+.ContentHealth__tile[data-tone='info'] { border-top-color: var(--kp-info, var(--kp-border-subtle)); }
+.ContentHealth__tile[data-tone='warn'] { border-top-color: var(--kp-warning, var(--kp-border-subtle)); }
+.ContentHealth__tile[data-tone='error'] { border-top-color: var(--kp-danger, var(--kp-border-subtle)); }
+.ContentHealth__tileCount {
+  grid-row: span 2;
+  font-size: var(--kp-text-xl);
+  font-weight: var(--kp-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.ContentHealth__tileLabel { font-size: var(--kp-text-sm); font-weight: var(--kp-weight-medium); }
+.ContentHealth__tile .kp-status-chip { justify-self: start; }
+.ContentHealth__tileMore {
+  grid-column: 1 / -1;
+  color: var(--kp-accent);
+  font-size: var(--kp-text-xs);
+}
+
+/* Library counts: inventory, deliberately quieter than the findings. */
+.ContentHealth__counts dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-1) var(--kp-space-6);
+  margin: 0;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+}
+.ContentHealth__counts dl > div { display: flex; gap: var(--kp-space-2); }
+.ContentHealth__counts dt { color: var(--kp-text-muted); }
+.ContentHealth__counts dd { margin: 0; color: var(--kp-text-primary); font-weight: var(--kp-weight-semibold); font-variant-numeric: tabular-nums; }
+
+.ContentHealth__queues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+  min-width: 0;
+}
+.ContentHealth__queues > h2 { margin: 0; }
+.ContentHealth__queueList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ContentHealth__queueList li { max-width: 100%; }
+.ContentHealth__queueList a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  min-height: 2.25rem;
+  max-width: 100%;
+  padding: var(--kp-space-1) var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-sm);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.ContentHealth__queueList a:hover { background: var(--kp-surface-sunken); }
+.ContentHealth__queueList a[aria-current='true'] {
+  border-color: var(--kp-accent);
+  box-shadow: inset 0 0 0 1px var(--kp-accent);
+  font-weight: var(--kp-weight-semibold);
+}
+.ContentHealth__count {
+  min-width: 28px;
+  padding: 2px 8px;
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-warning-bg, var(--kp-surface-sunken));
+  color: var(--kp-text-primary);
+  font-size: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.ContentHealth__clear {
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+}
+.ContentHealth__clear summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  cursor: pointer;
+}
+.ContentHealth__clear summary svg { color: var(--kp-success); }
+.ContentHealth__clear ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-1) var(--kp-space-4);
+  margin: var(--kp-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ContentHealth__clear a { color: var(--kp-accent); }
+.ContentHealth__queue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+  min-width: 0;
+}
+.ContentHealth__queue h3 { margin: 0; }
+.ContentHealth__queue .kp-dt td {
+  /* Slugs, generated titles, source ids and rule codes have no spaces; let them
+     wrap so a queue fits a phone instead of pushing the table past the viewport. */
+  overflow-wrap: anywhere;
+}
+.ContentHealth__queue .kp-dt a { color: var(--kp-accent); }
+.ContentHealth__queue code {
+  font-family: var(--kp-font-mono, ui-monospace, monospace);
+  font-size: var(--kp-text-xs, 12px);
+  overflow-wrap: anywhere;
+}
+
+/* Instance-wide: Sync, Git mirror, Refusals — one line each while healthy. */
+.ContentHealth__instanceGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+  min-width: 0;
+}
+.ContentHealth__instanceHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--kp-space-1) var(--kp-space-3);
+}
+.ContentHealth__instanceHead h2 { margin: 0; }
+.ContentHealth__notFiltered {
+  padding: 1px var(--kp-space-2);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-xs);
+}
+.ContentHealth__instance {
+  min-width: 0;
+  padding: var(--kp-space-3) var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+  font-size: var(--kp-text-sm);
+  overflow-wrap: anywhere;
+}
+.ContentHealth__instance[data-tone='alert'] { border-color: var(--kp-warning, var(--kp-border-subtle)); }
+.ContentHealth__instance[data-tone='ok'] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--kp-space-1) var(--kp-space-3);
+}
+.ContentHealth__instance[data-tone='ok'] > * { margin: 0; }
+.ContentHealth__instance[data-tone='ok'] > h3 { min-width: 8rem; }
+.ContentHealth__instance p { margin: 0; line-height: 1.5; }
+.ContentHealth__instance h4 {
+  margin: var(--kp-space-4) 0 var(--kp-space-2);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+}
+.ContentHealth__instance code {
+  font-family: var(--kp-font-mono, ui-monospace, monospace);
+  font-size: var(--kp-text-xs, 12px);
+  overflow-wrap: anywhere;
+}
+.ContentHealth__instance a { color: var(--kp-accent); }
+.ContentHealth__instance[data-tone='alert'] > p strong { color: var(--kp-warning, var(--kp-text-primary)); }
+.ContentHealth__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-1) var(--kp-space-2);
+  color: var(--kp-text-secondary);
+}
+.ContentHealth__earlier { flex-basis: 100%; }
+.ContentHealth__earlier summary { cursor: pointer; color: var(--kp-text-secondary); }
+.ContentHealth__scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.ContentHealth__table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--kp-space-2);
+}
+.ContentHealth__table th,
+.ContentHealth__table td {
+  text-align: left;
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid var(--kp-border-subtle);
+  vertical-align: middle;
+  font-size: var(--kp-text-sm);
+  /* Slugs, generated titles and rule codes have no spaces; let them wrap so a
+     queue fits a phone instead of pushing the table past the viewport. */
+  overflow-wrap: anywhere;
+}
+.ContentHealth__table th { color: var(--kp-text-muted); font-size: var(--kp-text-xs); font-weight: var(--kp-weight-semibold); }
+.ContentHealth__table a { color: var(--kp-accent); text-decoration: none; }
+.ContentHealth__table a:hover { text-decoration: underline; }
+
+.ContentHealth__muted { margin: 0 0 var(--kp-space-2); color: var(--kp-text-muted); font-size: var(--kp-text-sm); }
+.ContentHealth__error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-secondary);
+}
+.ContentHealth__error button {
+  margin-top: 4px;
+  padding: 6px 12px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Recent refusals (plan B2): publishes the gate turned away, read from the audit log. */
+
+.ContentHealth__refusalAttempt {
+  display: block;
+  color: var(--kp-text-muted);
+  font-size: var(--kp-text-xs, 12px);
+}
+.ContentHealth__refusalsMore {
+  margin: 0;
+  font-size: var(--kp-text-sm);
+}
+.ContentHealth__refusalsMore a {
+  color: var(--kp-accent);
+}
+
+/* Git mirror (issue 88): durability alert — indexed content whose commit is unconfirmed. */
+
+.ContentHealth__mirrorDetail { color: var(--kp-text-secondary); }
+
+.ContentHealth__mirrorState {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.ContentHealth__mirrorState[data-state='missing'],
+.ContentHealth__mirrorState[data-state='error'] {
+  background: var(--kp-warning-bg, var(--kp-surface-sunken));
+  color: var(--kp-text-primary);
+  font-weight: var(--kp-weight-semibold);
+}
+
+/* Where the runbook answers the alert above (B5), and the capture button (B6). */
+.ContentHealth__runbook,
+.ContentHealth__mirror > .ContentHealth__runbook,
+.ContentHealth__mirror > .ContentHealth__mirrorActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2);
+  margin: var(--kp-space-2) 0 0;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+}
+.ContentHealth__runbook strong,
+.ContentHealth__mirror[data-tone='alert'] > .ContentHealth__runbook strong {
+  color: var(--kp-text-primary);
+}
+.ContentHealth__mirrorActions .ContentHealth__muted {
+  margin: 0;
+}
+
+/* B4: what put a lint-queue member there — door, source, file, and each rule. */
+.ContentHealth__lintWhere {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-1, 4px) var(--kp-space-3, 12px);
+  margin: 0 0 var(--kp-space-1, 4px);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-xs, 12px);
+}
+.ContentHealth__lintWhere code,
+.ContentHealth__lintList code {
+  font-family: var(--kp-font-mono, ui-monospace, monospace);
+  font-size: var(--kp-text-xs, 12px);
+  word-break: break-all;
+}
+.ContentHealth__lintList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0 0 0 var(--kp-space-3, 12px);
+  font-size: var(--kp-text-xs, 12px);
+}
+.ContentHealth__lintList li[data-severity='error'] > code:first-child {
+  color: var(--kp-danger, #cf222e);
+}
+.ContentHealth__lintKey {
+  color: var(--kp-text-muted);
+}
+.ContentHealth__lintRunbook {
+  margin: var(--kp-space-1, 4px) 0 0;
+  color: var(--kp-text-muted);
+  font-size: var(--kp-text-xs, 12px);
+}

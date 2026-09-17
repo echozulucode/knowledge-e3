@@ -9,6 +9,8 @@ import {
   type ModeChangeMeta,
 } from '@echozedlabs/react';
 import '@echozedlabs/react/styles.css';
+import { createDefaultRendererRegistry } from '@echozedlabs/renderers';
+import { renderHighlightedCode, renderMermaidDiagram } from '../../components/richBlocks.js';
 import {
   getDefaultItemEditorModes,
   knowledgeItemPropertySchema,
@@ -53,6 +55,29 @@ export interface ItemEditorHostProps {
   onDiagnostics?: (diagnostics: EditorDiagnostic[]) => void;
 }
 
+/**
+ * The block renderers Preview and Hybrid mode use.
+ *
+ * `MarkdownEditor` falls back to `createDefaultRendererRegistry()` with NO
+ * options when a host passes none, and an unconfigured registry has no diagram
+ * and no code renderer — so `features.mermaid`/`syntaxHighlighting` below were
+ * describing an intent nothing implemented, and the author saw the same grey
+ * fence the reader did. Configuring the registry here is the editor half of
+ * "one renderer" (reader UX plan R1.1): these are the exact renderers the read
+ * page delegates to (web/src/components/richBlocks.tsx), so Preview and the
+ * published page now agree — and they share one loaded engine, because both go
+ * through the same lazily-imported module. The registry is built at module
+ * scope and costs nothing: the two functions below `import()` the engines on
+ * first use.
+ *
+ * PlantUML stays unconfigured: it needs a host `renderPlantUml` service to do
+ * the rendering, and this product has none.
+ */
+const itemPreviewRenderers = createDefaultRendererRegistry({
+  mermaid: renderMermaidDiagram,
+  shiki: renderHighlightedCode,
+});
+
 export function ItemEditorHost({
   value,
   mode,
@@ -82,6 +107,7 @@ export function ItemEditorHost({
       readOnly={readOnly}
       className={className}
       ariaLabel={ariaLabel}
+      renderers={itemPreviewRenderers}
       propertySchema={propertySchema ?? knowledgeItemPropertySchema}
       frontmatterDisplay={frontmatterDisplay}
       hostServices={hostServices}

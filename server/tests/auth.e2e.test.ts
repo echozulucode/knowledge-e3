@@ -159,29 +159,49 @@ describe('auth e2e', () => {
     expect(throttledRes.body.retry_after_seconds).toBeGreaterThan(0);
   });
 
-  it('rate limit: successful login resets the counter', async () => {
+  it("rate limit: a successful login under the limit resets that username's counter", async () => {
     const auth = app.get(await import('../src/auth/auth.service.js').then((m) => m.AuthService));
     await auth.createUser({ email: 'reset@example.com', username: 'reset', password: 'correct-password-1', role: 'user' });
 
-    // 5 failed attempts.
-    for (let i = 0; i < 5; i++) {
+    // 4 failed attempts: one short of the lockout.
+    for (let i = 0; i < 4; i++) {
       await request(app.getHttpServer())
         .post('/api/v1/auth/login')
         .send({ username: 'reset', password: 'wrong-password' })
         .expect(401);
     }
 
-    // Successful login resets the counter.
+    // Successful login resets the username's counter.
     await request(app.getHttpServer())
       .post('/api/v1/auth/login')
       .send({ username: 'reset', password: 'correct-password-1' })
       .expect(200);
 
-    // After reset, we can attempt again without 429.
+    // After reset, a full 4 more failures are allowed without 429.
+    for (let i = 0; i < 4; i++) {
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ username: 'reset', password: 'wrong-password' })
+        .expect(401);
+    }
+  });
+
+  it('rate limit: at the limit, even the correct password is refused (issue 41)', async () => {
+    const auth = app.get(await import('../src/auth/auth.service.js').then((m) => m.AuthService));
+    await auth.createUser({ email: 'locked@example.com', username: 'locked', password: 'correct-password-1', role: 'user' });
+
+    for (let i = 0; i < 5; i++) {
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ username: 'locked', password: 'wrong-password' })
+        .expect(401);
+    }
+
+    // The old throttle verified first, so this came back 200 and cleared the slate.
     await request(app.getHttpServer())
       .post('/api/v1/auth/login')
-      .send({ username: 'reset', password: 'wrong-password' })
-      .expect(401);
+      .send({ username: 'locked', password: 'correct-password-1' })
+      .expect(429);
   });
 
   it('rate limit: different usernames have independent throttle counters', async () => {

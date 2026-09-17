@@ -19,10 +19,11 @@ export interface McpExportOkfInput extends Record<string, unknown> {
 }
 
 /**
- * Serve knowledge content as an Open Knowledge Format (OKF v0.1) bundle to MCP
- * clients — the "serve OKF over MCP" step (Option D) from docs/okf-study and
- * docs/llm-wiki-study. The bundle is built with @echozedlabs/okf and is permission-aware:
- * only items the caller may see are included (delegated to ItemsService).
+ * Serve knowledge content as an Open Knowledge Format (OKF v0.2) bundle to MCP
+ * clients — the "serve OKF over MCP" step (Option D) from the OKF format study
+ * and the LLM wiki study. The bundle is built with @echozedlabs/okf and is
+ * permission-aware: only items the caller may see are included (delegated to
+ * ItemsService).
  */
 @Injectable()
 export class ExportOkfTool implements McpTool<McpExportOkfInput> {
@@ -30,7 +31,7 @@ export class ExportOkfTool implements McpTool<McpExportOkfInput> {
     name: 'knowledge.export_okf',
     title: 'Export knowledge as an OKF bundle',
     description:
-      'Export visible knowledge items as an Open Knowledge Format (OKF v0.1) bundle: Markdown concept files with YAML frontmatter plus a root index. Provide explicit ids, or filter by status/tag with a limit. Each concept embeds its stable e3_id for lossless re-import. Results respect the caller\'s permissions.',
+      'Export visible knowledge items as an Open Knowledge Format (OKF v0.2) bundle: Markdown concept files with YAML frontmatter plus a root index. Provide explicit ids, or filter by status/tag with a limit. Each concept embeds its stable e3_id for lossless re-import. Results respect the caller\'s permissions.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -84,7 +85,7 @@ export class ExportOkfTool implements McpTool<McpExportOkfInput> {
     const opts: BuildOptions = {
       linkStyle,
       bundleTitle: 'Knowledge E3',
-      bundleDescription: 'Exported from Knowledge E3 in Open Knowledge Format (OKF v0.1).',
+      bundleDescription: 'Exported from Knowledge E3 in Open Knowledge Format (OKF v0.2).',
     };
     const bundle = buildBundle(pages, opts);
     const conformance = validateBundle(bundle);

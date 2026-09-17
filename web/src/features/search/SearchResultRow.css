@@ -1,0 +1,58 @@
+/* SearchResultRow — shared result row (palette, /search, browse "By type").
+   Title, snippet, one metadata line; the line's size, tone and separators come
+   from `.kp-item-meta` (packages/ui item.css), so nothing here restyles them. */
+.kp-result-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* Titles wrap to two lines instead of truncating (home plan R2.4): the title
+   is the most important thing in the row. */
+.kp-result-row__title {
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-weight: var(--kp-weight-semibold);
+  font-size: var(--kp-text-base);
+  line-height: 1.35;
+}
+
+/* One line by default (the palette is a jump list); `/search` gives it two. */
+.kp-result-row__snippet {
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kp-result-row__meta {
+  min-width: 0;
+  margin-top: 2px;
+  line-height: 1.5;
+}
+
+/* The line wraps between parts at 360px; a single part too long for the row
+   (an unbroken topic name) breaks inside itself rather than overflowing. */
+.kp-result-row__meta .kp-item-meta__part {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* Where the query matched (`renderHighlighted`). A tint behind INHERITED text:
+   the match keeps the row's colour — including the palette's selected-row
+   accent — so contrast is the token's (AA in both themes, tokens.css), and a
+   mark never looks like a link. No padding, so marking a word never reflows
+   the two-line title clamp. */
+.kp-result-row mark {
+  background: var(--kp-mark-bg);
+  color: inherit;
+  border-radius: 2px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}

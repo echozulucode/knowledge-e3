@@ -9,11 +9,21 @@ export interface ApiError {
   message: string;
   /** Populated on 429 from the server's TooManyRequestsException body. */
   retry_after_seconds?: number;
+  /** Machine-readable discriminator on the write path's refusals (`changed_on_disk`,
+   *  `source_read_only`, `review_unsupported_operation`). Absent on the plain
+   *  optimistic-concurrency 409, which is how the two are told apart. */
+  reason?: string;
   /** The opaque request id from the server, when available. Used to correlate
    *  client errors with server logs and to pre-fill the bug-report context. */
   request_id?: string;
   /** True when the network failed (no HTTP response — connection refused, DNS, offline). */
   network_error?: boolean;
+  /** Carried through on `lint_failed` (422): the content-model errors to fix. */
+  diagnostics?: unknown;
+  /** Carried through on `bundle_not_conformant` (422): the OKF import gate's
+   *  three-tier report, naming the file of every issue. Left `unknown` here —
+   *  `features/okf/bundleReportModel.ts` narrows it — so this client stays shape-agnostic. */
+  validation?: unknown;
 }
 
 /**
@@ -71,11 +81,23 @@ export class ApiClient {
     if (!res.ok) {
       let message = res.statusText;
       let retryAfter: number | undefined;
+      let reason: string | undefined;
+      let diagnostics: unknown;
+      let validation: unknown;
       try {
         const error = await res.json();
         message = error.message || message;
+        if (Array.isArray(error.diagnostics)) {
+          diagnostics = error.diagnostics;
+        }
         if (typeof error.retry_after_seconds === 'number') {
           retryAfter = error.retry_after_seconds;
+        }
+        if (typeof error.reason === 'string') {
+          reason = error.reason;
+        }
+        if (error.validation && typeof error.validation === 'object') {
+          validation = error.validation;
         }
       } catch {
         // ignored
@@ -85,6 +107,9 @@ export class ApiClient {
         status: res.status,
         message,
         ...(retryAfter !== undefined ? { retry_after_seconds: retryAfter } : {}),
+        ...(reason !== undefined ? { reason } : {}),
+        ...(diagnostics !== undefined ? { diagnostics } : {}),
+        ...(validation !== undefined ? { validation } : {}),
         ...(requestId !== undefined ? { request_id: requestId } : {}),
       } as ApiError;
     }

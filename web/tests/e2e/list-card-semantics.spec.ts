@@ -16,9 +16,11 @@ test.describe('browse card semantics', () => {
     const openAction = card.getByRole('button', { name: /open semantic card target/i });
     await expect(openAction).toBeVisible();
 
+    // The pencil opens Compose on its own route; `?edit=1` was the inline
+    // editor's deep link and now only survives as a redirect.
     await card.getByRole('button', { name: /edit semantic card target/i }).focus();
     await signedInPage.keyboard.press('Space');
-    await expect(signedInPage).toHaveURL(new RegExp(`/p/${item.slug}\\?edit=(?:1|%221%22)`));
+    await expect(signedInPage).toHaveURL(new RegExp(`/p/${item.slug}/edit$`));
 
     await signedInPage.goto('/browse');
     const reopenedCard = signedInPage.locator('.PageList__Card').filter({ hasText: 'Semantic Card Target' });

@@ -5,6 +5,8 @@ import { ANONYMOUS_ACTOR } from '../auth/auth-mode.js';
 import type { AuthedUser } from '../auth/auth.service.js';
 import { McpService } from './mcp.service.js';
 import { PagesService } from '../pages/pages.service.js';
+import { KnowledgeQueryService } from '../query/knowledge-query.service.js';
+import { SpacesService } from '../taxonomy/spaces.service.js';
 import { createMcpServer } from './mcp-server.factory.js';
 import { SlidingWindowRateLimiter } from '../common/rate-limiter.js';
 import { loadServerConfig } from '../config/server-config.js';
@@ -22,8 +24,7 @@ const mcpRateLimiter = new SlidingWindowRateLimiter(MCP_RATE_LIMIT, 60 * 1000);
  * apply. On a `public` instance an anonymous visitor therefore gets the same
  * read-only view here that they already get over HTTP — write tools are hidden
  * from tools/list AND refused in McpService.callToolByName. When the instance is
- * `authenticated` (the default), this decorator does nothing and a session is
- * required, exactly as before.
+ * `authenticated`, this decorator does nothing and a session is required.
  */
 @PublicRpc()
 @Controller('mcp')
@@ -31,6 +32,8 @@ export class McpController {
   constructor(
     private readonly mcp: McpService,
     private readonly pages: PagesService,
+    private readonly query: KnowledgeQueryService,
+    private readonly spaces: SpacesService,
   ) {}
 
   /**
@@ -57,7 +60,7 @@ export class McpController {
   }
 
   private async dispatch(req: any, res: any, user: AuthedUser, body?: unknown) {
-    const server = createMcpServer({ mcp: this.mcp, pages: this.pages }, { user });
+    const server = createMcpServer({ mcp: this.mcp, pages: this.pages, query: this.query, spaces: this.spaces }, { user });
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     res.on('close', () => {
       void transport.close();
@@ -108,19 +111,15 @@ export class McpController {
 }
 
 /**
- * Best-effort client IP for rate-limit bucketing. Behind a reverse proxy (Azure
- * Container Apps ingress, any TLS terminator) every request shares the proxy's
- * socket address, so prefer the first X-Forwarded-For hop.
+ * Client IP for rate-limit bucketing: Express's `req.ip`, which honours the
+ * server's `trust proxy` setting (`server.trustProxy` / `TRUST_PROXY`).
  *
- * X-Forwarded-For is client-supplied and spoofable, which for a rate limiter
- * means a determined caller can rotate their own bucket. That is strictly better
- * than the alternative — without it, every anonymous visitor behind the ingress
- * collapses into ONE bucket and any single client could lock out all readers.
+ * This used to read `X-Forwarded-For` itself. That header is client-supplied, so
+ * any anonymous caller could rotate their own bucket per request. Behind an
+ * ingress the operator now trusts exactly the proxy hop instead, and `req.ip`
+ * is the real client; with no proxy configured it is the socket address.
  * This is a fairness control, not an authentication one.
  */
 function clientIp(req: any): string {
-  const forwarded = req?.headers?.['x-forwarded-for'];
-  const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-  const first = typeof raw === 'string' ? raw.split(',')[0]?.trim() : undefined;
-  return first || req?.ip || req?.socket?.remoteAddress || 'unknown';
+  return req?.ip || req?.socket?.remoteAddress || 'unknown';
 }

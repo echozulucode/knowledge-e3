@@ -31,8 +31,6 @@ export interface ParsedPage {
   hasFrontmatter: boolean;
   /** Original frontmatter block including the delimiters, e.g. "---\nfoo: bar\n---\n". */
   rawFrontmatter: string;
-  /** Original trailing content after the body (kept for stability). */
-  trailing: string;
 }
 
 export interface WikiLinkOccurrence {

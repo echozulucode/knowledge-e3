@@ -1,0 +1,47 @@
+/* Related — the end of the article's reading path (plan §6, R4.7). Quiet
+   enough that it reads as a continuation rather than a second article. */
+.kp-related {
+  margin-top: var(--kp-space-8);
+  padding-top: var(--kp-space-5);
+  border-top: 1px solid var(--kp-border-subtle);
+}
+
+.kp-related__heading {
+  margin: 0 0 var(--kp-space-3);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--kp-text-secondary);
+}
+
+.kp-related__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kp-related__link {
+  font-weight: 600;
+  color: var(--kp-text-primary);
+  text-decoration: none;
+}
+
+.kp-related__link:hover {
+  color: var(--kp-accent);
+  text-decoration: underline;
+}
+
+.kp-related__snippet {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--kp-text-secondary);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}

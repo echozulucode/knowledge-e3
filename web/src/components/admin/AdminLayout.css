@@ -1,0 +1,43 @@
+/* AdminLayout — the /admin shell: the grouped nav and the page, one gutter.
+
+   The root is the app shell's scroll container (Root.css makes whatever the
+   Outlet renders scroll) AND the admin area's size container, so AdminNav's
+   desktop/tablet/phone switch follows the width this area really has. A size
+   container applies style and inline-size containment only — not layout
+   containment — so a page's fixed-position dialog still covers the viewport. */
+.kp-admin-layout {
+  container: kp-admin / inline-size;
+  color: var(--kp-text-primary);
+}
+
+.kp-admin-layout__frame {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-4);
+  min-width: 0;
+  padding-block: var(--kp-space-4) var(--kp-space-16);
+  padding-inline: clamp(var(--kp-space-4), 2vw, var(--kp-space-8));
+}
+
+.kp-admin-layout__page {
+  min-width: 0;
+}
+
+/* Every admin page used to be its own shell and padded itself; the layout owns
+   the gutter now, so the page's root <main> gives its padding up. Selector
+   specificity (0,1,1) beats the pages' own root rules, media queries included. */
+.kp-admin-layout__page > main {
+  padding: 0;
+  min-height: 0;
+}
+
+/* Desktop: the nav becomes a left column beside the page. */
+@container kp-admin (min-width: 64rem) {
+  .kp-admin-layout__frame {
+    display: grid;
+    grid-template-columns: 13rem minmax(0, 1fr);
+    align-items: start;
+    gap: var(--kp-space-8);
+    padding-block-start: var(--kp-space-6);
+  }
+}

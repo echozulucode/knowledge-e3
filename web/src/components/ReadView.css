@@ -14,6 +14,15 @@
   color: var(--kp-text-primary);
   padding: var(--kp-space-8) clamp(var(--kp-space-4), 4vw, var(--kp-space-12)) var(--kp-space-16);
   background: var(--kp-surface-base);
+  /* Wide content stays inside the reading column (owner decision 2026-09-13:
+     a wider column, never breakout-wider-than-column blocks). Code, tables and
+     diagrams scroll in their own boxes (below); a long unbroken run in prose —
+     a URL, a path, an inline identifier — wraps rather than being clipped by
+     the page body's `overflow-x: hidden`. `break-word`, not `anywhere`, so it
+     does not shrink a table cell's min-content width and squash the table
+     instead of letting it scroll. */
+  overflow-wrap: break-word;
+  min-width: 0;
 }
 
 /* ---- Block elements ---- */
@@ -165,4 +174,121 @@
   max-width: 100%;
   border-radius: var(--kp-radius-md);
   margin: 1em 0;
+}
+
+/* ---- Rich blocks (reader UX plan R1.1) ----
+   Mermaid diagrams, syntax-highlighted code and callouts, rendered by the same
+   `@echozedlabs/renderers` code the editor's Preview mode uses. The renderers
+   emit `me-renderer-*` class names; the `kp-rv-*` wrappers are ours and carry
+   the reader's typography, so the read page owns its own look without forking
+   the renderer. Everything below resolves through existing tokens — the single
+   exception is documented where it appears. */
+
+/* Diagram card. Mermaid is configured with its `default` (light) theme — the
+   only theme the shared renderer sets up — and draws dark glyphs with no
+   background of its own. So the figure is a permanently light card in BOTH
+   themes: on the dark theme a transparent diagram would be dark-on-dark and
+   unreadable. `#ffffff` is not a new palette colour; it is the surface the
+   diagram's own theme is drawn for, and it is the only literal here. */
+.kp-rv-figure {
+  margin: 1.25em 0;
+  padding: var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: #ffffff;
+  overflow-x: auto;
+}
+.kp-rv-figure .me-renderer-diagram {
+  margin: 0;
+}
+.kp-rv-figure svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+/* Highlighted code. Shiki paints its own (github-light) background inline, so
+   this wrapper only supplies the frame, the scroll container and the reader's
+   mono metrics — for the same reason as the diagram card, and with no colour
+   declaration of our own in either theme. */
+.kp-rv-highlight {
+  margin: 1em 0;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  overflow: hidden;
+}
+/* Same cascade caveat as the callouts: the editor stylesheet gives
+   `.me-renderer-code-highlight` its own margin, which would double up inside
+   our wrapper. Scoped so the read page's spacing wins. */
+.kp-rv-highlight .me-renderer-code-highlight {
+  margin: 0;
+  /* The long-line scroll belongs to the <pre> below; this wrapper must never
+     size itself to the longest line and carry the card past the column. */
+  min-width: 0;
+  max-width: 100%;
+}
+.kp-rv-highlight pre {
+  margin: 0;
+  max-width: 100%;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  font-family: var(--kp-font-mono);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.kp-rv-highlight code {
+  font-family: inherit;
+  font-size: inherit;
+  background: transparent;
+  padding: 0;
+}
+
+/* Callouts: `> [!NOTE]` and friends. One shape, the tone set per kind from the
+   semantic tokens the badges already use, so light and dark both follow.
+   Every selector here is scoped under `.kp-read-view` DELIBERATELY: the editor
+   package's own stylesheet is loaded app-wide and styles `.me-renderer-callout`
+   with `--me-*` variables that only exist inside the editor root. Those
+   declarations are invalid at computed-value time out here, which unsets the
+   border and background — so at equal specificity whichever file loaded last
+   would decide how a callout looks. The extra `.kp-read-view` makes the read
+   page's take win regardless of bundling order. */
+.kp-read-view .kp-rv-callout {
+  --kp-rv-callout-tone: var(--kp-info);
+  --kp-rv-callout-bg: var(--kp-info-bg);
+  margin: 1.25em 0;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid var(--kp-rv-callout-tone);
+  border-radius: 0 var(--kp-radius-sm) var(--kp-radius-sm) 0;
+  background: var(--kp-rv-callout-bg);
+  color: var(--kp-text-primary);
+}
+.kp-read-view .kp-rv-callout > :last-child {
+  margin-bottom: 0;
+}
+.kp-read-view .kp-rv-callout-title {
+  margin: 0 0 0.35em;
+  color: var(--kp-rv-callout-tone);
+  font-weight: var(--kp-weight-semibold);
+  font-size: var(--kp-text-sm);
+  letter-spacing: var(--kp-tracking-snug);
+}
+.kp-read-view .me-renderer-callout-tip,
+.kp-read-view .me-renderer-callout-success {
+  --kp-rv-callout-tone: var(--kp-success);
+  --kp-rv-callout-bg: var(--kp-success-bg);
+}
+.kp-read-view .me-renderer-callout-important {
+  --kp-rv-callout-tone: var(--kp-accent);
+  --kp-rv-callout-bg: var(--kp-accent-bg);
+}
+.kp-read-view .me-renderer-callout-warning,
+.kp-read-view .me-renderer-callout-caution {
+  --kp-rv-callout-tone: var(--kp-warning);
+  --kp-rv-callout-bg: var(--kp-warning-bg);
+}
+.kp-read-view .me-renderer-callout-danger,
+.kp-read-view .me-renderer-callout-error {
+  --kp-rv-callout-tone: var(--kp-danger);
+  --kp-rv-callout-bg: var(--kp-danger-bg);
 }

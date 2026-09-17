@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
 import { Kysely } from 'kysely';
-import { makeApp, seedAdminAndLogin } from './helpers.js';
+import { conformant, curateCategories, makeApp, seedAdminAndLogin } from './helpers.js';
 import { KYSELY } from '../src/db/db.module.js';
 import type { Database } from '../src/db/schema.js';
 
@@ -23,6 +23,7 @@ describe('telemetry e2e', () => {
     app = await makeApp();
     ({ cookie, userId } = await seedAdminAndLogin(app));
     db = app.get<Kysely<Database>>(KYSELY);
+    await curateCategories(app);
   });
   afterEach(async () => app.close());
 
@@ -33,7 +34,7 @@ describe('telemetry e2e', () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/pages')
       .set('Cookie', cookie)
-      .send({ title: 'Telemetry Subject', body: 'x', status: 'published' })
+      .send({ title: 'Telemetry Subject', body: 'x', status: 'published', frontmatter: conformant() })
       .expect(201);
     const pageId = created.body.page.id as string;
 
@@ -64,7 +65,7 @@ describe('telemetry e2e', () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/pages')
       .set('Cookie', cookie)
-      .send({ title: 'Telemetry Dwell', body: 'x', status: 'published' })
+      .send({ title: 'Telemetry Dwell', body: 'x', status: 'published', frontmatter: conformant() })
       .expect(201);
     const pageId = created.body.page.id as string;
 

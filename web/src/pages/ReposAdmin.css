@@ -1,0 +1,120 @@
+/* Admin → Sources list (review §4.4): header, attention strip, filters, table. Token-driven, light/dark. */
+
+.ReposAdmin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-4);
+  min-width: 0;
+}
+
+/* The attention strip: one line naming what is blocked, each entry a way in. */
+.ReposAdmin__attention {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2) var(--kp-space-3);
+  padding: var(--kp-space-3) var(--kp-space-4);
+  border: 1px solid var(--kp-warning);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-warning-bg);
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-sm);
+}
+.ReposAdmin__attentionTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  margin: 0;
+  font-weight: var(--kp-weight-semibold);
+}
+.ReposAdmin__attentionTitle svg {
+  color: var(--kp-warning);
+}
+.ReposAdmin__attentionList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-1) var(--kp-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ReposAdmin__attentionItem {
+  min-height: 32px;
+  padding: 0 var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+.ReposAdmin__attentionItem:hover {
+  background: var(--kp-surface-sunken);
+}
+.ReposAdmin__attentionItem:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+.ReposAdmin__attentionShow {
+  margin-left: auto;
+}
+
+.ReposAdmin__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--kp-space-3);
+  width: 100%;
+}
+.ReposAdmin__filter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-medium);
+  color: var(--kp-text-primary);
+}
+.ReposAdmin__filter--search {
+  flex: 1 1 16rem;
+}
+.ReposAdmin__filter input,
+.ReposAdmin__filter select {
+  min-height: 36px;
+  padding: 0 var(--kp-space-3);
+  border: 1px solid var(--kp-border-strong);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font: inherit;
+  font-weight: var(--kp-weight-regular);
+}
+.ReposAdmin__count {
+  align-self: center;
+  margin-left: auto;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+}
+
+.ReposAdmin__source {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: start;
+}
+.ReposAdmin__sourceLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2);
+}
+.ReposAdmin__sourceId {
+  font-weight: var(--kp-weight-semibold);
+}
+.ReposAdmin__remote {
+  color: var(--kp-text-secondary);
+}
+.ReposAdmin__syncButton {
+  min-height: 2rem;
+  padding: 0 var(--kp-space-3);
+}

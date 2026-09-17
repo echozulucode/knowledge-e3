@@ -58,6 +58,15 @@ export function coverImageOf(page: BlogPageLike): string | null {
   return asString(f['cover']) ?? asString(f['cover_image']) ?? asString(f['hero_image']) ?? null;
 }
 
+/**
+ * Author-written alt text for the cover (frontmatter `cover_alt`), if any. Used
+ * on the article page only: on index surfaces a cover sits beside its title and
+ * is decorative (`alt=""`), so this is where the words are for.
+ */
+export function coverAltOf(page: BlogPageLike): string | null {
+  return asString(fm(page)['cover_alt']) ?? null;
+}
+
 /** Series name/slug this post belongs to (frontmatter `series`), if any. */
 export function seriesOf(page: BlogPageLike): string | null {
   return asString(fm(page)['series']) ?? null;

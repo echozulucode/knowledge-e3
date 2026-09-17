@@ -6,6 +6,8 @@ import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import { AppModule } from './app.module.js';
+import { assertAuthenticationEnabled } from './auth/auth-mode.js';
+import { trustProxySetting } from './config/server-config.js';
 import { NestPinoLogger } from './logger/nest-pino-logger.js';
 import { createPinoLogger } from './logger/pino.js';
 import { createRequestContextMiddleware } from './logger/request-context.middleware.js';
@@ -33,11 +35,29 @@ export interface ConfigureAppOptions {
  * tests exercise the stack that actually ships.
  */
 export function configureApp(app: INestApplication, opts: ConfigureAppOptions = {}): void {
+  // Which proxy hops may report the client address (issue 41 follow-up). Set
+  // before any middleware reads `req.ip`: the sign-in throttle and the MCP rate
+  // limiter both key on it. Off by default; see `TrustProxySetting`.
+  const trustProxy = trustProxySetting();
+  if (trustProxy !== false) (app.getHttpAdapter().getInstance() as express.Express).set('trust proxy', trustProxy);
+
+  // A full-fidelity OKF archive is uploaded as raw `.tar.gz` bytes. Registered
+  // BEFORE the `/okf/import` JSON parser (a path prefix of this route) so it
+  // claims the binary body first instead of the JSON parser choking on it.
+  app.use('/api/v1/okf/import/archive', express.raw({ type: () => true, limit: '50mb' }));
   // OKF bundle imports are whole-library payloads — parse them with a generous
   // limit, scoped to that route, before the global cap below claims the body.
   app.use('/api/v1/okf/import', express.json({ limit: '50mb' }));
+  // The import doors' dry runs take the very same bodies, so they get the very
+  // same parsers and limits — a bundle that fits the import but is refused by its
+  // own validate would make "validate first" impossible. Same ordering rule:
+  // `validate/archive` before its `validate` prefix.
+  app.use('/api/v1/okf/validate/archive', express.raw({ type: () => true, limit: '50mb' }));
+  app.use('/api/v1/okf/validate', express.json({ limit: '50mb' }));
   // Image uploads arrive as a raw binary body (no multipart dependency).
   app.use('/api/v1/images', express.raw({ type: () => true, limit: '25mb' }));
+  // Host webhooks are verified by an HMAC over the exact bytes sent.
+  app.use('/api/v1/sync/webhook', express.raw({ type: () => true, limit: '1mb' }));
 
   // Enforce 100 KB limit on request bodies (for bug-report size cap).
   app.use(express.json({ limit: '100kb' }));
@@ -92,6 +112,11 @@ export function configureApp(app: INestApplication, opts: ConfigureAppOptions = 
 }
 
 export async function createApp(): Promise<INestApplication> {
+  // Before anything else: a leftover `auth.mode: disabled` stops the boot with
+  // the fix in one message, not after a screen of Nest module logs.
+  // (AuthService.onModuleInit repeats the check for other harnesses.)
+  assertAuthenticationEnabled();
+
   // Initialize Sentry before creating the app (if SENTRY_DSN is set).
   await maybeInitSentry();
 
@@ -101,6 +126,7 @@ export async function createApp(): Promise<INestApplication> {
   const app = await NestFactory.create(AppModule, {
     logger: new NestPinoLogger(pinoLogger),
   });
+  app.enableShutdownHooks();
 
   // Check for production cookie security config.
   if (process.env['NODE_ENV'] === 'production') {

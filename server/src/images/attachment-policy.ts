@@ -167,6 +167,11 @@ export function sanitizeFilename(name: string | undefined): string | null {
   return clean.slice(0, 200);
 }
 
+/** The allowlisted MIME types in the given categories (the Files page's "Documents" filter). */
+export function attachmentMimesIn(...categories: AttachmentCategory[]): string[] {
+  return TYPES.filter((t) => categories.includes(t.category)).map((t) => t.mime);
+}
+
 /** Content-Type serving disposition for a stored MIME (defaults to download). */
 export function dispositionFor(mime: string): AttachmentDisposition {
   return BY_MIME.get(normalizeMime(mime))?.disposition ?? 'download';

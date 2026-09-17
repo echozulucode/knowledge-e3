@@ -3,6 +3,7 @@ import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
 import { AdminOnly, CurrentUser } from '../auth/auth.decorators.js';
 import type { AuthedUser } from '../auth/auth.service.js';
 import { ItemsService } from '../items/items.service.js';
+import { SyncService } from '../sync/sync.service.js';
 import { RepoConfigService } from './repo-config.service.js';
 import { RepoPullService } from './repo-pull.service.js';
 
@@ -40,6 +41,7 @@ export class ReposController {
     private readonly repos: RepoConfigService,
     private readonly items: ItemsService,
     private readonly pull: RepoPullService,
+    private readonly sync: SyncService,
   ) {}
 
   @Get()
@@ -58,8 +60,14 @@ export class ReposController {
   }
 
   @Post(':spaceId/sync')
-  async sync(@Param('spaceId') spaceId: string) {
-    return this.items.resyncSpace(spaceId);
+  async syncNow(@Param('spaceId') spaceId: string) {
+    const result = await this.items.resyncSpace(spaceId);
+    // The mirror flush above commits; when the sync engine owns the push for
+    // this source (plan §12 cadence) ask it to push now rather than wait.
+    const bound = await this.repos.forSpace(spaceId);
+    const sourceId = bound?.id ?? 'main';
+    if (this.sync.isManaged(sourceId)) await this.sync.requestPush(sourceId, 'manual');
+    return result;
   }
 
   @Post(':spaceId/pull')

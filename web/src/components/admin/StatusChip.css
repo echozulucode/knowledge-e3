@@ -1,0 +1,62 @@
+/* StatusChip — token-driven, light/dark. Text colours are the tone tokens on
+   their own -bg tints, which the token file keeps at AA in both themes. */
+
+.kp-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  max-width: 100%;
+  padding: 2px var(--kp-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--kp-radius-pill);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-medium);
+  line-height: 1.4;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.kp-status-chip[data-size='sm'] {
+  padding: 0 6px;
+  font-size: var(--kp-text-xs);
+}
+
+.kp-status-chip__icon {
+  flex: none;
+  width: 1.05em;
+  height: 1.05em;
+}
+.kp-status-chip__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kp-status-chip[data-tone='ok'] {
+  color: var(--kp-success);
+  background: var(--kp-success-bg);
+}
+.kp-status-chip[data-tone='info'] {
+  color: var(--kp-info);
+  background: var(--kp-info-bg);
+}
+/* Pending is deliberately neutral: waiting is not a problem. The border keeps
+   it distinguishable from plain text without relying on hue. */
+.kp-status-chip[data-tone='pending'] {
+  color: var(--kp-text-secondary);
+  background: var(--kp-surface-muted);
+  border-color: var(--kp-border-subtle);
+}
+.kp-status-chip[data-tone='warn'] {
+  color: var(--kp-warning);
+  background: var(--kp-warning-bg);
+}
+.kp-status-chip[data-tone='error'] {
+  color: var(--kp-danger);
+  background: var(--kp-danger-bg);
+}
+
+/* Windows High Contrast / forced colours: tints vanish, so draw the outline. */
+@media (forced-colors: active) {
+  .kp-status-chip {
+    border-color: CanvasText;
+  }
+}

@@ -2,7 +2,8 @@
  * RightContextPane — the Obsidian/VS Code-style secondary sidebar for reading
  * pages (goals doc §4). Flush-right, full-height, muted; scrolls independently
  * from the article. Tabs: TOC (default) · Properties · Tags. Collapses to a
- * narrow icon strip.
+ * narrow icon strip. What links here is no longer one of the tabs — it reads as
+ * Related at the end of the article instead (plan §6, R4.7).
  */
 import { useState, type ReactNode } from 'react';
 import { Icon, appIcons } from '../icons.js';
@@ -23,11 +24,16 @@ export interface PaneProperty {
 export interface RightContextPaneProps {
   toc: TocEntry[];
   properties: PaneProperty[];
+  /**
+   * Everything outside the caller's allow-list (reader UX plan §6, R4.4). Kept
+   * separate rather than appended, because a deny-list puts every frontmatter
+   * key anyone ever invents on a reader's screen by default — a leak generator
+   * rather than a leak. These stay behind a closed disclosure.
+   */
+  extraProperties?: PaneProperty[];
   tags: string[];
   onScrollTo: (id: string) => void;
   onTagClick?: (tag: string) => void;
-  /** Related/backlinks content rendered under the Tags tab. */
-  relatedSlot?: ReactNode;
   /** Collapsed state is owned by the parent so the reading grid can shrink. */
   collapsed: boolean;
   onToggleCollapsed: () => void;
@@ -35,7 +41,7 @@ export interface RightContextPaneProps {
 
 type PaneTab = 'toc' | 'props' | 'tags';
 
-export function RightContextPane({ toc, properties, tags, onScrollTo, onTagClick, relatedSlot, collapsed, onToggleCollapsed }: RightContextPaneProps) {
+export function RightContextPane({ toc, properties, extraProperties = [], tags, onScrollTo, onTagClick, collapsed, onToggleCollapsed }: RightContextPaneProps) {
   const [tab, setTab] = useState<PaneTab>('toc');
 
   const tabs: { id: PaneTab; label: string; icon: typeof appIcons.list }[] = [
@@ -112,7 +118,7 @@ export function RightContextPane({ toc, properties, tags, onScrollTo, onTagClick
 
         {tab === 'props' && (
           <>
-            <h2 className="kp-ctx-title">Object properties</h2>
+            <h2 className="kp-ctx-title">Properties</h2>
             <dl className="kp-ctx-props">
               {properties.map((p, i) => (
                 <div className="kp-ctx-prop" key={`${p.label}-${i}`}>
@@ -121,12 +127,25 @@ export function RightContextPane({ toc, properties, tags, onScrollTo, onTagClick
                 </div>
               ))}
             </dl>
+            {extraProperties.length > 0 ? (
+              <details className="kp-ctx-more">
+                <summary>Show all properties</summary>
+                <dl className="kp-ctx-props">
+                  {extraProperties.map((p, i) => (
+                    <div className="kp-ctx-prop" key={`extra-${p.label}-${i}`}>
+                      <dt>{p.label}</dt>
+                      <dd className={p.mono ? 'mono' : undefined}>{p.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </details>
+            ) : null}
           </>
         )}
 
         {tab === 'tags' && (
           <>
-            <h2 className="kp-ctx-title">Tags &amp; links</h2>
+            <h2 className="kp-ctx-title">Tags</h2>
             {tags.length ? (
               <div className="kp-ctx-tags">
                 {tags.map((t) => (
@@ -138,7 +157,6 @@ export function RightContextPane({ toc, properties, tags, onScrollTo, onTagClick
             ) : (
               <p className="kp-ctx-empty">No tags.</p>
             )}
-            {relatedSlot ? <div className="kp-ctx-related">{relatedSlot}</div> : null}
           </>
         )}
       </div>

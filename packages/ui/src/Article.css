@@ -1,0 +1,86 @@
+/* Article / ArticleHeader — the read surface's own typography (plan R1.2).
+   This is the scale that used to live in inline `style={{}}` objects in
+   PageView.tsx, moved into the token system where the rest of the product can
+   see it. No colour is declared here; every value is a token. */
+
+.kp-article {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.kp-article__body {
+  min-width: 0;
+}
+
+.kp-article-header {
+  display: flex;
+  flex-direction: column;
+  padding: var(--kp-space-6) var(--kp-content-pad, var(--kp-space-6)) var(--kp-space-3);
+  background: var(--kp-surface-base);
+}
+
+.kp-article-header__cover {
+  width: 100%;
+  max-height: 340px;
+  object-fit: cover;
+  border-radius: var(--kp-radius-lg);
+  margin-bottom: var(--kp-space-4);
+  background: var(--kp-surface-sunken);
+}
+
+.kp-article-header__badges {
+  margin-bottom: var(--kp-space-3);
+  gap: var(--kp-space-2);
+}
+
+.kp-article-header__notice {
+  margin: 0 0 var(--kp-space-3);
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+
+.kp-article-header__title {
+  margin: 0;
+  font-family: var(--kp-font-ui);
+  font-size: var(--kp-text-3xl);
+  font-weight: var(--kp-weight-bold);
+  letter-spacing: var(--kp-tracking-tight);
+  line-height: var(--kp-leading-tight);
+  color: var(--kp-text-primary);
+}
+
+.kp-article-header__description {
+  margin: var(--kp-space-3) 0 0;
+  font-size: var(--kp-text-md);
+  line-height: var(--kp-leading-snug);
+  color: var(--kp-text-secondary);
+  max-width: 68ch;
+}
+
+.kp-article-header__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  /* The part/separator structure (.kp-item-meta__part) carries its own
+     space-1 after each dot; a wider gap here left "Published  · By" lopsided.
+     Same fix as .kp-item-card__meta in item.css. */
+  gap: var(--kp-space-1);
+  margin-top: var(--kp-space-4);
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-muted);
+}
+
+/* Status pill. `published` is the only state with a tone of its own — a draft
+   is not a warning, it is simply not published yet, so it stays quiet. */
+.kp-article-header__status {
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  padding: 2px 9px;
+  border-radius: var(--kp-radius-pill);
+  color: var(--kp-text-secondary);
+  background: var(--kp-surface-sunken);
+}
+.kp-article-header__status[data-status='published'] {
+  color: var(--kp-success);
+  background: var(--kp-success-bg);
+}

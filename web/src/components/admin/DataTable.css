@@ -1,0 +1,383 @@
+/* DataTable — token-driven, light/dark.
+   Table at container width >= 48rem, stacked cards below. Container queries,
+   not viewport media queries: the same table must turn into cards inside a
+   narrow sheet on a wide screen. `hideBelow="lg"` columns also drop between
+   48rem and 64rem. */
+
+.kp-dt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+  min-width: 0;
+  color: var(--kp-text-primary);
+}
+
+.kp-dt__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2);
+}
+
+.kp-dt__body {
+  container: kp-dt / inline-size;
+  min-width: 0;
+}
+
+.kp-dt__vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- table ---------------------------------------------------------- */
+
+.kp-dt__scroll {
+  overflow-x: auto;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+}
+
+.kp-dt__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--kp-text-sm);
+  transition: opacity var(--kp-duration) var(--kp-ease);
+}
+.kp-dt__table[aria-busy='true'] {
+  opacity: 0.6;
+}
+
+.kp-dt__table th,
+.kp-dt__table td {
+  padding: var(--kp-space-2) var(--kp-space-3);
+  text-align: start;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--kp-border-subtle);
+}
+.kp-dt__table tbody:last-child tr:last-child > :is(td, th) {
+  border-bottom: 0;
+}
+.kp-dt__table [data-align='end'] {
+  text-align: end;
+}
+
+.kp-dt__table thead th {
+  height: 40px;
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--kp-text-secondary);
+  background: var(--kp-surface-sunken);
+  white-space: nowrap;
+}
+
+.kp-dt__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-1);
+  min-height: 32px;
+  margin: 0 calc(-1 * var(--kp-space-2));
+  padding: 0 var(--kp-space-2);
+  border: 0;
+  border-radius: var(--kp-radius-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+.kp-dt__sort:hover,
+.kp-dt__sort[data-active='true'] {
+  color: var(--kp-text-primary);
+}
+.kp-dt__sort:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 0;
+}
+.kp-dt__sort-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.8;
+}
+
+.kp-dt__decorator-col,
+.kp-dt__decorator {
+  width: 1%;
+  padding-inline-end: 0 !important;
+}
+.kp-dt__actions-col,
+.kp-dt__actions {
+  width: 1%;
+  text-align: end !important;
+  white-space: nowrap;
+}
+
+.kp-dt__group > th {
+  padding-top: var(--kp-space-4);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--kp-text-secondary);
+  background: var(--kp-surface-base);
+}
+
+.kp-dt__row {
+  min-height: 48px;
+}
+.kp-dt__row[data-clickable='true'] {
+  cursor: pointer;
+}
+.kp-dt__row[data-clickable='true']:hover > td {
+  background: var(--kp-surface-sunken);
+}
+.kp-dt__row[data-selected='true'] > td {
+  background: var(--kp-accent-bg);
+}
+.kp-dt__row[data-selected='true'] > td:first-child {
+  box-shadow: inset 3px 0 0 var(--kp-accent);
+}
+
+/* The primary cell's open control looks like text but is a real button/link. */
+.kp-dt__open {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  min-height: 32px;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--kp-text-primary);
+  font: inherit;
+  font-weight: var(--kp-weight-semibold);
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+.kp-dt__open:hover {
+  color: var(--kp-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.kp-dt__open:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--kp-radius-xs);
+}
+
+/* ---- states & pager ------------------------------------------------- */
+
+.kp-dt__message {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kp-space-3);
+  padding: var(--kp-space-4);
+  border: 1px solid var(--kp-danger);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-danger-bg);
+  color: var(--kp-danger);
+  font-size: var(--kp-text-sm);
+}
+.kp-dt__message p {
+  margin: 0;
+}
+
+.kp-dt__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+}
+.kp-dt__skeleton-row {
+  height: 48px;
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-muted);
+  animation: kp-dt-pulse 1.4s var(--kp-ease) infinite;
+}
+@keyframes kp-dt-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.kp-dt__button {
+  min-height: 40px;
+  padding: 0 var(--kp-space-4);
+  border: 1px solid var(--kp-border-strong);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font: inherit;
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-medium);
+  cursor: pointer;
+}
+.kp-dt__button:hover:not(:disabled) {
+  background: var(--kp-surface-sunken);
+}
+.kp-dt__button:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+.kp-dt__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.kp-dt__pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--kp-space-2);
+  margin-top: var(--kp-space-3);
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+.kp-dt__range {
+  margin-inline-end: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.kp-dt__card-sort {
+  display: none;
+  align-items: center;
+  gap: var(--kp-space-2);
+  margin-bottom: var(--kp-space-2);
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+.kp-dt__card-sort select {
+  flex: 1;
+  min-height: 40px;
+  padding: 0 var(--kp-space-2);
+  border: 1px solid var(--kp-border-strong);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font: inherit;
+}
+.kp-dt__card-sort select:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 1px;
+}
+
+/* ---- responsive ----------------------------------------------------- */
+
+@container kp-dt (max-width: 63.99rem) {
+  .kp-dt__table [data-hide='lg'] {
+    display: none;
+  }
+}
+
+/* Cards. Each row is a grid: handle | title + fields | actions. */
+@container kp-dt (max-width: 47.99rem) {
+  .kp-dt__card-sort {
+    display: flex;
+  }
+  .kp-dt__scroll {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+  .kp-dt__table,
+  .kp-dt__table tbody {
+    display: block;
+  }
+  .kp-dt__table thead {
+    display: none;
+  }
+  .kp-dt__table [data-hide='md'],
+  .kp-dt__table [data-hide='lg'] {
+    display: none;
+  }
+
+  .kp-dt__group {
+    display: block;
+  }
+  .kp-dt__group > th {
+    display: block;
+    padding: var(--kp-space-3) 0 var(--kp-space-2);
+    border: 0;
+    background: transparent;
+  }
+
+  .kp-dt__row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    margin-bottom: var(--kp-space-2);
+    padding: var(--kp-space-2) var(--kp-space-1);
+    border: 1px solid var(--kp-border-subtle);
+    border-radius: var(--kp-radius-md);
+    background: var(--kp-surface-base);
+  }
+  .kp-dt__row[data-selected='true'] {
+    border-color: var(--kp-accent);
+    background: var(--kp-accent-bg);
+  }
+  .kp-dt__row[data-clickable='true']:hover {
+    background: var(--kp-surface-sunken);
+  }
+  .kp-dt__row > td,
+  .kp-dt__row[data-clickable='true']:hover > td,
+  .kp-dt__row[data-selected='true'] > td {
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .kp-dt__table .kp-dt__row > td {
+    display: flex;
+    gap: var(--kp-space-3);
+    grid-column: 2;
+    min-width: 0;
+    padding: 2px var(--kp-space-2);
+    border: 0;
+    text-align: start;
+  }
+  .kp-dt__row > td:not([data-primary], .kp-dt__decorator, .kp-dt__actions)::before {
+    content: attr(data-label);
+    flex: none;
+    width: 7.5rem;
+    color: var(--kp-text-secondary);
+  }
+  .kp-dt__table .kp-dt__row > td[data-primary] {
+    grid-row: 1;
+    padding-block: var(--kp-space-1);
+    font-size: var(--kp-text-base);
+  }
+  /* span 50 implicit rows of height 0 so the handle and menu sit beside every field */
+  .kp-dt__table .kp-dt__row > td.kp-dt__decorator {
+    grid-column: 1;
+    grid-row: 1 / span 50;
+    width: auto;
+    padding: 0;
+  }
+  .kp-dt__table .kp-dt__row > td.kp-dt__actions {
+    grid-column: 3;
+    grid-row: 1 / span 50;
+    width: auto;
+    padding: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kp-dt__skeleton-row {
+    animation: none;
+  }
+  .kp-dt__table {
+    transition: none;
+  }
+}

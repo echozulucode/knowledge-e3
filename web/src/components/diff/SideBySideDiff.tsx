@@ -10,9 +10,12 @@ import './SideBySideDiff.css';
 export interface SideBySideDiffProps {
   left: string;
   right: string;
+  /** Column headings; default to the editor conflict dialog's wording. */
+  leftLabel?: string;
+  rightLabel?: string;
 }
 
-export function SideBySideDiff({ left, right }: SideBySideDiffProps) {
+export function SideBySideDiff({ left, right, leftLabel = 'Server version', rightLabel = 'Your version' }: SideBySideDiffProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Check if inputs are too large to diff inline
@@ -63,7 +66,7 @@ export function SideBySideDiff({ left, right }: SideBySideDiffProps) {
         {/* LEFT COLUMN: Server version */}
         <div className="kp-diff-left">
           <div className="kp-diff-column-header">
-            <div className="kp-diff-column-title">Server version</div>
+            <div className="kp-diff-column-title">{leftLabel}</div>
           </div>
           <div className="kp-diff-rows">
             {segments.map((seg, idx) => (
@@ -79,7 +82,7 @@ export function SideBySideDiff({ left, right }: SideBySideDiffProps) {
         {/* RIGHT COLUMN: Your version */}
         <div className="kp-diff-right">
           <div className="kp-diff-column-header">
-            <div className="kp-diff-column-title">Your version</div>
+            <div className="kp-diff-column-title">{rightLabel}</div>
           </div>
           <div className="kp-diff-rows">
             {segments.map((seg, idx) => (

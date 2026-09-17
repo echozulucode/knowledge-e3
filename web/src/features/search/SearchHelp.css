@@ -1,0 +1,103 @@
+/* SearchHelp — the "Searching" section of /help. It sits in the help card
+   under the shortcuts, so it borrows the card's rhythm and adds only what two
+   tables need. */
+
+.kp-search-help {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+  margin-top: var(--kp-space-8);
+  padding-top: var(--kp-space-6);
+  border-top: 1px solid var(--kp-border-subtle);
+  min-width: 0;
+}
+
+.kp-search-help__title {
+  margin: 0;
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-xl);
+}
+
+.kp-search-help__intro {
+  max-width: 720px;
+  margin: 0;
+  color: var(--kp-text-secondary);
+  line-height: 1.6;
+}
+
+.kp-search-help__heading {
+  margin: var(--kp-space-3) 0 0;
+  color: var(--kp-text-muted);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: var(--kp-tracking-snug);
+  text-transform: uppercase;
+}
+
+/* A table may be wider than a phone; it scrolls inside itself, never the page. */
+.kp-search-help__tableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+}
+
+.kp-search-help__tableWrap:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+
+.kp-search-help__table {
+  width: 100%;
+  min-width: 32rem;
+  border-collapse: collapse;
+  font-size: var(--kp-text-sm);
+}
+
+.kp-search-help__table th,
+.kp-search-help__table td {
+  padding: var(--kp-space-2) var(--kp-space-3);
+  border-bottom: 1px solid var(--kp-border-subtle);
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.45;
+}
+
+.kp-search-help__table tbody tr:last-child th,
+.kp-search-help__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.kp-search-help__table thead th {
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-muted);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+}
+
+.kp-search-help__table tbody th {
+  color: var(--kp-text-primary);
+  font-weight: var(--kp-weight-medium);
+  white-space: nowrap;
+}
+
+.kp-search-help__table td {
+  color: var(--kp-text-secondary);
+}
+
+.kp-search-help__table code {
+  font-family: var(--kp-font-mono);
+  color: var(--kp-text-primary);
+  white-space: nowrap;
+}
+
+.kp-search-help__rules {
+  margin: 0;
+  padding-left: var(--kp-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+  color: var(--kp-text-secondary);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}

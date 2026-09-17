@@ -1,14 +1,20 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
+import { mapMcpToolError } from './mcp-errors.js';
 import { AuthService } from '../auth/auth.service.js';
-import { ItemsService, type ItemView } from '../items/items.service.js';
-import { isAnonymousContext, type McpTool, type McpToolContext, type McpToolDescriptor } from './tools/schemas.js';
+import { isAnonymousContext, isReadTokenContext, type McpTool, type McpToolContext, type McpToolDescriptor } from './tools/schemas.js';
 import { CreateItemTool as McpCreateItemTool, type McpCreateItemInput } from './tools/create-item.tool.js';
 import { ExportOkfTool } from './tools/export-okf.tool.js';
+import { GetItemTool } from './tools/get-item.tool.js';
 import { ImportOkfTool } from './tools/import-okf.tool.js';
 import { ListContentTypesTool } from './tools/list-content-types.tool.js';
 import { ListSpacesTool } from './tools/list-spaces.tool.js';
 import { ListTaxonomyTool } from './tools/list-taxonomy.tool.js';
+import { PublishItemTool } from './tools/publish-item.tool.js';
 import { SearchTool } from './tools/search.tool.js';
+import { SuggestMetadataTool } from './tools/suggest-metadata.tool.js';
+import { UpdateItemTool } from './tools/update-item.tool.js';
+import { ValidateItemTool } from './tools/validate-item.tool.js';
+import { ValidateOkfBundleTool } from './tools/validate-okf-bundle.tool.js';
 
 interface JsonRpcRequest {
   jsonrpc?: string;
@@ -24,7 +30,6 @@ export class McpService {
 
   constructor(
     private readonly auth: AuthService,
-    private readonly items: ItemsService,
     private readonly createItem: McpCreateItemTool,
     listSpaces: ListSpacesTool,
     listTaxonomy: ListTaxonomyTool,
@@ -32,6 +37,12 @@ export class McpService {
     search: SearchTool,
     exportOkf: ExportOkfTool,
     importOkf: ImportOkfTool,
+    validateOkfBundle: ValidateOkfBundleTool,
+    suggestMetadata: SuggestMetadataTool,
+    validateItem: ValidateItemTool,
+    updateItem: UpdateItemTool,
+    publishItem: PublishItemTool,
+    getItem: GetItemTool,
   ) {
     this.tools = [
       listSpaces,
@@ -40,8 +51,13 @@ export class McpService {
       search,
       exportOkf,
       importOkf,
-      this.getItemTool(),
+      validateOkfBundle,
+      suggestMetadata,
+      validateItem,
+      getItem,
       this.createItemTool(),
+      updateItem,
+      publishItem,
     ];
   }
 
@@ -68,36 +84,27 @@ export class McpService {
   }
 
   /**
-   * Map a thrown error to a JSON-RPC error object. Structured Nest
-   * `HttpException`s (BadRequest/Conflict/Forbidden/NotFound) keep their shaped
-   * response in `error.data` so MCP clients can read fields like
-   * `duplicate_title`. Unknown errors are logged server-side and returned as a
-   * generic internal error — we never leak raw messages/stack traces.
+   * Map a thrown error to a JSON-RPC error object. The decision about what an
+   * exception may reveal lives in `mapMcpToolError`, shared with the
+   * spec-compliant `/mcp` endpoint so the two transports cannot drift again
+   * (issue 45): structured `HttpException` fields land in `error.data`; unknown
+   * errors become a generic internal error carrying a correlation id.
    */
   private errorFromException(id: JsonRpcRequest['id'], err: unknown) {
-    if (err instanceof HttpException) {
-      const status = err.getStatus();
-      const response = err.getResponse();
-      const data = typeof response === 'string' ? { detail: response } : (response as Record<string, unknown>);
-      const message = typeof response === 'string'
-        ? response
-        : ((data['message'] as string | undefined) ?? err.message);
-      return this.error(id, rpcCodeForStatus(status), message, data);
-    }
-    this.logger.error('MCP tool failed', err instanceof Error ? err.stack : String(err));
-    return this.error(id, -32603, 'Internal error');
+    const mapped = mapMcpToolError(err, this.logger);
+    return this.error(id, mapped.code, mapped.message, mapped.data);
   }
 
   /**
-   * Tools visible to this caller. Anonymous visitors on a public instance get
-   * the read-only subset — but hiding a tool is presentation, not enforcement;
-   * `callToolByName` is the actual gate.
+   * Tools visible to this caller. Anonymous visitors on a public instance and
+   * read-scoped token callers get the read-only subset — but hiding a tool is
+   * presentation, not enforcement; `callToolByName` is the actual gate.
    */
   listTools(context: McpToolContext = {}): McpToolDescriptor[] {
-    const anonymous = isAnonymousContext(context);
+    const readOnly = isAnonymousContext(context) || isReadTokenContext(context);
     return this.tools
       .map((tool) => tool.descriptor)
-      .filter((descriptor) => !(anonymous && descriptor.write));
+      .filter((descriptor) => !(readOnly && descriptor.write));
   }
 
   /**
@@ -117,31 +124,10 @@ export class McpService {
         403,
       );
     }
+    if (tool.descriptor.write && isReadTokenContext(context)) {
+      throw new HttpException({ message: `${name} requires a write-scoped token: this token is read-only.` }, 403);
+    }
     return tool.call(args, context);
-  }
-
-  private getItemTool(): McpTool {
-    return {
-      descriptor: {
-        name: 'knowledge.get_item',
-        title: 'Get knowledge item',
-        description: 'Get a Knowledge E3 item by stable id first, or by slug/title compatibility lookup, including body and taxonomy fields.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', description: 'Stable item/page id.' },
-            slug: { type: 'string', description: 'Human-readable item slug.' },
-            title: { type: 'string', description: 'Exact item title.' },
-          },
-          additionalProperties: false,
-        },
-      },
-      call: async (input, context) => {
-        const page = await this.findPage(input, context);
-        if (!page) throw new Error('knowledge.get_item could not find an item for the supplied id, slug, or title');
-        return { item: toMcpItem(page) };
-      },
-    };
   }
 
   private createItemTool(): McpTool<McpCreateItemInput> {
@@ -149,24 +135,13 @@ export class McpService {
       descriptor: this.createItem.descriptor,
       call: async (input, context) => {
         // Attribute the new item to the authenticated MCP caller so ownership,
-        // draft visibility, and audit all reflect who actually created it. Only
-        // fall back to the synthetic system actor when auth is disabled and no
-        // user is present on the context.
+        // draft visibility, and audit all reflect who actually created it. Over
+        // HTTP there is always a user (the guard attaches one); the system actor
+        // is only for an in-process call with no user on the context.
         const actorId = mcpActor(context)?.id ?? (await this.auth.ensureLocalSystemActor()).id;
         return this.createItem.execute(actorId, input);
       },
     };
-  }
-
-  private async findPage(input: Record<string, unknown>, context?: McpToolContext): Promise<ItemView | null> {
-    const actor = mcpActor(context);
-    const id = stringValue(input['id']);
-    if (id) return this.items.getById(id, actor);
-    const slug = stringValue(input['slug']);
-    if (slug) return this.items.getBySlug(slug, actor);
-    const title = stringValue(input['title']);
-    if (title) return this.items.getByTitle(title, actor);
-    return null;
   }
 
   private result(id: JsonRpcRequest['id'], result: unknown) {
@@ -178,44 +153,6 @@ export class McpService {
     if (data !== undefined) error.data = data;
     return { jsonrpc: '2.0', id, error };
   }
-}
-
-/** Map an HTTP status to a JSON-RPC error code in the server-defined range. */
-function rpcCodeForStatus(status: number): number {
-  switch (status) {
-    case 400: return -32602; // invalid params
-    case 401: return -32001;
-    case 403: return -32003;
-    case 404: return -32004;
-    case 409: return -32009;
-    default: return -32000;
-  }
-}
-
-function toMcpItem(item: ItemView) {
-  const frontmatter = item.frontmatter ?? {};
-  const spaceValue = typeof frontmatter['space'] === 'string' ? frontmatter['space'] : typeof frontmatter['topic'] === 'string' ? frontmatter['topic'] : item.space_id;
-  return {
-    id: item.id,
-    slug: item.slug,
-    title: item.title,
-    status: item.status,
-    space: spaceValue,
-    tags: item.tags,
-    categories: item.categories,
-    groups: item.groups,
-    path: `/items/${item.id}`,
-    url: `/p/${item.slug}`,
-    updated_at: item.updated_at,
-    version_token: item.version_token,
-    body_markdown: item.body_markdown,
-    raw_markdown: item.raw_markdown,
-    frontmatter,
-  };
-}
-
-function stringValue(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 function mcpActor(context?: McpToolContext): { id: string; role: 'user' | 'admin' } | undefined {

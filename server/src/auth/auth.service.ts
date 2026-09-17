@@ -1,27 +1,34 @@
 import {
   Inject,
   Injectable,
+  type OnModuleInit,
   UnauthorizedException,
   ConflictException,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import { Kysely } from 'kysely';
+import { Kysely, sql } from 'kysely';
 import type { Database } from '../db/schema.js';
 import { KYSELY } from '../db/db.module.js';
 import { newId, nowIso } from '../common/ids.js';
-import { hashPassword, verifyPassword } from './password.js';
-import { LOCAL_SYSTEM_ACTOR } from './auth-mode.js';
+import { DUMMY_PASSWORD_HASH, hashPassword, verifyPassword } from './password.js';
+import { LOCAL_SYSTEM_ACTOR, assertAuthenticationEnabled } from './auth-mode.js';
 import { ConfigService, validatePassword } from '../config/config.service.js';
+import { AuditService } from '../audit/audit.service.js';
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days, sliding (per spec)
+
+export type TokenScope = 'read' | 'write';
 
 export interface AuthedUser {
   id: string;
   username: string;
   email: string;
   role: 'user' | 'admin';
+  /** Present when the request authenticated with a personal access token
+   * rather than a session cookie. `scope: 'read'` callers may only read. */
+  token?: { id: string; scope: TokenScope };
 }
 
 export interface CreateUserInput {
@@ -44,12 +51,50 @@ export interface UserListItem {
   last_seen_at: string | null;
 }
 
+/** Columns the Users console may sort by. `status` ascending puts active before disabled. */
+export const USER_SORT_KEYS = ['username', 'role', 'status', 'last_seen', 'created'] as const;
+export type UserSortKey = (typeof USER_SORT_KEYS)[number];
+
+export const USERS_LIST_DEFAULT_LIMIT = 50;
+export const USERS_LIST_MAX_LIMIT = 200;
+
+export interface ListUsersQuery {
+  /** Case-insensitive substring of username OR email. */
+  q?: string;
+  role?: 'user' | 'admin';
+  status?: 'active' | 'disabled';
+  /** Default {@link USERS_LIST_DEFAULT_LIMIT}; clamped to {@link USERS_LIST_MAX_LIMIT}. */
+  limit?: number;
+  offset?: number;
+  /** Default `created` ascending: the order the list always had. */
+  sort?: UserSortKey;
+  direction?: 'asc' | 'desc';
+}
+
+export interface ListUsersResult {
+  users: UserListItem[];
+  /** Every account matching the filters, not just this page. */
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
   constructor(
     @Inject(KYSELY) private readonly db: Kysely<Database>,
     @Inject(ConfigService) private readonly config: ConfigService,
+    @Inject(AuditService) private readonly audit: AuditService,
   ) {}
+
+  /**
+   * Refuse to start with authentication turned off. Here as well as in
+   * `createApp` so the e2e harness and every script that builds a Nest context
+   * refuse the same way (auth-mode.ts).
+   */
+  onModuleInit(): void {
+    assertAuthenticationEnabled();
+  }
 
   /** Throw a 400 if the password violates the current admin policy. */
   private async enforcePasswordPolicy(password: string): Promise<void> {
@@ -61,9 +106,10 @@ export class AuthService {
   }
 
   /**
-   * Local no-auth mode still needs a stable actor row because pages/audit rows
-   * retain user foreign keys. This method is intentionally idempotent and only
-   * used when KNOWLEDGE_E3_AUTH_MODE=disabled.
+   * The system actor's row (see `LOCAL_SYSTEM_ACTOR`): system writes still need a
+   * stable user because pages and audit rows keep user foreign keys. Idempotent.
+   * Never the identity of an HTTP request, and it cannot sign in: `login`
+   * refuses the id, and the stored hash is of a random secret nobody holds.
    */
   async ensureLocalSystemActor(): Promise<AuthedUser> {
     const existing = await this.db
@@ -81,7 +127,9 @@ export class AuthService {
     if (alreadyCanonical) return LOCAL_SYSTEM_ACTOR;
 
     const now = nowIso();
-    const passwordHash = await hashPassword(`disabled-auth-${LOCAL_SYSTEM_ACTOR.id}`);
+    // A random secret, thrown away. The old hash was of a fixed, guessable
+    // string; `login` refusing the id is what closes that for rows written then.
+    const passwordHash = await hashPassword(randomBytes(32).toString('base64url'));
 
     if (existing) {
       await this.db
@@ -129,7 +177,18 @@ export class AuthService {
       )
       .executeTakeFirst();
     if (existing) {
-      throw new ConflictException('User with that email or username already exists');
+      // Say WHICH field clashed, with a machine-readable `reason`, so the create
+      // form can put the message under that field instead of guessing.
+      const taken = await this.db
+        .selectFrom('users')
+        .select(['id'])
+        .where('username', '=', input.username)
+        .executeTakeFirst();
+      throw new ConflictException(
+        taken
+          ? { statusCode: 409, reason: 'username_taken', message: 'A user with that username already exists.' }
+          : { statusCode: 409, reason: 'email_taken', message: 'A user with that email already exists.' },
+      );
     }
 
     await this.enforcePasswordPolicy(input.password);
@@ -152,47 +211,108 @@ export class AuthService {
     return { id, email: input.email, username: input.username, role: input.role ?? 'user' };
   }
 
-  /** Admin Users console: list accounts with derived status + last-seen. The
-   * internal local-system actor is never shown. `q`/`role`/`status` are optional
-   * filters; at trial-cohort scale `q`/`status` are applied in memory. */
-  async listUsers(
-    opts: { q?: string; role?: 'user' | 'admin'; status?: 'active' | 'disabled' } = {},
-  ): Promise<UserListItem[]> {
-    let query = this.db
-      .selectFrom('users')
-      .leftJoin('sessions', 'sessions.user_id', 'users.id')
-      .select([
-        'users.id as id',
-        'users.username as username',
-        'users.email as email',
-        'users.role as role',
-        'users.created_at as created_at',
-        'users.deleted_at as deleted_at',
-      ])
-      .select((eb) => eb.fn.max('sessions.last_seen_at').as('last_seen_at'))
-      .where('users.id', '!=', LOCAL_SYSTEM_ACTOR.id)
-      .groupBy('users.id');
-    if (opts.role) query = query.where('users.role', '=', opts.role);
+  /**
+   * Admin Users console: one page of accounts with derived status + last-seen,
+   * and the total matching the filters. The internal local-system actor is never
+   * shown or counted.
+   *
+   * Filtering, sorting and paging all happen in SQL. The first version loaded
+   * every account and filtered in memory, which suited a trial cohort and not an
+   * instance with thousands of accounts. `last_seen_at` is a correlated MAX over
+   * sessions rather than a join + GROUP BY, so the count query can share the
+   * same WHERE without the grouping.
+   */
+  async listUsers(opts: ListUsersQuery = {}): Promise<ListUsersResult> {
+    const limit = Math.max(1, Math.min(USERS_LIST_MAX_LIMIT, Math.floor(opts.limit ?? USERS_LIST_DEFAULT_LIMIT)));
+    const offset = Math.max(0, Math.floor(opts.offset ?? 0));
+    const needle = opts.q?.trim().toLowerCase();
 
-    const rows = await query.orderBy('users.created_at', 'asc').execute();
-    let items: UserListItem[] = rows.map((r) => ({
-      id: r.id,
-      username: r.username,
-      email: r.email,
-      role: r.role,
-      status: r.deleted_at ? 'disabled' : 'active',
-      created_at: r.created_at,
-      last_seen_at: r.last_seen_at ?? null,
-    }));
-
-    if (opts.q) {
-      const needle = opts.q.trim().toLowerCase();
-      items = items.filter(
-        (u) => u.username.toLowerCase().includes(needle) || u.email.toLowerCase().includes(needle),
+    let base = this.db.selectFrom('users').where('users.id', '!=', LOCAL_SYSTEM_ACTOR.id);
+    if (needle) {
+      // instr() rather than LIKE: a search for "a_b" or "50%" means those
+      // characters, not wildcards, and there is nothing to escape.
+      base = base.where((eb) =>
+        eb.or([
+          eb(sql<number>`instr(lower(users.username), ${needle})`, '>', 0),
+          eb(sql<number>`instr(lower(users.email), ${needle})`, '>', 0),
+        ]),
       );
     }
-    if (opts.status) items = items.filter((u) => u.status === opts.status);
-    return items;
+    if (opts.role) base = base.where('users.role', '=', opts.role);
+    if (opts.status === 'active') base = base.where('users.deleted_at', 'is', null);
+    if (opts.status === 'disabled') base = base.where('users.deleted_at', 'is not', null);
+
+    const direction = opts.direction === 'desc' ? 'desc' : 'asc';
+    const lastSeen = sql<string | null>`(select max(sessions.last_seen_at) from sessions where sessions.user_id = users.id)`;
+    const sortExpr = {
+      username: sql`lower(users.username)`,
+      role: sql`users.role`,
+      status: sql`(users.deleted_at is not null)`,
+      last_seen: sql`last_seen_at`,
+      created: sql`users.created_at`,
+    }[opts.sort ?? 'created'];
+
+    const [rows, count] = await Promise.all([
+      base
+        .select([
+          'users.id as id',
+          'users.username as username',
+          'users.email as email',
+          'users.role as role',
+          'users.created_at as created_at',
+          'users.deleted_at as deleted_at',
+        ])
+        .select(lastSeen.as('last_seen_at'))
+        .orderBy(sortExpr, direction)
+        // A stable tiebreak, or rows with equal sort values could land on two
+        // pages (or on none) as the admin pages through.
+        .orderBy('users.created_at', 'asc')
+        .orderBy('users.id', 'asc')
+        .limit(limit)
+        .offset(offset)
+        .execute(),
+      base.select((eb) => eb.fn.countAll().as('n')).executeTakeFirst(),
+    ]);
+
+    return {
+      users: rows.map((r) => ({
+        id: r.id,
+        username: r.username,
+        email: r.email,
+        role: r.role,
+        status: r.deleted_at ? 'disabled' : 'active',
+        created_at: r.created_at,
+        last_seen_at: r.last_seen_at ?? null,
+      })),
+      total: Number(count?.n ?? 0),
+      limit,
+      offset,
+    };
+  }
+
+  /**
+   * One account as the Users console lists it. The user sheet is addressable
+   * (`/admin/users?user=<id>`), and a shared link must open even when that
+   * account is not on the page of the list the viewer happens to be looking at.
+   */
+  async getUser(id: string): Promise<UserListItem> {
+    if (id === LOCAL_SYSTEM_ACTOR.id) throw new NotFoundException('User not found');
+    const row = await this.db
+      .selectFrom('users')
+      .select(['id', 'username', 'email', 'role', 'created_at', 'deleted_at'])
+      .select(sql<string | null>`(select max(sessions.last_seen_at) from sessions where sessions.user_id = users.id)`.as('last_seen_at'))
+      .where('id', '=', id)
+      .executeTakeFirst();
+    if (!row) throw new NotFoundException('User not found');
+    return {
+      id: row.id,
+      username: row.username,
+      email: row.email,
+      role: row.role,
+      status: row.deleted_at ? 'disabled' : 'active',
+      created_at: row.created_at,
+      last_seen_at: row.last_seen_at ?? null,
+    };
   }
 
   /** Change a user's role and/or enable/disable them. Guardrails prevent an
@@ -231,6 +351,25 @@ export class AuthService {
     }
     if (willDisable) {
       await this.db.deleteFrom('sessions').where('user_id', '=', id).execute();
+    }
+
+    // Audited HERE rather than in the controller because only this method holds
+    // both sides of the change: "promoted to admin" is a different fact from
+    // "was already an admin", and the before-value is gone a line later.
+    if (patch.role && patch.role !== target.role) {
+      await this.audit.record({
+        actor_id: actingUserId,
+        action: 'user.role_change',
+        payload: { user_id: id, username: target.username, from: target.role, to: patch.role },
+      });
+    }
+    const wasDisabled = target.deleted_at != null;
+    if (patch.disabled !== undefined && patch.disabled !== wasDisabled) {
+      await this.audit.record({
+        actor_id: actingUserId,
+        action: 'user.disable',
+        payload: { user_id: id, username: target.username, disabled: patch.disabled },
+      });
     }
 
     const updated = (await this.getUserRow(id))!;
@@ -290,15 +429,21 @@ export class AuthService {
       .select(['id', 'email', 'username', 'role', 'password_hash', 'deleted_at'])
       .where('username', '=', username)
       .executeTakeFirst();
-    if (!row || row.deleted_at) throw new UnauthorizedException('Invalid credentials');
+    // One scrypt round on EVERY path, and one message. Rejecting an unknown or
+    // disabled account before hashing answered in microseconds instead of tens
+    // of milliseconds, which told a caller which usernames exist without ever
+    // reading the body (issue 41).
+    // The system actor is never a sign-in identity, whatever its row holds (a row
+    // written before its hash was randomized carries a guessable one).
+    const usable = row && !row.deleted_at && row.id !== LOCAL_SYSTEM_ACTOR.id ? row : null;
+    const ok = await verifyPassword(password, usable?.password_hash ?? DUMMY_PASSWORD_HASH);
+    if (!usable || !ok) throw new UnauthorizedException('Invalid credentials');
+    const user = usable;
 
-    const ok = await verifyPassword(password, row.password_hash);
-    if (!ok) throw new UnauthorizedException('Invalid credentials');
-
-    const session = await this.createSession(row.id, meta);
+    const session = await this.createSession(user.id, meta);
     return {
       session,
-      user: { id: row.id, email: row.email, username: row.username, role: row.role },
+      user: { id: user.id, email: user.email, username: user.username, role: user.role },
     };
   }
 

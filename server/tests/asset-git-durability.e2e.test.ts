@@ -84,6 +84,53 @@ describe('asset git durability', () => {
     expect(existsSync(join(dir, 'assets', 'todelete.png'))).toBe(false);
   });
 
+  it('concurrent asset and concept writes on a fresh repo all reach git', async () => {
+    // Pins the invariant that initializing a brand-new repo under concurrent
+    // writes loses nothing. NOTE: this does NOT reproduce the intermittent
+    // dropped-revision flake reported in issue 88 — that was hypothesised to be
+    // a double `git init` from a non-idempotent `ensureRepo`, but `git init` is
+    // itself idempotent and reverting the memoization does not fail this test.
+    // The flake's real cause is still unknown; see issue 88.
+    putAsset('raced.png', Buffer.from('PNGDATA'));
+
+    const now = new Date().toISOString();
+    const event = {
+      itemId: 'item_raced',
+      versionId: 'ver_raced',
+      versionToken: 1,
+      actorId: 'user_admin',
+      title: 'Raced Concept',
+      slug: 'raced-concept',
+      rawMarkdown: 'body of the raced concept',
+      status: 'published' as const,
+      spaceId: null,
+      ownerId: null,
+      tags: [],
+      categories: [],
+      groups: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    // Both paths call ensureRepo() on a repo that does not exist yet.
+    const second = { ...event, itemId: 'item_raced2', versionId: 'ver_raced2', title: 'Raced Two', slug: 'raced-two' };
+    await Promise.all([adapter.enqueue(event, 'concepts'), adapter.enqueue(second, 'concepts'), adapter.notifyAssetsChanged()]);
+    await adapter.flush();
+
+    const tracked = git(dir, 'ls-files').trim().split('\n').filter(Boolean);
+    expect(tracked).toContain('assets/raced.png');
+    expect(tracked).toContain('assets/raced.png.meta.json');
+    expect(tracked.some((f) => f.endsWith('concepts/raced-concept.md'))).toBe(true);
+    expect(tracked.some((f) => f.endsWith('concepts/raced-two.md'))).toBe(true);
+    // The concept write must not have been recorded as a mirror failure.
+    const errored = await db
+      .selectFrom('revision_mirror_state')
+      .select(['page_id', 'error'])
+      .where('page_id', '=', 'item_raced')
+      .executeTakeFirst();
+    expect(errored?.error ?? null).toBeNull();
+  });
+
   it('is a no-op when nothing actually changed', async () => {
     // A signal with no on-disk change must not create an empty commit.
     await adapter.notifyAssetsChanged();

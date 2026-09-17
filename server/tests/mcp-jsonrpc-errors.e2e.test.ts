@@ -1,6 +1,6 @@
 /**
  * MCP JSON-RPC transport behavior — covers P1-3 (create attribution) and
- * P2-10 (structured error mapping) from docs/repo-review-2026-05-30.md.
+ * P2-10 (structured error mapping) from the 2026-05-30 repo review.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';

@@ -115,8 +115,10 @@ test.describe('editor — block-type reachability', () => {
  * transform the block, not produce literal text.
  */
 test.describe('editor — markdown input rules', () => {
-  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
-  test('"# " at line start becomes a heading-1 @quarantine', async ({ signedInPage, apiAsAdmin }) => {
+  // De-quarantined 2026-09-11 (issue 92): passes against the current UI, verified over
+  // three consecutive runs. It was swept up in the 2026-08-13 bulk quarantine, which
+  // tagged 55 tests with one boilerplate 'not yet triaged' comment.
+  test('"# " at line start becomes a heading-1', async ({ signedInPage, apiAsAdmin }) => {
     const p = await createPageViaApi(apiAsAdmin, { title: `InputH1-${Date.now()}`, body: 'seed', status: 'draft' });
     await signedInPage.goto(`/p/${p.slug}`);
     await signedInPage.getByRole('button', { name: /edit/i }).click();
@@ -135,8 +137,10 @@ test.describe('editor — markdown input rules', () => {
     expect(page.body_markdown).not.toContain('\\# Heading One');
   });
 
-  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
-  test('"- " at line start becomes a bullet list @quarantine', async ({ signedInPage, apiAsAdmin }) => {
+  // De-quarantined 2026-09-11 (issue 92): passes against the current UI, verified over
+  // three consecutive runs. It was swept up in the 2026-08-13 bulk quarantine, which
+  // tagged 55 tests with one boilerplate 'not yet triaged' comment.
+  test('"- " at line start becomes a bullet list', async ({ signedInPage, apiAsAdmin }) => {
     const p = await createPageViaApi(apiAsAdmin, { title: `InputBullet-${Date.now()}`, body: 'seed', status: 'draft' });
     await signedInPage.goto(`/p/${p.slug}`);
     await signedInPage.getByRole('button', { name: /edit/i }).click();
@@ -202,28 +206,6 @@ test.describe('editor — Show source toggle', () => {
     await expect(source).toBeVisible();
     await expect(source).toContainText('A paragraph.');
     await expect(signedInPage.locator('.me-wysiwyg-input')).not.toBeVisible();
-  });
-});
-
-/**
- * Frontmatter panel — replaced by FrontmatterStrip.
- *
- * The form-style FrontmatterPanel (title input + status <select> + tags chip
- * input + owner input + Form/Raw-YAML toggle button) was retired in favour of
- * the click-to-edit strip. The corresponding scenarios — field shape and
- * unknown-key YAML preservation — are exercised in
- * `08-frontmatter-strip.spec.ts`. The two `.skip` placeholders below remain so
- * grep against the old feature names still finds a pointer.
- */
-test.describe('editor — frontmatter panel', () => {
-  test.skip('form mode shows title, status (dropdown), tags, owner inputs', () => {
-    // See 08-frontmatter-strip.spec.ts ›
-    //   "frontmatter strip — display mode › shows title, status, tags, owner".
-  });
-
-  test.skip('Raw YAML toggle preserves unknown frontmatter keys after save', () => {
-    // See 08-frontmatter-strip.spec.ts ›
-    //   "frontmatter strip — YAML toggle › unknown keys round-trip".
   });
 });
 

@@ -74,12 +74,21 @@ describe('search query parser', () => {
     expect(parsed.warnings).toEqual(['Malformed structured filter ignored: tag:']);
   });
 
-  it('does not silently turn excluded filters into included filters', () => {
+  it('parses an excluded filter as an exclusion, not as an included filter', () => {
     const parsed = parseSearchQuery('-tag:obsolete docker');
 
     expect(parsed.terms).toEqual(['docker']);
     expect(parsed.filters).toEqual({});
-    expect(parsed.excludedTerms).toEqual(['tag:obsolete']);
-    expect(parsed.warnings[0]).toContain('Excluded filters are not supported');
+    expect(parsed.excludedFilters).toEqual({ tag: ['obsolete'] });
+    expect(parsed.excludedTerms).toEqual([]);
+    expect(parsed.warnings).toEqual([]);
+  });
+
+  it('accepts every key the server implements, and still reports the ones it does not', () => {
+    // `author:` is implemented now (reader UX plan §5.2); `created:` is not.
+    const parsed = parseSearchQuery('type:Runbook tag:a tag:b author:jdoe created:2026');
+
+    expect(parsed.filters).toEqual({ type: ['Runbook'], tag: ['a', 'b'], author: ['jdoe'] });
+    expect(parsed.warnings).toEqual(['Unsupported structured filter ignored: created:2026']);
   });
 });

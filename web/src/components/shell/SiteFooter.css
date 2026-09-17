@@ -1,0 +1,34 @@
+/* SiteFooter — the product's colophon. Kept, and quieter (home plan R2.7;
+   Eric: "Keep it. Perhaps make it more subtle.").
+
+   Quieter means: no rule above it, centred rather than spread, the smallest
+   type step, and more space above it than inside it. It does NOT mean
+   illegible — the colour is `--kp-text-secondary`, not `--kp-text-muted`,
+   because muted is ~3.5:1 on the light parchment canvas and the plan's own
+   bar is WCAG AA (≥ 4.5:1) in both themes, asserted by computing the ratio in
+   the browser (web/tests/e2e/home-contrast.spec.ts). The size and the absence
+   of chrome do the quieting; the colour stays readable. */
+
+.SiteFooter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  /* Home overrides this with `margin-top: auto` so the colophon sits flush
+     against the bottom of a short page (Home.css). This value is the fallback
+     for any surface that adopts the footer without being a flex column. */
+  margin-top: var(--kp-space-10);
+  padding-block: var(--kp-space-2) var(--kp-space-4);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-xs);
+  letter-spacing: 0.01em;
+}
+
+/* The product's own superscript, matching SiteBrand's treatment of the mark. */
+.SiteFooter__colophon sup {
+  font-size: 0.72em;
+  line-height: 0;
+  position: relative;
+  top: -0.4em;
+  vertical-align: baseline;
+}

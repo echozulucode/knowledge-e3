@@ -1,0 +1,365 @@
+/* TopicLanding — per-profile landing page. Token-driven, light/dark. */
+
+.TopicLanding {
+  max-width: none;
+  margin: 0;
+  padding-block: var(--kp-space-6) var(--kp-space-16);
+  /* The shared list-page cap (tokens.css, 2026-09-13; was 1000px). Prose keeps
+     its own measure inside it — the lead stays at 64ch, the docs body beside
+     its nav — so the wider page buys room for the Updates + Popular band and
+     the docs grid, not longer lines. */
+  padding-inline: max(var(--kp-page-gutter), calc((100% - var(--kp-page-width)) / 2));
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-6);
+}
+.TopicLanding > * {
+  flex-shrink: 0;
+}
+
+/* ---- Hero ---- */
+.TopicLanding__hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+}
+.TopicLanding__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  align-self: flex-start;
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-bold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--kp-brand);
+  text-decoration: none;
+}
+.TopicLanding__hero h1 {
+  margin: 0;
+  font-size: clamp(1.7rem, 1.3rem + 1.2vw, 2.4rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--kp-text-primary);
+}
+.TopicLanding__lead {
+  margin: 0;
+  max-width: 64ch;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-md);
+  line-height: 1.6;
+}
+/* "Search in <topic>": compact, beside the header rather than a page-width
+   bar — the topic's content is the page; this is a way to narrow it. */
+.TopicLanding__search {
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  width: 100%;
+  max-width: 30rem;
+  min-width: 0;
+  padding: 4px 4px 4px var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-raised);
+}
+.TopicLanding__search:focus-within {
+  border-color: var(--kp-accent);
+  box-shadow: 0 0 0 2px var(--kp-accent-bg);
+}
+.TopicLanding__searchIcon {
+  display: inline-flex;
+  color: var(--kp-text-muted);
+}
+.TopicLanding__searchInput {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 0;
+  border: none;
+  background: transparent;
+  color: var(--kp-text-primary);
+  font-family: var(--kp-font-ui);
+  /* 16px minimum: iOS Safari zooms the page into any smaller focused field. */
+  font-size: max(16px, var(--kp-text-base));
+}
+.TopicLanding__searchInput:focus {
+  outline: none;
+}
+.TopicLanding__searchGo {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 var(--kp-space-3);
+  border: none;
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-accent);
+  color: var(--kp-accent-fg);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-medium);
+  cursor: pointer;
+}
+.TopicLanding__searchGo:hover { background: var(--kp-accent-hover); }
+.TopicLanding__searchGo:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+
+.TopicLanding__counts {
+  display: flex;
+  gap: var(--kp-space-4);
+  color: var(--kp-text-muted);
+  font-size: var(--kp-text-sm);
+}
+.TopicLanding__counts b { color: var(--kp-text-primary); }
+
+.TopicLanding__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-2);
+}
+.TopicLanding__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 var(--kp-space-5);
+  border: 1px solid var(--kp-accent);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-accent);
+  color: var(--kp-accent-fg);
+  font-size: var(--kp-text-base);
+  font-weight: var(--kp-weight-semibold);
+  text-decoration: none;
+  box-shadow: var(--kp-shadow-xs);
+}
+.TopicLanding__btn:hover { background: var(--kp-accent-hover); border-color: var(--kp-accent-hover); }
+.TopicLanding__btn--ghost {
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  border-color: var(--kp-border-subtle);
+}
+.TopicLanding__btn--ghost:hover { background: var(--kp-surface-sunken); border-color: var(--kp-border-strong); }
+
+/* ---- Landing prose ---- */
+.TopicLanding__prose {
+  padding: var(--kp-space-5);
+  border: 1px solid var(--kp-border-subtle);
+  background: var(--kp-surface-base);
+  border-radius: var(--kp-radius-lg);
+}
+
+/* ---- Sections ---- */
+.TopicLanding__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+}
+.TopicLanding__section h2 {
+  margin: 0;
+  font-size: var(--kp-text-lg);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: -0.015em;
+  color: var(--kp-text-primary);
+}
+.TopicLanding__sectionLead {
+  margin: 0;
+  color: var(--kp-text-muted);
+  font-size: var(--kp-text-sm);
+}
+.TopicLanding__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--kp-space-2);
+}
+/* The row itself is `@echozedlabs/ui`'s ItemRow (plan R1.3); everything it used
+   to style here — the card chrome, the title, the badge rail, the preview —
+   lives in the package now. Only this page's take on the badge size is left. */
+.TopicLanding__trust .kp-badge { font-size: 11px; }
+
+/* ---- Updates + Popular band (home plan R3) ----
+   Intrinsic, not a breakpoint: Updates grows three times as fast as Popular and
+   the pair wraps when the container cannot hold both bases, so the docs body
+   (narrower, beside its nav) stacks sooner than a full-width wiki page does,
+   with no viewport media query that would get that wrong. Stacked, DOM order
+   puts Updates first. A lone block takes the whole row. */
+.TopicLanding__pulse {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--kp-space-6);
+}
+.TopicLanding__updates,
+.TopicLanding__popular {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+  min-width: 0;
+}
+.TopicLanding__updates { flex: 3 1 26rem; }
+.TopicLanding__popular { flex: 1 1 15rem; }
+.TopicLanding__updates h2,
+.TopicLanding__popular h2 {
+  margin: 0;
+  font-size: var(--kp-text-lg);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: -0.015em;
+  color: var(--kp-text-primary);
+}
+.TopicLanding__updateRows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* minmax(0, 1fr), not the implicit auto track: a row's one-line brief is
+     `nowrap` (ItemRow), so an auto track sizes to the whole unwrapped
+     sentence and a phone's rows ran ~700px wide, clipped off the right edge
+     with their thumbnails. A zero minimum lets the brief ellipsize instead. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--kp-space-2);
+}
+/* The title is `ItemRow`'s two-line clamp; the brief is one line under it. */
+.TopicLanding__updateRow .kp-item-row__preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  overflow: hidden;
+}
+/* `--kp-text-meta` is the quiet-metadata token; secondary until it exists. */
+.TopicLanding__updateRow .kp-item-meta,
+.TopicLanding__updateRow .kp-item-meta__sep {
+  color: var(--kp-text-meta, var(--kp-text-secondary));
+}
+.TopicLanding__updateRow .kp-item-row__trailing {
+  flex-basis: 4.5rem;
+  /* Decorative: a click on the thumbnail falls through to the row's link. */
+  pointer-events: none;
+}
+.TopicLanding__thumb {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--kp-radius-sm, 6px);
+  background: var(--kp-surface-sunken);
+}
+.TopicLanding__more {
+  align-self: flex-start;
+  color: var(--kp-accent);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  text-decoration: none;
+}
+.TopicLanding__more:hover { text-decoration: underline; }
+
+.TopicLanding__popularList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+}
+.TopicLanding__popularRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--kp-space-3);
+  padding: var(--kp-space-3) var(--kp-space-4);
+}
+.TopicLanding__popularRow + .TopicLanding__popularRow {
+  border-top: 1px solid var(--kp-border-subtle);
+}
+.TopicLanding__rank {
+  flex: 0 0 1.25rem;
+  font-size: var(--kp-text-md);
+  font-weight: var(--kp-weight-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--kp-text-meta, var(--kp-text-secondary));
+}
+.TopicLanding__popularBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.TopicLanding__popularTitle {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  text-decoration: none;
+}
+.TopicLanding__popularTitle:hover { color: var(--kp-accent); }
+.TopicLanding__readers {
+  color: var(--kp-text-meta, var(--kp-text-secondary));
+  font-size: var(--kp-text-xs);
+}
+
+/* ---- Docs: nav + body ---- */
+.TopicLanding__docs {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--kp-space-6);
+  align-items: start;
+}
+.TopicLanding__docsNav {
+  position: sticky;
+  top: var(--kp-space-4);
+  padding: var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  background: var(--kp-surface-base);
+  border-radius: var(--kp-radius-md);
+}
+.TopicLanding__docsNav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.TopicLanding__docsNav a {
+  display: block;
+  padding: 6px 8px;
+  border-radius: var(--kp-radius-sm);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  text-decoration: none;
+}
+.TopicLanding__docsNav a:hover { background: var(--kp-surface-sunken); color: var(--kp-text-primary); }
+.TopicLanding__docsBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-6);
+  min-width: 0;
+}
+
+/* ---- States ---- */
+.TopicLanding__muted { margin: 0; color: var(--kp-text-muted); font-size: var(--kp-text-sm); }
+.TopicLanding__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--kp-space-3);
+  padding: var(--kp-space-8);
+  border: 1px dashed var(--kp-border-strong);
+  border-radius: var(--kp-radius-md);
+  color: var(--kp-text-secondary);
+}
+.TopicLanding__empty h1 { margin: 0; font-size: var(--kp-text-xl); color: var(--kp-text-primary); }
+.TopicLanding__empty p { margin: 0; }
+
+@media (max-width: 900px) {
+  .TopicLanding__docs { grid-template-columns: 1fr; }
+  .TopicLanding__docsNav { position: static; }
+}
+@media (max-width: 640px) {
+  .TopicLanding { padding: var(--kp-space-4) var(--kp-space-4) var(--kp-space-12); }
+}

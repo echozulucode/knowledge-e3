@@ -13,6 +13,27 @@ fi
 git config --global user.name "${GIT_AUTHOR_NAME:-Knowledge E3}"
 git config --global user.email "${GIT_AUTHOR_EMAIL:-knowledge-e3@users.noreply.github.com}"
 
+# --- first-run admin bootstrap (turnkey self-host) ---
+# A fresh container has no users and authentication cannot be turned off, so
+# without this there is a login wall and no account behind it. When
+# SEED_ADMIN_PASSWORD is set we idempotently create a single admin (admin only,
+# no demo data) before the server starts; it is a no-op once the user exists.
+# Non-fatal on error so a transient hiccup never stops the server from booting —
+# the failure is visible in the log and the operator can seed by hand.
+#
+# The `-f` guard keeps this shareable between images: an image that does not
+# COPY the script simply skips it, the same way the Litestream branch below
+# degrades on its own.
+if [ -f /app/scripts/seed-admin.mjs ]; then
+  if [ -n "${SEED_ADMIN_PASSWORD:-}" ]; then
+    node /app/scripts/seed-admin.mjs || echo "[entrypoint] admin bootstrap failed (continuing)"
+  else
+    echo "[entrypoint] SEED_ADMIN_PASSWORD is not set — no admin will be created."
+    echo "[entrypoint] Set it and restart, or seed by hand:"
+    echo "[entrypoint]   docker compose exec -e SEED_ADMIN_PASSWORD=... app node scripts/seed-admin.mjs"
+  fi
+fi
+
 # --- durable SQLite via Litestream (only when present AND configured) ---
 # SQLite stays on the container's LOCAL disk (WAL works there). Litestream restores
 # it from Azure Blob on boot, then continuously replicates while the app runs and

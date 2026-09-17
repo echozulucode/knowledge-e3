@@ -11,10 +11,15 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
-import { IsArray, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import type { Request, Response } from 'express';
 import { CurrentUser, PublicRead } from '../auth/auth.decorators.js';
 import type { AuthedUser } from '../auth/auth.service.js';
+import { actorFrom } from '../content/actor.js';
+import { ContentCommandsService } from '../content/content-commands.service.js';
+import { forViewer, listForViewer } from '../pages/lifecycle-columns.js';
+import { KnowledgeQueryService } from '../query/knowledge-query.service.js';
+import { viewerFrom } from '../query/viewer.js';
 import { ItemsService } from './items.service.js';
 
 class CreateItemDto {
@@ -27,6 +32,11 @@ class CreateItemDto {
   @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
 }
 
+class MoveItemDto {
+  /** Target topic: slug or name. Created on demand, exactly as `topic` in a create does. */
+  @IsString() @MaxLength(200) topic!: string;
+}
+
 class UpdateItemDto {
   @IsOptional() @IsString() @MaxLength(500) title?: string;
   @IsOptional() @IsString() body?: string;
@@ -35,16 +45,22 @@ class UpdateItemDto {
   @IsOptional() frontmatter?: Record<string, unknown>;
   @IsOptional() @IsIn(['draft', 'published']) status?: 'draft' | 'published';
   @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
+  /** Admin-only, audited opt-out of the publish gate (422 `lint_failed`). */
+  @IsOptional() @IsBoolean() allow_lint_errors?: boolean;
 }
 
 @Controller('items')
 export class ItemsController {
-  constructor(private readonly items: ItemsService) {}
+  constructor(
+    private readonly items: ItemsService,
+    private readonly content: ContentCommandsService,
+    private readonly query: KnowledgeQueryService,
+  ) {}
 
   @Post()
   @HttpCode(201)
   async create(@CurrentUser() user: AuthedUser, @Body() body: CreateItemDto) {
-    const item = await this.items.create(user.id, body);
+    const { item } = await this.content.create(actorFrom(user, 'rest'), body, 'rest');
     return { item, version_token: item.version_token };
   }
 
@@ -71,7 +87,9 @@ export class ItemsController {
       },
       user,
     );
-    return { items, total: items.length };
+    // Same redaction as `GET /pages` (plan §6, R4.5): both are `@PublicRead`,
+    // and a list row's source ref is plumbing no list surface renders.
+    return { items: listForViewer(items, user), total: items.length };
   }
 
   @PublicRead()
@@ -81,10 +99,10 @@ export class ItemsController {
     @Param('id') id: string,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const item = await this.items.getById(id, user);
+    const item = await this.query.item(id, viewerFrom(user));
     if (!item) return { item: null };
     res.setHeader('ETag', String(item.version_token));
-    return { item, version_token: item.version_token };
+    return { item: forViewer(item, user), version_token: item.version_token };
   }
 
   @Put(':id')
@@ -96,7 +114,27 @@ export class ItemsController {
   ) {
     const expected = parseEtag(req.headers['if-match']);
     if (expected === null) throw new BadRequestException('If-Match header is required');
-    const item = await this.items.update(user, id, expected, body);
+    const { item } = await this.content.update(actorFrom(user, 'rest'), id, body, expected, 'rest');
+    return { item, version_token: item.version_token };
+  }
+
+  /**
+   * Move an item to another topic (plan §8.3) — across repositories when the two
+   * topics resolve to different sources. `If-Match` is honoured when sent and
+   * defaults to the item's current version otherwise, as `POST /pages/:id/rename`
+   * does. The slug never changes, so `/p/:slug` and `/items/:id` keep resolving.
+   */
+  @Post(':id/move')
+  async move(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Body() body: MoveItemDto,
+    @CurrentUser() user: AuthedUser,
+  ) {
+    const expected = parseEtag(req.headers['if-match']);
+    const { item } = await this.content.move(actorFrom(user, 'rest'), id, body.topic, {
+      ...(expected === null ? {} : { ifMatch: expected }),
+    });
     return { item, version_token: item.version_token };
   }
 }

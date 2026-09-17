@@ -17,6 +17,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 async function globalSetup(): Promise<void> {
   const repoRoot = resolve(__dirname, '..', '..', '..');
   const testDb = resolve(repoRoot, 'server', 'data', 'test-e2e.sqlite');
+  const testWiki = resolve(repoRoot, 'server', 'data', 'test-e2e-wiki');
   const dataDir = dirname(testDb);
 
   if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
@@ -29,10 +30,10 @@ async function globalSetup(): Promise<void> {
   // starts webServer processes before globalSetup, so the API process can still
   // be finishing SQLite migrations when seed begins. Retry briefly so failures
   // identify real seed/product-path problems instead of transient DB locks.
-  let seed = spawnSeed(repoRoot, testDb);
+  let seed = spawnSeed(repoRoot, testDb, testWiki);
   for (let attempt = 2; seed.status !== 0 && attempt <= 5; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
-    seed = spawnSeed(repoRoot, testDb);
+    seed = spawnSeed(repoRoot, testDb, testWiki);
   }
 
   if (seed.status !== 0) {
@@ -42,13 +43,19 @@ async function globalSetup(): Promise<void> {
   console.log(`[e2e setup] seeded admin in ${testDb}`);
 }
 
-function spawnSeed(repoRoot: string, testDb: string): ReturnType<typeof spawnSync> {
+function spawnSeed(repoRoot: string, testDb: string, testWiki: string): ReturnType<typeof spawnSync> {
   return spawnSync('pnpm', ['--filter', '@echozedlabs/server', 'seed'], {
     cwd: repoRoot,
     stdio: 'inherit',
     env: {
       ...process.env,
       DB_URL: testDb,
+      // The SAME content root the API server is given in playwright.config.ts.
+      // Without it the seed resolves its assets directory from the default
+      // config (./data/wiki/main/assets) while the server serves from the test
+      // root, and the seeded pinned-topic cover 404s for every visitor - the
+      // asset is written, just not where anything looks for it.
+      GIT_MIRROR_ROOT: testWiki,
       SEED_ADMIN_USERNAME: 'admin',
       SEED_ADMIN_PASSWORD: 'admin-dev-password',
       SEED_ADMIN_EMAIL: 'admin@local',

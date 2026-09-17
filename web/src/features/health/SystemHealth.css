@@ -1,0 +1,210 @@
+/* SystemHealth — Admin → Health → System. Token-driven, light/dark.
+   Same shell as ContentHealth so the two read as one section, with a verdict
+   band it deliberately does not have. Dense on purpose (review §4.9): the rows
+   that need a human get room; passing rows are one line. The gutter comes from
+   AdminLayout. */
+
+.SystemHealth {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-4);
+  max-width: none;
+  min-width: 0;
+  margin: 0;
+  padding: var(--kp-space-6) clamp(var(--kp-space-5), 2vw, var(--kp-space-8)) var(--kp-space-16);
+  color: var(--kp-text-primary);
+}
+
+
+/* The verdict band — the answer, before any row. */
+.SystemHealth__verdict {
+  padding: var(--kp-space-3) var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-left-width: 4px;
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+}
+.SystemHealth__verdict[data-tone='ok'] { border-left-color: var(--kp-success); }
+.SystemHealth__verdict[data-tone='warn'] { border-left-color: var(--kp-warning, var(--kp-accent)); }
+.SystemHealth__verdict[data-tone='alert'] { border-left-color: var(--kp-danger, var(--kp-warning, var(--kp-accent))); }
+
+.SystemHealth__verdictLabel {
+  margin: 0 0 2px;
+  font-size: var(--kp-text-xl);
+  font-weight: var(--kp-weight-bold);
+  line-height: 1.2;
+}
+.SystemHealth__verdict[data-tone='ok'] .SystemHealth__verdictLabel { color: var(--kp-success); }
+.SystemHealth__verdict[data-tone='warn'] .SystemHealth__verdictLabel { color: var(--kp-warning, var(--kp-text-primary)); }
+.SystemHealth__verdict[data-tone='alert'] .SystemHealth__verdictLabel { color: var(--kp-danger, var(--kp-text-primary)); }
+
+.SystemHealth__verdictReason { margin: 0 0 2px; font-size: var(--kp-text-base); line-height: 1.45; overflow-wrap: anywhere; }
+.SystemHealth__verdictMeta { margin: 0; color: var(--kp-text-muted); font-size: var(--kp-text-xs, 12px); font-variant-numeric: tabular-nums; }
+
+/* Announces a CHANGED verdict only; visually the band already says it. */
+.SystemHealth__live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The checks. */
+.SystemHealth__checks > ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.SystemHealth__check {
+  min-width: 0;
+  padding: var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+}
+.SystemHealth__check[data-tone='warn'] { border-color: var(--kp-warning, var(--kp-border-subtle)); }
+.SystemHealth__check[data-tone='alert'] { border-color: var(--kp-danger, var(--kp-warning, var(--kp-border-subtle))); }
+
+.SystemHealth__checkHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-1) var(--kp-space-2);
+  margin-bottom: 4px;
+}
+.SystemHealth__checkHead h3 { margin: 0; font-size: var(--kp-text-base); font-weight: var(--kp-weight-semibold); }
+
+.SystemHealth__summary,
+.SystemHealth__action,
+.SystemHealth__link,
+.SystemHealth__runbook {
+  margin: 0 0 4px;
+  font-size: var(--kp-text-sm);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.SystemHealth__action { color: var(--kp-text-secondary); }
+.SystemHealth__action strong { color: var(--kp-text-primary); }
+.SystemHealth__link a { color: var(--kp-accent); }
+.SystemHealth__runbook { color: var(--kp-text-secondary); }
+
+/* A passing check: one compact line, folded. */
+.SystemHealth__check--ok {
+  padding: 0;
+  border-color: transparent;
+  border-bottom-color: var(--kp-border-subtle);
+  border-radius: 0;
+  background: none;
+}
+.SystemHealth__okLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--kp-space-2);
+  padding: 6px var(--kp-space-1);
+  cursor: pointer;
+  font-size: var(--kp-text-sm);
+  list-style: none;
+}
+.SystemHealth__okLine::-webkit-details-marker { display: none; }
+.SystemHealth__okLine::before {
+  content: '▸';
+  flex: none;
+  color: var(--kp-text-muted);
+  font-size: 0.8em;
+}
+.SystemHealth__okDetails[open] > .SystemHealth__okLine::before { content: '▾'; }
+.SystemHealth__okLine:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--kp-radius-sm, 4px);
+}
+.SystemHealth__okTitle { font-weight: var(--kp-weight-semibold); }
+.SystemHealth__okDetail {
+  flex: 1 1 14rem;
+  min-width: 0;
+  color: var(--kp-text-secondary);
+  overflow-wrap: anywhere;
+}
+.SystemHealth__okBody { padding: 0 var(--kp-space-1) var(--kp-space-2) calc(var(--kp-space-1) + 1.1em); }
+.SystemHealth__okEvidence,
+.SystemHealth__evidence ul {
+  margin: 4px 0 0;
+  padding-left: 1.1rem;
+  color: var(--kp-text-secondary);
+  font-family: var(--kp-font-mono, ui-monospace, monospace);
+  font-size: var(--kp-text-xs, 12px);
+  line-height: 1.55;
+  list-style: disc;
+  overflow-wrap: anywhere;
+}
+
+.SystemHealth__evidence { font-size: var(--kp-text-sm); }
+.SystemHealth__evidence summary { cursor: pointer; color: var(--kp-text-muted); font-size: var(--kp-text-xs, 12px); }
+
+.SystemHealth__muted { margin: 0; color: var(--kp-text-muted); font-size: var(--kp-text-sm); }
+.SystemHealth__error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-secondary);
+}
+.SystemHealth__error button {
+  margin-top: 4px;
+  padding: 6px 12px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* A backtick span from the server (review §2 #14), or a runbook address: code, with its own Copy. */
+.SystemHealth__code {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+.SystemHealth__code code {
+  min-width: 0;
+  padding: 1px 6px;
+  border-radius: var(--kp-radius-sm, 4px);
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-primary);
+  font-family: var(--kp-font-mono, ui-monospace, monospace);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.SystemHealth__copy {
+  padding: 0 8px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-sm, 4px);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font: inherit;
+  font-size: var(--kp-text-xs, 12px);
+  cursor: pointer;
+}
+.SystemHealth__copy:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+.SystemHealth__copyNote { color: var(--kp-text-muted); font-size: var(--kp-text-xs, 12px); }

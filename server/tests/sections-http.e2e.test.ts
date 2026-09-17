@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
-import { makeApp, seedAdminAndLogin, seedUserAndLogin } from './helpers.js';
+import { conformant, curateCategories, makeApp, seedAdminAndLogin, seedUserAndLogin } from './helpers.js';
 
 describe('Sections (type × space) HTTP e2e', () => {
   let app: INestApplication;
@@ -10,6 +10,7 @@ describe('Sections (type × space) HTTP e2e', () => {
   beforeEach(async () => {
     app = await makeApp();
     ({ cookie } = await seedAdminAndLogin(app));
+    await curateCategories(app);
   });
 
   afterEach(async () => app.close());
@@ -18,7 +19,8 @@ describe('Sections (type × space) HTTP e2e', () => {
     await request(app.getHttpServer())
       .post('/api/v1/pages')
       .set('Cookie', cookie)
-      .send({ title, body: 'x', status: 'published', frontmatter: { type } })
+      // Conformant apart from the section type under test (issue 98's publish gate).
+      .send({ title, body: 'x', status: 'published', frontmatter: conformant({ type }) })
       .expect(201);
   }
 

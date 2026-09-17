@@ -1,13 +1,23 @@
+/* Admin → Users: toolbar, table cells, pager, the user sheet and New user. Token-driven, light/dark. */
+
+.AdminUsers__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+  min-width: 0;
+}
+
 .AdminUsers__toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+  width: 100%;
 }
 
 .AdminUsers__search {
   flex: 1;
-  min-width: 220px;
+  min-width: min(220px, 100%);
   padding: 9px 12px;
   border: 1px solid var(--kp-border-subtle);
   border-radius: var(--kp-radius-sm);
@@ -16,14 +26,15 @@
   font-size: 0.92rem;
 }
 
-.AdminUsers__search:focus {
+.AdminUsers__search:focus,
+.AdminUsers__filter:focus,
+.UserSheet__input:focus {
   outline: none;
   border-color: var(--kp-border-focus);
   box-shadow: 0 0 0 2px var(--kp-accent-bg);
 }
 
-.AdminUsers__filter,
-.AdminUsers__roleSelect {
+.AdminUsers__filter {
   padding: 8px 10px;
   border: 1px solid var(--kp-border-subtle);
   border-radius: var(--kp-radius-sm);
@@ -35,7 +46,9 @@
 .AdminUsers__btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
+  min-height: 40px;
   padding: 8px 14px;
   border: 1px solid var(--kp-border-subtle);
   border-radius: var(--kp-radius-sm);
@@ -43,6 +56,7 @@
   color: var(--kp-text-primary);
   font-size: 0.88rem;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   transition: background-color 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
 }
@@ -50,6 +64,11 @@
 .AdminUsers__btn:hover:not(:disabled) {
   background: var(--kp-surface-sunken);
   border-color: var(--kp-border-strong);
+}
+
+.AdminUsers__btn:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
 }
 
 .AdminUsers__btn:disabled {
@@ -72,86 +91,17 @@
   background: transparent;
 }
 
-/* Create form */
-.AdminUsers__createForm {
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: 16px;
-  background: var(--kp-surface-base);
-  padding: 20px;
-  box-shadow: var(--kp-shadow-sm);
-}
-
-.AdminUsers__createGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 14px;
-}
-
-.AdminUsers__createGrid label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--kp-text-secondary);
-}
-
-.AdminUsers__createGrid input,
-.AdminUsers__createGrid select {
-  padding: 9px 12px;
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: var(--kp-radius-sm);
-  background: var(--kp-surface-sunken);
-  color: var(--kp-text-primary);
-  font-size: 0.92rem;
-  font-weight: 400;
-}
-
-.AdminUsers__createGrid input:focus,
-.AdminUsers__createGrid select:focus {
-  outline: none;
-  border-color: var(--kp-border-focus);
-  box-shadow: 0 0 0 2px var(--kp-accent-bg);
-}
-
-.AdminUsers__createActions {
-  display: flex;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.AdminUsers__formError {
-  margin-top: 12px;
-  padding: 8px 12px;
-  border-radius: var(--kp-radius-sm);
-  background: var(--kp-danger-bg);
+.AdminUsers__btn--danger {
+  border-color: var(--kp-danger);
   color: var(--kp-danger);
-  font-size: 0.88rem;
 }
 
-/* Reset-password banner */
-.AdminUsers__resetBanner {
-  display: flex;
-  gap: 16px;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  border: 1px solid color-mix(in srgb, var(--kp-accent) 40%, var(--kp-border-subtle));
-  border-radius: 16px;
-  background: var(--kp-accent-bg);
-  padding: 18px 20px;
+.AdminUsers__btn--danger:hover:not(:disabled) {
+  background: var(--kp-danger-bg);
+  border-color: var(--kp-danger);
 }
 
-.AdminUsers__resetBanner strong {
-  color: var(--kp-text-primary);
-}
-
-.AdminUsers__resetBanner p {
-  margin: 4px 0 10px;
-  color: var(--kp-text-secondary);
-  font-size: 0.86rem;
-}
-
+/* One-time password reveal (OneTimePasswordDialog) */
 .AdminUsers__tempPassword {
   display: inline-block;
   padding: 6px 12px;
@@ -162,83 +112,28 @@
   font-size: 0.95rem;
   color: var(--kp-text-primary);
   user-select: all;
+  /* A long random string must wrap inside a phone-width dialog, not overflow it. */
+  overflow-wrap: anywhere;
 }
 
-.AdminUsers__resetActions {
-  display: flex;
-  gap: 8px;
-}
-
-/* Table */
-.AdminUsers__tableWrap {
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: 16px;
-  background: var(--kp-surface-base);
-  overflow: hidden;
-  box-shadow: var(--kp-shadow-sm);
-}
-
-.AdminUsers__table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.92rem;
-}
-
-.AdminUsers__table thead th {
-  text-align: left;
-  padding: 12px 16px;
-  font-size: 0.74rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--kp-text-muted);
-  border-bottom: 1px solid var(--kp-border-subtle);
-  background: var(--kp-surface-sunken);
-}
-
-.AdminUsers__table tbody td {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--kp-border-subtle);
-  vertical-align: middle;
-  color: var(--kp-text-primary);
-}
-
-.AdminUsers__table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.AdminUsers__row--disabled {
-  opacity: 0.6;
-}
-
+/* Table cells */
 .AdminUsers__userCell {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  text-align: start;
 }
 
-.AdminUsers__userCell span {
+.AdminUsers__userCell > span {
   color: var(--kp-text-secondary);
   font-size: 0.82rem;
+  overflow-wrap: anywhere;
 }
 
-.AdminUsers__statusChip {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  text-transform: capitalize;
-}
-
-.AdminUsers__statusChip--active {
-  background: var(--kp-success-bg, color-mix(in srgb, #22c55e 18%, transparent));
-  color: var(--kp-success, #16a34a);
-}
-
-.AdminUsers__statusChip--disabled {
-  background: var(--kp-surface-sunken);
+.AdminUsers__you {
   color: var(--kp-text-muted);
+  font-weight: 400;
 }
 
 .AdminUsers__lastSeen {
@@ -246,22 +141,176 @@
   white-space: nowrap;
 }
 
-.AdminUsers__rowActions {
+/* User sheet and New user */
+.UserSheet {
   display: flex;
-  gap: 8px;
-  justify-content: flex-end;
+  flex-direction: column;
+  gap: var(--kp-space-5);
+}
+
+.UserSheet__subtitle {
+  overflow-wrap: anywhere;
+}
+
+.UserSheet__vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
   white-space: nowrap;
 }
 
-.AdminUsers__empty {
-  padding: 28px;
-  text-align: center;
+.UserSheet__muted {
   color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+}
+
+p.UserSheet__muted,
+p.UserSheet__rule {
   margin: 0;
 }
 
-@media (max-width: 760px) {
-  .AdminUsers__rowActions {
-    flex-direction: column;
-  }
+/* A rule the server enforces, stated before the admin tries. Text, not colour alone. */
+.UserSheet__rule {
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-sm);
+  padding: var(--kp-space-2) var(--kp-space-3);
+  border-left: 3px solid var(--kp-border-strong);
+  background: var(--kp-surface-sunken);
+  border-radius: var(--kp-radius-sm);
+}
+
+.UserSheet__roles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.UserSheet__role {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--kp-space-3);
+  padding: var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-sm);
+  cursor: pointer;
+}
+
+.UserSheet__role[data-checked='true'] {
+  border-color: var(--kp-border-focus);
+  background: var(--kp-accent-bg);
+}
+
+.UserSheet__role input {
+  margin-top: 3px;
+}
+
+.UserSheet__role:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+.UserSheet__roleText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.UserSheet__roleLabel {
+  font-weight: var(--kp-weight-semibold);
+}
+
+.UserSheet__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2) var(--kp-space-3);
+}
+
+.UserSheet__link {
+  color: var(--kp-accent);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-medium);
+  text-decoration: none;
+}
+
+.UserSheet__link:hover {
+  text-decoration: underline;
+}
+
+.UserSheet__links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--kp-space-1) var(--kp-space-3);
+}
+
+.UserSheet__activity {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+}
+
+.UserSheet__activity li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--kp-space-1) var(--kp-space-2);
+  font-size: var(--kp-text-sm);
+}
+
+.UserSheet__activity time {
+  min-width: 7.5rem;
+}
+
+.UserSheet__action {
+  font-family: var(--kp-font-mono, ui-monospace, monospace);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.UserSheet__input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 12px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-primary);
+  font-size: 0.92rem;
+}
+
+.UserSheet__passwordRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-2);
+}
+
+.UserSheet__passwordRow .UserSheet__input {
+  flex: 1 1 12rem;
+  width: auto;
+  min-width: 0;
+  font-family: var(--kp-font-mono, ui-monospace, monospace);
+}
+
+.UserSheet__checklist {
+  list-style: none;
+  margin: var(--kp-space-1) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.UserSheet__checklist li[data-met='true'] {
+  color: var(--kp-success, var(--kp-text-primary));
 }

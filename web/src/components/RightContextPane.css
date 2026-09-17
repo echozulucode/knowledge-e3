@@ -140,8 +140,33 @@
   border-color: var(--kp-accent);
   color: var(--kp-accent);
 }
-.kp-ctx-related {
-  margin-top: var(--kp-space-4);
+/* Everything outside the properties allow-list (plan §6, R4.4): present, but
+   closed, so a new frontmatter key is never on a reader's screen by default. */
+.kp-ctx-more {
+  margin-top: var(--kp-space-3);
+  border-top: 1px solid var(--kp-border-subtle);
+  padding-top: var(--kp-space-2);
+}
+.kp-ctx-more > summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--kp-text-secondary);
+  list-style: none;
+}
+.kp-ctx-more > summary::-webkit-details-marker {
+  display: none;
+}
+.kp-ctx-more > summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+  transition: transform 120ms ease;
+}
+.kp-ctx-more[open] > summary::before {
+  transform: rotate(90deg);
+}
+.kp-ctx-more > summary:hover {
+  color: var(--kp-accent);
 }
 
 /* Collapsed strip */

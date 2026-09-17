@@ -12,7 +12,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
-import { makeApp, seedAdminAndLogin, seedUserAndLogin } from './helpers.js';
+import { conformant, curateCategories, makeApp, seedAdminAndLogin, seedUserAndLogin } from './helpers.js';
 
 describe('space visibility e2e', () => {
   let app: INestApplication;
@@ -27,6 +27,7 @@ describe('space visibility e2e', () => {
     app = await makeApp();
     ({ cookie: adminCookie } = await seedAdminAndLogin(app));
     ({ cookie: aliceCookie } = await seedUserAndLogin(app, 'alice', 'alice-password-123'));
+    await curateCategories(app);
 
     const open = await request(app.getHttpServer())
       .post('/api/v1/topics')
@@ -43,12 +44,12 @@ describe('space visibility e2e', () => {
     const a = await request(app.getHttpServer())
       .post('/api/v1/pages')
       .set('Cookie', adminCookie)
-      .send({ title: 'Open Doc', body: 'zebrafish open', status: 'published', frontmatter: { topic: 'Open Topic' } })
+      .send({ title: 'Open Doc', body: 'zebrafish open', status: 'published', frontmatter: conformant({ topic: 'Open Topic' }) })
       .expect(201);
     const b = await request(app.getHttpServer())
       .post('/api/v1/pages')
       .set('Cookie', adminCookie)
-      .send({ title: 'Secret Doc', body: 'zebrafish secret', status: 'published', frontmatter: { topic: 'Secret Topic' } })
+      .send({ title: 'Secret Doc', body: 'zebrafish secret', status: 'published', frontmatter: conformant({ topic: 'Secret Topic' }) })
       .expect(201);
     openId = a.body.id ?? a.body.page?.id;
     secretId = b.body.id ?? b.body.page?.id;
@@ -147,27 +148,28 @@ describe('space visibility e2e', () => {
   // Vocabulary is derived from content, so it leaks the SHAPE of private work
   // even when the content itself is gated.
   describe('derived vocabulary', () => {
+    // These two carry a category that is NOT in the curated catalog, on purpose:
+    // the catalog is visible to everyone, so only an uncurated term proves that
+    // USAGE inside a private topic stays hidden. The publish gate refuses such a
+    // document, so they are published the way legacy content is — as a draft,
+    // then an admin publish over the diagnostics (`allow_lint_errors`).
+    async function publishLegacy(title: string, frontmatter: Record<string, unknown>) {
+      const draft = await request(app.getHttpServer())
+        .post('/api/v1/pages')
+        .set('Cookie', adminCookie)
+        .send({ title, body: 'x', status: 'draft', frontmatter: conformant(frontmatter) })
+        .expect(201);
+      await request(app.getHttpServer())
+        .put(`/api/v1/items/${draft.body.page.id}`)
+        .set('Cookie', adminCookie)
+        .set('If-Match', String(draft.body.version_token))
+        .send({ status: 'published', allow_lint_errors: true })
+        .expect(200);
+    }
+
     beforeEach(async () => {
-      await request(app.getHttpServer())
-        .post('/api/v1/pages')
-        .set('Cookie', adminCookie)
-        .send({
-          title: 'Tagged Secret',
-          body: 'x',
-          status: 'published',
-          frontmatter: { topic: 'Secret Topic', tags: ['secret-tag'], categories: ['Secret Category'] },
-        })
-        .expect(201);
-      await request(app.getHttpServer())
-        .post('/api/v1/pages')
-        .set('Cookie', adminCookie)
-        .send({
-          title: 'Tagged Open',
-          body: 'x',
-          status: 'published',
-          frontmatter: { topic: 'Open Topic', tags: ['open-tag'], categories: ['Open Category'] },
-        })
-        .expect(201);
+      await publishLegacy('Tagged Secret', { topic: 'Secret Topic', tags: ['secret-tag'], categories: ['Secret Category'] });
+      await publishLegacy('Tagged Open', { topic: 'Open Topic', tags: ['open-tag'], categories: ['Open Category'] });
     });
 
     it('omits tags used only inside a private topic', async () => {
@@ -226,6 +228,84 @@ describe('space visibility e2e', () => {
       expect(names).not.toContain('Secret Group');
       // An empty PUBLIC group must survive — the count join must stay a LEFT join.
       expect(names).toContain('Open Group');
+    });
+  });
+
+  /**
+   * The control is a security control, so it is reachable only by an admin and
+   * it leaves a trace. `config.read_access_change` set the precedent for the
+   * INSTANCE-wide toggle; narrowing or opening one topic is the same question
+   * asked about a smaller blast radius, and deserves the same answer.
+   */
+  describe('admin surface', () => {
+    async function auditActions(action: string) {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/admin/audit?action=${action}`)
+        .set('Cookie', adminCookie)
+        .expect(200);
+      return res.body.entries as { action: string; actor_id: string | null; payload: any }[];
+    }
+
+    it('is admin-only: a signed-in non-admin and an anonymous caller cannot flip a topic', async () => {
+      await request(app.getHttpServer())
+        .put('/api/v1/topics/space_open-topic')
+        .set('Cookie', aliceCookie)
+        .send({ visibility: 'private' })
+        .expect(403);
+      await request(app.getHttpServer())
+        .put('/api/v1/topics/space_open-topic')
+        .send({ visibility: 'private' })
+        .expect(401);
+
+      // ...and the refusal actually refused: the topic is still public.
+      const anon = await request(app.getHttpServer()).get('/api/v1/topics').expect(200);
+      expect(anon.body.topics.map((t: any) => t.name)).toContain('Open Topic');
+    });
+
+    it('audits a visibility change with the actor and both values', async () => {
+      await request(app.getHttpServer())
+        .put('/api/v1/topics/space_open-topic')
+        .set('Cookie', adminCookie)
+        .send({ visibility: 'private' })
+        .expect(200);
+
+      const closed = await auditActions('space.visibility_change');
+      expect(closed).toHaveLength(1);
+      // Both values, or the row cannot answer "what did this change?".
+      expect(closed[0]!.payload).toMatchObject({
+        space_id: 'space_open-topic',
+        slug: 'open-topic',
+        from: 'public',
+        to: 'private',
+      });
+      expect(closed[0]!.actor_id).toBeTruthy();
+
+      // Opening one back up is just as much a security event as closing it.
+      await request(app.getHttpServer())
+        .put('/api/v1/topics/space_open-topic')
+        .set('Cookie', adminCookie)
+        .send({ visibility: 'public' })
+        .expect(200);
+      const reopened = await auditActions('space.visibility_change');
+      expect(reopened).toHaveLength(2);
+      expect(reopened[0]!.payload).toMatchObject({ from: 'private', to: 'public' });
+    });
+
+    it('does not record a row for a rename or a no-op flip', async () => {
+      // A log that says "visibility changed" when it did not is worse than no
+      // log: it costs an admin a real investigation every time someone renames.
+      await request(app.getHttpServer())
+        .put('/api/v1/topics/space_open-topic')
+        .set('Cookie', adminCookie)
+        .send({ name: 'Open Topic Renamed' })
+        .expect(200);
+      await request(app.getHttpServer())
+        .put('/api/v1/topics/space_open-topic')
+        .set('Cookie', adminCookie)
+        .send({ visibility: 'public' })
+        .expect(200);
+
+      expect(await auditActions('space.visibility_change')).toHaveLength(0);
     });
   });
 

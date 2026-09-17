@@ -46,24 +46,48 @@ export async function syncTaxonomyInTx(
   for (const group of taxonomy.groups) {
     const slug = slugify(group);
     if (!slug) continue;
-    const id = `group_${slug}`;
-    const now = nowIso();
+    const groupId = await resolveGroupId(db, slug, group);
+    // Two spellings of one slug (`Lab Operators`, `lab-operators`) are one link.
     await db
-      .insertInto('groups')
-      .values({
-        id,
-        slug,
-        name: group,
-        description: null,
-        space_id: 'space_default',
-        created_at: now,
-        updated_at: now,
-        archived_at: null,
-      })
-      .onConflict((oc) => oc.column('slug').doUpdateSet({ updated_at: now }))
+      .insertInto('page_groups')
+      .values({ page_id: pageId, group_id: groupId })
+      .onConflict((oc) => oc.doNothing())
       .execute();
-    await db.insertInto('page_groups').values({ page_id: pageId, group_id: id }).execute();
   }
+}
+
+/**
+ * The id of the group that owns `slug`, creating it only when no row does
+ * (issue 117). Frontmatter names a group by slug, and the slug is unique across
+ * the instance, but the id is not derivable from it: a group an admin created
+ * for one topic is `group_<topic>_<slug>` (`SpacesService.createGroup`). So the
+ * link takes whatever id the existing row has — archived or not, whatever topic
+ * it is available in. An archived group is linked, NOT restored: archiving is
+ * the admin's decision, and the lint reports the item naming it
+ * (`group.archived`, a warning) instead of this write silently undoing it.
+ *
+ * A new row keeps the id format frontmatter-born groups have always had.
+ */
+export async function resolveGroupId(db: Kysely<Database>, slug: string, name: string): Promise<string> {
+  const existing = await db.selectFrom('groups').select('id').where('slug', '=', slug).executeTakeFirst();
+  if (existing) return existing.id;
+  const now = nowIso();
+  await db
+    .insertInto('groups')
+    .values({
+      id: `group_${slug}`,
+      slug,
+      name,
+      description: null,
+      space_id: 'space_default',
+      created_at: now,
+      updated_at: now,
+      archived_at: null,
+    })
+    .onConflict((oc) => oc.doNothing())
+    .execute();
+  const row = await db.selectFrom('groups').select('id').where('slug', '=', slug).executeTakeFirstOrThrow();
+  return row.id;
 }
 
 function normalizeStringArray(value: unknown, field: string): string[] {

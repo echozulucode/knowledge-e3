@@ -1,0 +1,30 @@
+{
+  "name": "@echozedlabs/search",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Search query parser, ranker, cross-type grouping, SearchProvider seam (ADR-0002), in-memory provider, and relevance eval harness.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@echozedlabs/knowledge-types": "workspace:*",
+    "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.4",
+    "typescript": "^5.6.3"
+  }
+}

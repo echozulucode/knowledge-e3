@@ -1,0 +1,317 @@
+/**
+ * ArticleReader — the article column, wherever an article is read (the item
+ * page and the reading pane). Moved here from PageView.css with the markup it
+ * styles, so the pane gets the same article without borrowing a page's CSS.
+ */
+
+/* =========================================================================== */
+/* The column: capped at the reading measure and CENTRED in whatever holds it.  */
+/* =========================================================================== */
+/*
+ * Centred, not left-aligned (owner decision 2026-09-13): the article sits in
+ * the middle of the space beside the context pane at every width — with the
+ * pane open, collapsed to its icon strip, or stacked below the article — and in
+ * the middle of the reading pane. Where the space is narrower than the measure
+ * the column simply fills it, so on a phone the centring is a no-op.
+ *
+ * ONE box carries the cap, so the header, the series box and the body share a
+ * left edge. It used to be two caps — `max-width: var(--kp-article-width)` on
+ * the hero AND on the read view — which only lined up because both were pinned
+ * to the left: `ch` resolves against each element's own font, and the hero is
+ * 15px text while the body is 16px, so the two boxes were different widths.
+ * Centred separately they would be visibly offset. So the column resolves the
+ * token at the READING font (16px — keep in step with `.kp-read-view` in
+ * ReadView.css), making "128ch" mean 128 characters of body text, and the
+ * article inside puts the UI's base size back for everything it contains.
+ */
+.kp-article-reader {
+  font-size: 16px;
+  width: 100%;
+  max-width: var(--kp-article-width);
+  min-width: 0; /* shrink inside a flex/grid host (the pane) instead of pushing it wide */
+  margin-inline: auto;
+}
+.kp-article-reader__article {
+  font-size: var(--kp-text-base);
+}
+
+/* Loading / not found / could not load: quiet text in the column's place. */
+.kp-article-reader--status {
+  font-size: var(--kp-text-base);
+  padding: var(--kp-space-8) var(--kp-content-pad);
+}
+.kp-article-reader__retry {
+  margin-top: var(--kp-space-3);
+  padding: var(--kp-space-1) var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.kp-article-reader .kp-read-view {
+  padding: var(--kp-content-pad) var(--kp-content-pad) var(--kp-space-16);
+}
+
+/* =========================================================================== */
+/* Header                                                                        */
+/* =========================================================================== */
+
+/* "in <Topic>" sits in the article header's badge row — the last of the hero's
+   inline styles, now a class like everything else there (plan R1.2). */
+.kp-page-hero__topic {
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+.kp-page-hero__topic b {
+  color: var(--kp-text-primary);
+  font-weight: var(--kp-weight-medium);
+}
+/* "Search in <topic>": a quiet link beside the topic name, not a button — the
+   article is the page's subject; this is a way out of it. */
+.kp-page-hero__topicSearch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: var(--kp-space-2);
+  padding: 2px var(--kp-space-2);
+  border-radius: var(--kp-radius-pill);
+  color: var(--kp-accent);
+  font-size: var(--kp-text-xs);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.kp-page-hero__topicSearch:hover {
+  background: var(--kp-accent-bg);
+}
+.kp-page-hero__topicSearch:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 1px;
+}
+
+/* The article cover, rendered outside ArticleHeader so it can carry the
+   author's `cover_alt` (see ArticleReader.tsx). The wrapper reproduces the
+   header's own padding, and the header drops its top padding beneath it, so the
+   cover sits exactly where ArticleHeader put it. */
+.kp-page-cover {
+  display: flex;
+  flex-direction: column;
+  padding: var(--kp-space-6) var(--kp-content-pad, var(--kp-space-6)) 0;
+  background: var(--kp-surface-base);
+}
+.kp-page-cover + .kp-page-hero {
+  padding-top: 0;
+}
+
+/* The title is focused by the pane on open (`titleId`); it is not a control, so
+   a programmatic focus shows no ring. */
+.kp-article-header__title[tabindex='-1']:focus {
+  outline: none;
+}
+
+/* =========================================================================== */
+/* Pane only: "On this page" and tags                                            */
+/* =========================================================================== */
+
+/* Clear of the pane's sticky header when the outline scrolls to a section
+   (read by ArticleOutline as the offset). The header's height is the pane
+   shell's, so this is the app header's height as a close stand-in. */
+.kp-article-reader[data-variant='pane'] .kp-read-view :is(h2, h3, h4) {
+  scroll-margin-top: var(--kp-header-height);
+}
+
+.kp-article-outline {
+  margin: 0 var(--kp-content-pad) var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-sunken);
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+.kp-article-outline__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  padding: var(--kp-space-2) var(--kp-space-4);
+  cursor: pointer;
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-primary);
+}
+.kp-article-outline__summary:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: -2px;
+  border-radius: var(--kp-radius-md);
+}
+.kp-article-outline__count {
+  font-weight: var(--kp-weight-medium);
+  font-size: var(--kp-text-xs);
+  color: var(--kp-text-muted);
+}
+.kp-article-outline__list {
+  display: grid;
+  gap: 1px;
+  max-height: min(50vh, 360px);
+  overflow-y: auto;
+  padding: 0 var(--kp-space-2) var(--kp-space-2);
+}
+.kp-article-outline__link {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  border-radius: var(--kp-radius-sm);
+  padding: 6px 8px;
+  color: var(--kp-text-secondary);
+  font: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kp-article-outline__link:hover {
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+}
+.kp-article-outline__link:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: -2px;
+}
+.kp-article-outline__link[data-depth='2'] { padding-left: 20px; }
+.kp-article-outline__link[data-depth='3'] { padding-left: 32px; }
+
+.kp-article-reader__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-2);
+  margin: var(--kp-space-6) var(--kp-content-pad) var(--kp-space-8);
+}
+.kp-article-reader__tag {
+  padding: 2px var(--kp-space-2);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-xs);
+  text-decoration: none;
+}
+.kp-article-reader__tag:hover {
+  background: var(--kp-accent-bg);
+  color: var(--kp-accent);
+}
+
+/* =========================================================================== */
+/* Quick copy                                                                    */
+/* =========================================================================== */
+
+.kp-copyable-panel {
+  margin: 0 clamp(var(--kp-space-4), 3vw, var(--kp-space-8)) var(--kp-space-4);
+  padding: var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-lg);
+  background: var(--kp-surface-sunken);
+  box-shadow: var(--kp-shadow-xs);
+}
+
+.kp-copyable-panel-header {
+  display: grid;
+  gap: var(--kp-space-1);
+  margin-bottom: var(--kp-space-3);
+}
+
+.kp-copyable-panel-header h2,
+.kp-copyable-panel-header p {
+  margin: 0;
+}
+
+.kp-copyable-panel-header h2 {
+  color: var(--kp-text-primary);
+  font-family: var(--kp-font-ui);
+  font-size: var(--kp-text-lg);
+  font-weight: var(--kp-weight-semibold);
+}
+
+.kp-copyable-eyebrow {
+  color: var(--kp-accent);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: var(--kp-tracking-wide);
+  text-transform: uppercase;
+}
+
+.kp-copyable-list {
+  display: grid;
+  gap: var(--kp-space-2);
+}
+
+.kp-copyable-entry {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.45fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--kp-space-3);
+  width: 100%;
+  padding: var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-secondary);
+  cursor: pointer;
+  font-family: var(--kp-font-ui);
+  text-align: left;
+}
+
+.kp-copyable-entry:hover,
+.kp-copyable-entry:focus-visible {
+  border-color: var(--kp-accent);
+  background: var(--kp-accent-bg);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--kp-accent-bg);
+}
+
+.kp-copyable-entry-label {
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+}
+
+.kp-copyable-entry code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--kp-text-primary);
+  font-family: var(--kp-font-mono);
+  font-size: var(--kp-text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .kp-copyable-entry {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .kp-copyable-entry code {
+    grid-column: 1 / -1;
+  }
+}
+
+/* A copy failure's inline notice (the toast says it too). Fixed to the
+   viewport, so it reads the same from the page or the pane. */
+.kp-local-notice {
+  position: fixed;
+  left: var(--kp-space-6);
+  bottom: var(--kp-space-6);
+  z-index: var(--kp-z-toast);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-3);
+  max-width: min(420px, calc(100vw - var(--kp-space-12)));
+  padding: var(--kp-space-3) var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-raised);
+  box-shadow: var(--kp-shadow-md);
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-sm);
+  pointer-events: auto;
+}

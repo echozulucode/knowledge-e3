@@ -1,7 +1,7 @@
 /**
  * Dirty indicator + save toast + error retry.
  *
- * Maps to docs/ux-review-plan.md §3A (No Dirty Indicator) & §3E (No Success/Error Feedback).
+ * Maps to the UX review plan §3A (No Dirty Indicator) & §3E (No Success/Error Feedback).
  *
  * Test suite validating:
  * 1. Dirty indicator (visual dot on title or document.title) appears on first edit
@@ -9,8 +9,10 @@
  * 3. Error toast with Retry button appears on save failure (500 error)
  * 4. Retry button attempts save again
  *
- * The dirty indicator is typically rendered as an aria-label="Unsaved changes"
- * element or reflected in document.title with a bullet ("•").
+ * The dirty indicator used to be an aria-label="Unsaved changes" element on
+ * PageView's edit shell. Compose states it in words in the "Item save status"
+ * footer and keeps reflecting it in document.title with a bullet ("•"); the
+ * standalone dot went with the shell.
  */
 
 import { test, expect, createPageViaApi } from './fixtures.js';
@@ -28,11 +30,13 @@ test.describe('dirty indicator + save toast', () => {
     await signedInPage.goto(`/p/${p.slug}`);
     await signedInPage.getByRole('button', { name: /edit/i }).click();
 
-    // Expect NO dirty indicator initially
-    const dirtyDot = signedInPage.locator('[aria-label="Unsaved changes"]');
-    await expect(dirtyDot).not.toBeVisible();
+    // Compose states the dirty condition in words in the save-status footer and
+    // in the document title, rather than with the old standalone dot.
+    const saveStatus = signedInPage.getByRole('region', { name: /item save status/i });
+    await expect(saveStatus).toBeVisible({ timeout: 15_000 });
+    await expect(saveStatus).not.toContainText(/unsaved changes/i);
 
-    // Also check document.title should NOT contain bullet
+    // document.title should NOT contain the bullet yet
     let title = await signedInPage.title();
     expect(title).not.toContain('•');
 
@@ -41,29 +45,15 @@ test.describe('dirty indicator + save toast', () => {
     await cmContent.click();
     await cmContent.type('x');
 
-    // Wait for dirty state to propagate (there's debounce logic)
-    await signedInPage.waitForTimeout(100);
+    await expect(saveStatus).toContainText(/unsaved changes/i, { timeout: 5_000 });
+    await expect.poll(() => signedInPage.title(), { timeout: 5_000 }).toContain('•');
 
-    // Expect dirty indicator NOW appears
-    // First, check if it's in aria-label
-    await expect(dirtyDot).toBeVisible({ timeout: 2000 });
-
-    // Also check document.title now contains bullet
-    title = await signedInPage.title();
-    expect(title).toContain('•');
-
-    // Save via Cmd+S
+    // Save via Cmd+S — handled at the window, so it works from the editor too.
     await signedInPage.keyboard.press('Control+s');
 
-    // Wait for save to complete and toast to appear + auto-dismiss
-    await signedInPage.waitForTimeout(500);
-
-    // Dirty indicator should disappear
-    await expect(dirtyDot).not.toBeVisible({ timeout: 2000 });
-
-    // Title should no longer have bullet
-    title = await signedInPage.title();
-    expect(title).not.toContain('•');
+    await expect(saveStatus).toContainText(/^Saved/, { timeout: 15_000 });
+    await expect(saveStatus).not.toContainText(/unsaved changes/i);
+    await expect.poll(() => signedInPage.title(), { timeout: 5_000 }).not.toContain('•');
   });
 
   test('success toast "Page saved" appears and auto-dismisses', async ({
@@ -235,21 +225,17 @@ test.describe('dirty indicator + save toast', () => {
     const cmContent = signedInPage.locator('.cm-content');
     await cmContent.click();
     await cmContent.type('test');
-    await signedInPage.waitForTimeout(100);
 
-    // Dirty indicator should appear
-    const dirtyDot = signedInPage.locator('[aria-label="Unsaved changes"]');
-    await expect(dirtyDot).toBeVisible({ timeout: 2000 });
+    const saveStatus = signedInPage.getByRole('region', { name: /item save status/i });
+    await expect(saveStatus).toContainText(/unsaved changes/i, { timeout: 5_000 });
+    await expect.poll(() => signedInPage.title(), { timeout: 5_000 }).toContain('•');
 
     // Try to save (fails)
     await signedInPage.keyboard.press('Control+s');
-    await signedInPage.waitForTimeout(500);
+    await expect(saveStatus).toContainText(/save failed/i, { timeout: 15_000 });
 
-    // Dirty indicator should STILL be visible (edits not saved)
-    await expect(dirtyDot).toBeVisible();
-
-    // Title should still have bullet
-    const title = await signedInPage.title();
-    expect(title).toContain('•');
+    // A failed save leaves the document dirty: the title keeps its bullet, so a
+    // reader of the tab still knows the edits are not committed.
+    await expect.poll(() => signedInPage.title(), { timeout: 5_000 }).toContain('•');
   });
 });

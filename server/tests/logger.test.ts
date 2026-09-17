@@ -5,6 +5,8 @@ import { createRequestContextMiddleware } from '../src/logger/request-context.mi
 import { maybeInitSentry } from '../src/logger/sentry.js';
 import type { Request, Response, NextFunction } from 'express';
 import { EventEmitter } from 'node:events';
+import express from 'express';
+import request from 'supertest';
 
 /**
  * Maps to features/07-audit-and-telemetry.feature scenarios on logging.
@@ -69,6 +71,7 @@ function fakeReqRes(path: string): { req: Request; res: Response & EventEmitter;
   const res = new EventEmitter() as Response & EventEmitter;
   (res as any).statusCode = 200;
   (res as any).send = (b: unknown) => res;
+  (res as any).setHeader = vi.fn();
   const next = vi.fn() as unknown as NextFunction;
   return { req, res, next };
 }
@@ -85,6 +88,20 @@ describe('request-context middleware', () => {
       seen.add((req as any).requestId);
     }
     expect(seen.size).toBe(5);
+  });
+
+  it('returns the logged request id to the client', async () => {
+    const { logger, lines } = makeCapturedLogger();
+    const app = express();
+    app.use(createRequestContextMiddleware(logger));
+    app.get('/round-trip', (_req, res) => res.status(204).end());
+
+    const response = await request(app).get('/round-trip').expect(204);
+    const requestId = response.headers['x-request-id'];
+
+    expect(typeof requestId).toBe('string');
+    expect(requestId.length).toBeGreaterThan(8);
+    expect(lines()[0]?.requestId).toBe(requestId);
   });
 
   it('logs JSON with method/path/status/requestId after response.finish', () => {

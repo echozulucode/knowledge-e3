@@ -51,7 +51,11 @@
     "@lexical/react": "^0.44.0",
     "@lexical/rich-text": "^0.44.0",
     "@lexical/selection": "^0.44.0",
-    "@lexical/table": "^0.44.0"
+    "@lexical/table": "^0.44.0",
+    "@echozedlabs/api-client": "workspace:*",
+    "@echozedlabs/knowledge-types": "workspace:*",
+    "@echozedlabs/renderers": "^0.3.0",
+    "@echozedlabs/ui": "workspace:*"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

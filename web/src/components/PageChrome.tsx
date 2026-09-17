@@ -2,48 +2,26 @@
  * PageChrome — slim chrome bar at the top of the page view.
  *
  * Per user direction (Wave J followup):
- *   - No title here. Title is rendered inline at the top of the editor body.
+ *   - No title here. Title is rendered in the hero at the top of the body.
  *   - No metadata block here. Metadata pills live alongside the title in body.
- *   - Just breadcrumb on the left and an Edit/Save pill on the right.
+ *   - Just the breadcrumb on the left and one Edit pill on the right.
  *
- * Pill on the right:
- *   - Read mode: Edit pencil
- *   - Edit mode: Save (primary) + Cancel (ghost)
- *
- * Props are kept compatible with the old API so PageView doesn't need to change
- * its prop list. Most are now no-ops / unused (kept for stable signature).
+ * There is a single Edit action and it opens Compose (`/p/:slug/edit`). The
+ * Save/Cancel/dirty props this bar used to carry belonged to the inline editor
+ * that Compose replaced, and went with it.
  */
 
 import { Link } from '@tanstack/react-router';
 import { Icon, appIcons } from '../icons.js';
 
 interface PageChromeProps {
-  pageTitle: string;            // unused now (kept for API stability)
   slug: string;
-  isEditing: boolean;
-  canEdit?: boolean;            // false for anonymous (public read) visitors
-  onEnterEditMode: () => void;
-  onSave: () => void;
-  onCancel: () => void;
-  onTitleChange?: (newTitle: string) => void;  // unused; title moved to body
-  isSaving?: boolean;
-  updatedAt?: string;           // unused; metadata moved to body
-  status?: 'draft' | 'published';  // unused
-  showHistory?: boolean;
-  onHistory?: () => void;
-  isDirty?: boolean;            // visual dirty indicator
+  /** False for anonymous (public read) visitors and read-only sources. */
+  canEdit?: boolean;
+  onEdit: () => void;
 }
 
-export function PageChrome({
-  slug,
-  isEditing,
-  canEdit = true,
-  onEnterEditMode,
-  isSaving = false,
-  showHistory = true,
-  onHistory,
-  isDirty = false,
-}: PageChromeProps) {
+export function PageChrome({ slug, canEdit = true, onEdit }: PageChromeProps) {
   return (
     <div
       className="kp-page-chrome"
@@ -80,22 +58,6 @@ export function PageChrome({
           Pages
         </Link>
         <span style={{ color: 'var(--kp-text-muted)' }}>/</span>
-        {isDirty && (
-          <span
-            className="page-chrome-dirty-dot"
-            style={{
-              display: 'inline-block',
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              background: 'var(--kp-accent)',
-              marginRight: 'var(--kp-space-2)',
-              verticalAlign: 'middle',
-            }}
-            aria-label="Unsaved changes"
-            title="Unsaved changes"
-          />
-        )}
         <span
           style={{
             color: 'var(--kp-text-primary)',
@@ -109,46 +71,13 @@ export function PageChrome({
         </span>
       </nav>
 
-      {/* Action pill(s) — right */}
+      {/* Action pill — right */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-2)' }}>
-        {!isEditing ? (
-          <>
-            {canEdit && showHistory && onHistory && (
-              <button
-                onClick={onHistory}
-                aria-label="History"
-                style={ghostPillStyle}
-                title="History"
-              >
-              <>
-                <Icon icon={appIcons.clockRotateLeft} />
-                <span className="kp-action-label">History</span>
-              </>
-              </button>
-            )}
-            {canEdit && (
-              <button
-                onClick={onEnterEditMode}
-                aria-label="Edit page"
-                style={accentPillStyle}
-                title="Edit (E)"
-              >
-                <Icon icon={appIcons.pencil} />
-                <span className="kp-action-label">Edit</span>
-              </button>
-            )}
-          </>
-        ) : (
-          <span
-            aria-live="polite"
-            style={{
-              color: 'var(--kp-text-secondary)',
-              fontSize: 'var(--kp-text-sm)',
-              fontWeight: 'var(--kp-weight-medium)',
-            }}
-          >
-            {isSaving ? 'Saving…' : isDirty ? 'Unsaved changes' : 'Editing'}
-          </span>
+        {canEdit && (
+          <button onClick={onEdit} aria-label="Edit page" style={accentPillStyle} title="Edit">
+            <Icon icon={appIcons.pencil} />
+            <span className="kp-action-label">Edit</span>
+          </button>
         )}
       </div>
     </div>
@@ -176,11 +105,4 @@ const accentPillStyle: React.CSSProperties = {
   background: 'var(--kp-accent)',
   color: 'var(--kp-accent-fg)',
   border: '1px solid var(--kp-accent)',
-};
-
-const ghostPillStyle: React.CSSProperties = {
-  ...basePillStyle,
-  background: 'transparent',
-  color: 'var(--kp-text-secondary)',
-  border: '1px solid var(--kp-border-subtle)',
 };

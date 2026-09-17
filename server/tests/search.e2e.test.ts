@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
-import { makeApp, seedAdminAndLogin, seedUserAndLogin } from './helpers.js';
+import { conformant, curateCategories, makeApp, seedAdminAndLogin, seedUserAndLogin } from './helpers.js';
 import { Kysely } from 'kysely';
 import { KYSELY } from '../src/db/db.module.js';
 import type { Database } from '../src/db/schema.js';
@@ -22,6 +22,9 @@ describe('search e2e', () => {
   beforeEach(async () => {
     app = await makeApp();
     ({ cookie } = await seedAdminAndLogin(app));
+    // Every category a fixture below publishes into: publishing is gated on the
+    // curated catalog (issue 98), creates included.
+    await curateCategories(app, 'incident-response', 'runbook', 'decision-record', 'research-notes', 'operations', 'access');
   });
   afterEach(async () => app.close());
 
@@ -30,16 +33,19 @@ describe('search e2e', () => {
     body: string,
     opts: { status?: 'draft' | 'published'; tags?: string[]; updatedAt?: string; frontmatter?: Record<string, unknown> } = {},
   ): Promise<string> {
+    const status = opts.status ?? 'published';
     const res = await request(app.getHttpServer())
       .post('/api/v1/pages')
       .set('Cookie', cookie)
       .send({
         title,
         body,
-        status: opts.status ?? 'published',
+        status,
         tags: opts.tags ?? [],
-        frontmatter: opts.frontmatter ?? {},
-      });
+        // A published fixture must be publishable; a draft keeps exactly what the test gave it.
+        frontmatter: status === 'published' ? conformant(opts.frontmatter) : opts.frontmatter ?? {},
+      })
+      .expect(201);
     if (opts.updatedAt) {
       // Backdate via direct DB write — the service computes updated_at from now,
       // so we patch it for the recency test.
@@ -52,6 +58,26 @@ describe('search e2e', () => {
     }
     return res.body.page.id;
   }
+
+  it('surfaces derived OKF trust tier + freshness on hits and in facets', async () => {
+    await createPage('Verified Okftermunique Concept', 'okftermunique body content here.', {
+      frontmatter: {
+        verified: [{ by: 'human:ericjzim', at: '2026-08-05T00:00:00Z' }],
+        stale_after: '2000-01-01', // already past ⇒ stale
+      },
+    });
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/search?q=okftermunique')
+      .set('Cookie', cookie)
+      .expect(200);
+    const hit = res.body.results.find((r: { title: string }) => r.title === 'Verified Okftermunique Concept');
+    expect(hit).toBeTruthy();
+    expect(hit.trust_tier).toBe('human-reviewed');
+    expect(hit.stale).toBe(true);
+    expect(
+      res.body.facets.trust_tiers.some((f: { value: string }) => f.value === 'human-reviewed'),
+    ).toBe(true);
+  });
 
   it('finds pages by title or body', async () => {
     await createPage('Payments Runbook', 'How to handle retries.');
@@ -266,14 +292,15 @@ describe('search e2e', () => {
     await createPage('Warnings Contract Target', 'Parser warnings target.', { tags: ['warnings'] });
 
     const res = await request(app.getHttpServer())
-      .get('/api/v1/search?q=tag: author:alice created:2026-05-24 warnings')
+      // `author:` is a supported key now (reader UX plan §5.2); `created:` is not.
+      .get('/api/v1/search?q=tag: created:2026-05-24 is:superseded warnings')
       .set('Cookie', cookie)
       .expect(200);
 
     expect(res.body.warnings).toEqual([
       'Malformed structured filter ignored: tag:',
-      'Unsupported structured filter ignored: author:alice',
       'Unsupported structured filter ignored: created:2026-05-24',
+      expect.stringContaining('Unknown is: value ignored: is:superseded'),
     ]);
     expect(res.body.results.map((r: { title: string }) => r.title)).toEqual(['Warnings Contract Target']);
   });
@@ -385,6 +412,182 @@ describe('search e2e', () => {
     });
   });
 
+  it('matches the word still being typed as a prefix, so results appear before the word is finished', async () => {
+    await createPage('Modbus Gateway Commissioning', 'Commission the field gateway and verify register maps.', { tags: ['fieldbus'] });
+
+    const partial = await request(app.getHttpServer())
+      .get('/api/v1/search?q=modb')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(partial.body.results.map((r: { title: string }) => r.title)).toContain('Modbus Gateway Commissioning');
+
+    // A quoted phrase is never prefix-expanded: the reader asked for that exact wording.
+    const quoted = await request(app.getHttpServer())
+      .get('/api/v1/search?q="modb"')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(quoted.body.results).toEqual([]);
+  });
+
+  it('excludes terms and phrases the reader ruled out with a minus sign', async () => {
+    await createPage('Excluded Compose Guide', 'Run the stack with docker compose up.', { tags: ['docker'] });
+    await createPage('Excluded Build Guide', 'Build the image with docker build and push it.', { tags: ['docker'] });
+
+    const excluded = await request(app.getHttpServer())
+      .get('/api/v1/search?q=docker -compose')
+      .set('Cookie', cookie)
+      .expect(200);
+    const titles = excluded.body.results.map((r: { title: string }) => r.title);
+    expect(titles).toContain('Excluded Build Guide');
+    expect(titles).not.toContain('Excluded Compose Guide');
+    expect(excluded.body.warnings).toEqual([]);
+
+    const phrase = await request(app.getHttpServer())
+      .get('/api/v1/search?q=docker -"compose up"')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(phrase.body.results.map((r: { title: string }) => r.title)).not.toContain('Excluded Compose Guide');
+  });
+
+  it('keeps every value of a repeated filter, from the query text and from the URL', async () => {
+    await createPage('Repeated Filter Mqtt', 'Shared repeated body.', { tags: ['mqtt'] });
+    await createPage('Repeated Filter Modbus', 'Shared repeated body.', { tags: ['modbus'] });
+    await createPage('Repeated Filter Other', 'Shared repeated body.', { tags: ['other'] });
+
+    const fromQuery = await request(app.getHttpServer())
+      .get('/api/v1/search?q=tag:mqtt tag:modbus repeated')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(fromQuery.body.results.map((r: { title: string }) => r.title).sort()).toEqual([
+      'Repeated Filter Modbus',
+      'Repeated Filter Mqtt',
+    ]);
+    expect(fromQuery.body.warnings).toEqual([]);
+
+    const fromUrl = await request(app.getHttpServer())
+      .get('/api/v1/search?q=repeated&tag=mqtt&tag=modbus')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(fromUrl.body.results.map((r: { title: string }) => r.title).sort()).toEqual([
+      'Repeated Filter Modbus',
+      'Repeated Filter Mqtt',
+    ]);
+  });
+
+  it('applies type: - the facet /search offers - instead of warning it away', async () => {
+    await createPage('Typed Runbook Item', 'Type filter body.', { frontmatter: { type: 'Runbook' } });
+    await createPage('Typed Faq Item', 'Type filter body.', { frontmatter: { type: 'FAQ' } });
+
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/search?q=type:runbook type filter')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(res.body.warnings).toEqual([]);
+    expect(res.body.results.map((r: { title: string }) => r.title)).toEqual(['Typed Runbook Item']);
+
+    const negated = await request(app.getHttpServer())
+      .get('/api/v1/search?q=-type:Runbook type filter')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(negated.body.results.map((r: { title: string }) => r.title)).toEqual(['Typed Faq Item']);
+
+    const fromUrl = await request(app.getHttpServer())
+      .get('/api/v1/search?q=type filter&type=FAQ')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(fromUrl.body.results.map((r: { title: string }) => r.title)).toEqual(['Typed Faq Item']);
+  });
+
+  it('counts every match rather than the size of the page it returned', async () => {
+    for (let i = 0; i < 7; i += 1) {
+      await createPage(`Countable Item ${i}`, 'countableterm body text.', { tags: ['countable'] });
+    }
+
+    const firstPage = await request(app.getHttpServer())
+      .get('/api/v1/search?q=countableterm&limit=3')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(firstPage.body.results).toHaveLength(3);
+    expect(firstPage.body.total).toBe(7);
+    expect(firstPage.body.offset).toBe(0);
+    expect(firstPage.body.limit).toBe(3);
+
+    const secondPage = await request(app.getHttpServer())
+      .get('/api/v1/search?q=countableterm&limit=3&offset=3')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(secondPage.body.total).toBe(7);
+    expect(secondPage.body.results.map((r: { id: string }) => r.id)).not.toEqual(
+      firstPage.body.results.map((r: { id: string }) => r.id),
+    );
+  });
+
+  it('counts facets over every match, not over the page - including content type and curated category', async () => {
+    for (let i = 0; i < 5; i += 1) {
+      await createPage(`Faceted Runbook ${i}`, 'facetedterm body text.', {
+        tags: ['faceted'],
+        frontmatter: { type: 'Runbook', categories: ['operations'], topic: 'Faceted Topic' },
+      });
+    }
+    await createPage('Faceted Faq', 'facetedterm body text.', {
+      tags: ['faceted'],
+      frontmatter: { type: 'FAQ', categories: ['access'], topic: 'Faceted Topic' },
+    });
+
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/search?q=facetedterm&limit=2')
+      .set('Cookie', cookie)
+      .expect(200);
+
+    expect(res.body.results).toHaveLength(2);
+    expect(res.body.total).toBe(6);
+    expect(res.body.facets.types).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ value: 'runbook', label: 'Runbook', count: 5 }),
+        expect.objectContaining({ value: 'faq', label: 'FAQ', count: 1 }),
+      ]),
+    );
+    expect(res.body.facets.categories).toEqual(
+      expect.arrayContaining([expect.objectContaining({ value: 'operations', count: 5 })]),
+    );
+    expect(res.body.facets.topics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ label: 'Faceted Topic', count: 6 })]),
+    );
+    expect(res.body.facets.tags).toEqual(expect.arrayContaining([expect.objectContaining({ value: 'faceted', count: 6 })]));
+  });
+
+  it('counts a facet with the other filters applied but not its own, so a narrowed search still shows the way back', async () => {
+    await createPage('Drilldown Runbook', 'drilldownterm body.', { frontmatter: { type: 'Runbook' } });
+    await createPage('Drilldown Faq', 'drilldownterm body.', { frontmatter: { type: 'FAQ' } });
+
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/search?q=drilldownterm&type=Runbook')
+      .set('Cookie', cookie)
+      .expect(200);
+
+    expect(res.body.results.map((r: { title: string }) => r.title)).toEqual(['Drilldown Runbook']);
+    expect(res.body.total).toBe(1);
+    // The FAQ chip is still on the page, with its honest count, or the reader
+    // has narrowed into a corner with no visible way out.
+    expect(res.body.facets.types).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ value: 'runbook', count: 1, active: true }),
+        expect.objectContaining({ value: 'faq', count: 1 }),
+      ]),
+    );
+  });
+
+  it('marks the active facet when the caller filtered by it', async () => {
+    await createPage('Active Facet Item', 'activefacetterm body.', { tags: ['activefacet'], frontmatter: { type: 'Runbook' } });
+
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/search?q=activefacetterm&type=Runbook&tag=activefacet')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(res.body.facets.types[0]).toMatchObject({ value: 'runbook', active: true });
+    expect(res.body.facets.tags[0]).toMatchObject({ value: 'activefacet', active: true });
+  });
+
   it('explains empty search recovery states', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/v1/search?q=nonexistent-silicon-errata&tag=fpga')
@@ -392,13 +595,15 @@ describe('search e2e', () => {
       .expect(200);
 
     expect(res.body.results).toEqual([]);
-    expect(res.body.facets).toEqual({ topics: [], statuses: [], tags: [] });
+    // Every facet axis is present and empty — including the content type and
+    // primary category axes /search filters on (reader UX plan §5.5).
+    expect(res.body.facets).toEqual({ topics: [], statuses: [], tags: [], types: [], categories: [], trust_tiers: [] });
     expect(res.body.empty_state).toMatchObject({
       title: 'No matches for “nonexistent-silicon-errata”',
       can_create_from_search: true,
       guidance: expect.arrayContaining([
         expect.stringContaining('Relax these filters'),
-        expect.stringContaining('titles, body text, tags, categories, groups, Topic, status filters'),
+        expect.stringContaining('titles, aliases, descriptions, body text, tags, categories, groups, Topic, status filters'),
       ]),
     });
   });

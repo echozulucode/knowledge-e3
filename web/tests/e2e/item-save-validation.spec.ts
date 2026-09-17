@@ -5,29 +5,47 @@ function markdownEditor(page: import('@playwright/test').Page) {
 }
 
 test.describe('item save validation and recovery', () => {
-  test('duplicate title validation blocks save before PUT and preserves the unsaved draft', async ({ signedInPage, apiAsAdmin }) => {
+  /**
+   * The duplicate-title 409, on its new surface.
+   *
+   * PageView's edit shell refused this before the PUT was made. Compose lets the
+   * server answer and classifies the reply (`saveOutcome` in
+   * features/compose/saveErrors.ts): a bare 409 saying "already exists" is a
+   * title collision, NOT an optimistic-concurrency conflict, so it must not
+   * raise the ConflictDialog — there is nothing to diff. What the author gets is
+   * the server's own sentence plus the instruction, and their draft untouched.
+   */
+  test('a duplicate title is refused with an instruction and the unsaved draft survives', async ({ signedInPage, apiAsAdmin }) => {
     await createPageViaApi(apiAsAdmin, { title: 'Existing Duplicate Title', body: 'Already here.', status: 'draft' });
     const draft = await createPageViaApi(apiAsAdmin, { title: 'Draft To Rename', body: 'Original draft body.', status: 'draft' });
 
-    await signedInPage.goto(`/p/${draft.slug}?edit=1`);
-    await signedInPage.getByRole('textbox', { name: 'Title', exact: true }).fill('Existing Duplicate Title');
+    await signedInPage.goto(`/p/${draft.slug}/edit`);
+    const titleInput = signedInPage.getByRole('textbox', { name: 'Title', exact: true });
+    await expect(titleInput).toHaveValue('Draft To Rename', { timeout: 15_000 });
+    await titleInput.fill('Existing Duplicate Title');
     const editor = markdownEditor(signedInPage);
     await editor.click();
     await editor.press('Control+End');
     await editor.type(' Unsaved duplicate-title text.');
 
-    let putAttempted = false;
-    signedInPage.on('request', (req) => {
-      if (req.method() === 'PUT' && req.url().includes(`/api/v1/pages/${draft.id}`)) putAttempted = true;
-    });
-
-    await signedInPage.getByRole('region', { name: /item save status/i }).getByRole('button', { name: /^save/i }).click();
-
     const saveBar = signedInPage.getByRole('region', { name: /item save status/i });
-    await expect(saveBar).toContainText(/already exists in this (space|topic)/i);
-    await expect(signedInPage.getByRole('textbox', { name: 'Title', exact: true })).toHaveValue('Existing Duplicate Title');
+    await saveBar.getByRole('button', { name: /save draft/i }).click();
+
+    await expect(saveBar).toContainText(/already exists in this (space|topic)/i, { timeout: 15_000 });
+    await expect(saveBar).toContainText(/choose a unique title before saving/i);
+    // Not a version conflict: the diff dialog would be the wrong instrument.
+    await expect(signedInPage.getByRole('heading', { name: /edit conflict/i })).toHaveCount(0);
+
+    // Nothing the author typed is lost.
+    await expect(titleInput).toHaveValue('Existing Duplicate Title');
     await expect(editor).toContainText(/Unsaved duplicate-title text/i);
-    expect(putAttempted).toBe(false);
+
+    // And nothing was written.
+    const after = await apiAsAdmin.get(`/api/v1/pages/${draft.id}`);
+    expect(after.ok()).toBeTruthy();
+    const saved = (await after.json()).page;
+    expect(saved.title).toBe('Draft To Rename');
+    expect(saved.body_markdown).not.toContain('Unsaved duplicate-title text');
   });
 
   test('renaming the metadata title preserves the authored first H1 (matching or not)', async ({ signedInPage, apiAsAdmin }) => {

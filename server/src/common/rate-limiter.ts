@@ -3,8 +3,8 @@
  *
  * TRADE-OFF: in-memory, resets on restart, keyed by an opaque caller id. Fine
  * for the v0.1 trial (10–20 users); a production multi-instance deployment
- * should move this to a shared store (Redis/DB) — same v0.2 note as the login
- * throttle in auth/throttle.ts. The key space is bounded by the number of
+ * should move this to a shared store (Redis/DB), as the sign-in throttle already
+ * did (auth/throttle.ts, the `login_attempts` table). The key space is bounded by the number of
  * distinct callers, so the map does not grow without bound in practice.
  */
 export interface RateLimitResult {

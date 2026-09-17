@@ -4,6 +4,7 @@
  */
 
 .kp-signin {
+  position: relative;
   min-height: 100vh;
   display: grid;
   place-items: center;
@@ -144,9 +145,52 @@
 }
 
 .kp-signin-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--kp-space-3);
   text-align: center;
   margin-top: var(--kp-space-6);
   font-size: var(--kp-text-sm);
+}
+
+/* "Back to home": top-left of the page, where a way out is expected. */
+.kp-signin-back {
+  position: absolute;
+  top: var(--kp-space-4);
+  left: var(--kp-space-4);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  min-height: 40px;
+  padding: 0 var(--kp-space-3);
+  border-radius: var(--kp-radius-sm);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  text-decoration: none;
+}
+.kp-signin-back:hover {
+  color: var(--kp-accent);
+  background: var(--kp-surface-sunken);
+}
+
+/* The quieter, in-card equivalent under the form. */
+.kp-signin-browse {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--kp-accent);
+  font-weight: var(--kp-weight-medium);
+  text-decoration: none;
+}
+.kp-signin-browse:hover {
+  text-decoration: underline;
+}
+
+.kp-signin-back:focus-visible,
+.kp-signin-browse:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
 }
 
 .kp-signin-help-link {

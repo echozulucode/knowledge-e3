@@ -9,11 +9,37 @@
 
 server:
   port: 3000
+  # Proxy hops allowed to report the client address (X-Forwarded-For). Leave off
+  # unless something proxies this server; behind Azure Container Apps ingress or a
+  # single TLS terminator use 1. A comma-separated list of proxy addresses/CIDRs
+  # (or loopback / linklocal / uniquelocal) also works. `true` is refused: it lets
+  # any client choose its own address. Env TRUST_PROXY overrides.
+  # trustProxy: 1
 
 auth:
-  # 'session' requires login; 'disabled' makes every request the local admin
-  # (handy for a single-user/local instance or a demo). Default: session.
+  # Authentication is always on: 'session' (the default) is the only supported
+  # mode. 'disabled' is refused — the server will not start with it, here or in
+  # KNOWLEDGE_E3_AUTH_MODE. Every instance needs an admin account; create the
+  # first one with `pnpm --filter @echozedlabs/server seed` (in the container:
+  # `node server/dist/seed.js`; SEED_ADMIN_USERNAME / SEED_ADMIN_EMAIL /
+  # SEED_ADMIN_PASSWORD choose the credentials).
   mode: session
+  # Sign-in throttle (issue 41; runbook §4 "Sign-in throttling"). Failed sign-ins
+  # are counted in the database (they survive a restart and are shared by every
+  # process on the same DB) in two buckets over a sliding window. A caller over
+  # EITHER limit gets 429 + Retry-After and the password is not checked at all.
+  # A successful sign-in clears that username's bucket only, never the IP's.
+  #   perUsername — failures per normalized username (case-insensitive).
+  #   perIp       — failures per client IP, across all usernames (stops spraying).
+  # `off` (or 0) disables one bucket. Malformed values refuse the boot.
+  # BEHIND A REVERSE PROXY / INGRESS: the IP is Express's req.ip, which is the
+  # proxy's address for every client unless server.trustProxy names the proxy hop
+  # (see `server:` above) — otherwise perIp is ONE bucket for the whole instance.
+  # Env LOGIN_THROTTLE_WINDOW / LOGIN_THROTTLE_PER_USERNAME / LOGIN_THROTTLE_PER_IP override.
+  # loginThrottle:
+  #   window: 15m        # ms, "900s", "15m", "1h"
+  #   perUsername: 5
+  #   perIp: 20
 
 database:
   # SQLite file path. Default: ./data/kp.sqlite (':memory:' under test).
@@ -29,6 +55,243 @@ git:
   # Optional default remote for the main repo (topics without a dedicated repo
   # push here). You can also set this per-instance in Admin → Repos.
   # mainRemote: git@github.com:your-org/knowledge.git
+  # Commit-debounce window. `quiet` is the pause after the last write before a
+  # commit fires (it coalesces an editing burst into one commit); `max` is the
+  # hard cap, so a steady stream of writes still commits within it. Together
+  # they bound how long an indexed write can sit with no commit behind it — the
+  # gap a crash leaves for the outbox replay to close on the next start. Shorter
+  # = more commits (and, for an unmanaged source, more pushes); longer = fewer
+  # commits and a wider crash gap. Accepts ms, "1500ms", "2s", "5m".
+  # Env GIT_COMMIT_QUIET_MS / GIT_COMMIT_MAX_MS override.
+  # commit:
+  #   quiet: 2s
+  #   max: 15s
+
+content:
+  # Canonical content: the local bundle working trees that every create/update
+  # writes FIRST (the SQLite index is derived; the git commit follows in the
+  # background). Defaults to git.root so the file the write path produces is the
+  # one the mirror commits. Env CONTENT_ROOT (then GIT_MIRROR_ROOT) overrides.
+  root: ./data/wiki
+  # Temporary rollback switch for the write-first path (removed in Phase 4).
+  # false = the pre-inversion behaviour (DB first, mirror writes the file after).
+  # Env KNOWLEDGE_E3_WRITE_FIRST=0 overrides.
+  writeFirst: true
+
+sync:
+  # Default fetch/merge cadence for registered sources that set none (seconds,
+  # or a duration like 5m). Pushes happen on publish and on a 5-minute timer.
+  every: 5m
+
+audit:
+  # How long the audit log (Admin → Audit) keeps a row. A bare number is days;
+  # `365d` and `52w` also parse; `off` keeps everything forever.
+  #
+  # 365 days is the default: the questions this log answers are annual ones, and
+  # sign-in rows make the table grow with traffic rather than with the library.
+  # Trimming is not silent — it runs at boot, logs the cutoff and the count, and
+  # writes an `audit.retention_trim` row into the log it just trimmed.
+  # Env AUDIT_RETENTION_DAYS overrides.
+  retention: 365d
+
+backup:
+  # Scheduled restore drill (issue 71; runbook §3.8). A backup nobody has
+  # restored is a hope, not a backup — this is the one job that turns the
+  # recovery unit from an intention into a verified fact for THIS instance's
+  # data, on this disk, at this size.
+  #
+  # OFF BY DEFAULT, and that is deliberate: it is the one expensive scheduled
+  # job in the product. Each run copies the database, every git working tree and
+  # every asset byte to scratch, boots a second application instance against the
+  # copy, signs in, reads an item, searches, fetches an asset, then deletes the
+  # scratch. On a large library that is gigabytes of I/O, so an operator opts in
+  # having decided where the scratch lives and how often the cost is worth it.
+  #
+  # Until one runs, Admin → Health reports the drill outcome as `never` — which
+  # means UNVERIFIED, not fine.
+  drill:
+    # Cadence. `off` / `never` / `0` = not scheduled (the default). Accepts a
+    # bare number of SECONDS, or 30m / 24h / 7d / 1w. Anything else refuses the
+    # boot rather than quietly not scheduling anything — the silent failure here
+    # is precisely "we thought we were drilling". Minimum 60s.
+    # Nightly is the usual answer; weekly is defensible for a large library.
+    # Env BACKUP_DRILL_EVERY overrides (`off` turns it back off).
+    # every: 24h
+
+    # Scratch root for the run's backup + restored copy. Default: the OS temp
+    # directory. Point it at a volume with room for a second full copy of the
+    # instance — /tmp on a container with a small writable layer is exactly
+    # where a drill fails for a reason that has nothing to do with your backup.
+    # It must not be inside the content root; the scheduler refuses that.
+    # Everything under it is deleted at the end of the run, pass or fail.
+    # Env BACKUP_DRILL_WORK_DIR overrides.
+    # workDir: /var/lib/knowledge-e3/drill
+
+    # Hard cap on one run; past it the child processes are killed and the run is
+    # recorded as failed. Default 30m. Accepts ms / 90s / 30m / 2h.
+    # Env BACKUP_DRILL_TIMEOUT overrides.
+    # timeout: 30m
+
+  # The drill signs in to the restored copy to prove the auth stack end to end.
+  # Credentials are NOT configured here — they are secrets. Set DRILL_USERNAME
+  # and DRILL_PASSWORD in the environment and the run uses them; without them it
+  # still proves auth works, using a throwaway admin it creates inside the
+  # restored copy, and says in its own report that a RESTORED credential was
+  # therefore not exercised.
+
+# Source registry (the knowledge hub plan §7.4 and Appendix B). Entries here are
+# reconciled into the registry at boot: the file wins for the fields it names;
+# anything else set in Admin → Repos persists.
+# `id` is `main` (the shared repo) or `topic:<slug>` (a topic bound to its own
+# repo). Tokens are never written here — `tokenEnv` / `webhookSecretEnv` name
+# the environment variables that hold them.
+# `local` is resolved RELATIVE TO THE CONTENT ROOT above (absolute paths are
+# taken as-is), so write `main` / `topics/<slug>`, not `./data/wiki/main` —
+# the latter resolves to <content root>/data/wiki/main. Omit it to get the
+# default, which is exactly `main` / `topics/<slug>`.
+# sources:
+#   - id: main
+#     local: main
+#     remote: git@github.com:org/knowledge.git
+#     branch: main
+#     role: authoritative        # authoritative | reference
+#     policy: { mode: direct }   # direct | review | read-only
+#   - id: topic:matlab
+#     local: topics/matlab
+#     remote: git@github.com:org/matlab-ai-guidance.git
+#     branch: main
+#     role: authoritative
+#     policy: { mode: review, branchPrefix: e3/ }
+#     host: { kind: github, tokenEnv: E3_GITHUB_TOKEN }
+#     sync: { every: 5m, webhookSecretEnv: E3_MATLAB_WEBHOOK_SECRET }
+#   - id: topic:game-dev
+#     remote: https://github.com/org/game-dev-okf.git
+#     role: reference            # someone else's bundle: indexed, never written
+#     policy: { mode: read-only }
+#   # Importing an existing repository of plain (non-OKF) Markdown — plan §8.3.
+#   # `include` lists repo-relative globs for the .md files to index; without it
+#   # a source indexes the canonical OKF layout only (`concepts/*.md`, at any
+#   # depth), which is what every source above does. `exclude` subtracts from
+#   # `include`. Globs support `*`, `?` and `**` (whole path segments); a pattern
+#   # with no `/` matches at the repository root only. `index.md`, `log.md` and
+#   # anything under an `assets/` directory are never items, whatever you write.
+#   # `defaultType` types the imported files that carry no `type:` of their own
+#   # (it applies to `include`d files only, never to the canonical layout); it
+#   # must name a content type from the registry (Admin → Content types).
+#   # First sync assigns an id to every imported file and keeps it stable: an
+#   # `authoritative` source gets it written into the file (a follow-up commit),
+#   # a `reference` source keeps its working tree clean and the map lives in
+#   # `.e3/ids.json` inside the clone (ignored via `.git/info/exclude`).
+#   - id: topic:handbook
+#     local: topics/handbook
+#     remote: https://github.com/org/team-handbook.git
+#     branch: main
+#     role: reference
+#     policy: { mode: read-only }
+#     include: ['docs/**/*.md', 'runbooks/**/*.md']
+#     exclude: ['docs/archive/**', 'docs/**/_*.md']
+#     defaultType: Concept   # a content-type label or key: Concept, How-To, Runbook, ADR, ...
+
+site:
+  # The topic whose landing page the site Home renders. Omit it and the app
+  # picks the `default` topic, else the first visible one — so a fresh instance
+  # still has a Home before anyone has named one.
+  # homeTopic: main
+
+  # --- Tenant branding -------------------------------------------------------
+  # Every key below is optional, and every default is exactly the product's
+  # built-in look: an instance with no `site:` block at all renders as it always
+  # has. A value that isn't usable (see the logo note) is ignored and the default
+  # applies, so a typo here can cost you your logo but never your front page.
+
+  # Wordmark, shown beside the logo and used for the browser title.
+  # name: "Acme Engineering Knowledge"
+  # Short form for the collapsed sidebar rail and mobile chrome; defaults to `name`.
+  # shortName: "Acme"
+
+  # Logos and favicon are ASSET URLs, never filesystem paths. Upload the image
+  # through the normal image path (drag it into any item, or POST /api/v1/images)
+  # and copy the `/assets/<file>` URL it returns. That keeps the logo in the main
+  # content repository beside everything else: it is committed to git, restored by
+  # a rebuild-from-git, and carried by a backup — none of which is true of a path
+  # into the container's filesystem. An absolute https:// URL is also accepted.
+  # Accepted:  /assets/8f21c0d34ab19e57.svg   https://cdn.example.com/acme.svg
+  # Ignored:   ./logo.png    a Windows path    //cdn.example.com/acme.svg
+  # logo: "/assets/8f21c0d34ab19e57.svg"
+  # Optional dark-theme variant; falls back to `logo`.
+  # logoDark: "/assets/1c93aa70be55d218.svg"
+  # favicon: "/assets/4d0e77bb21a9c614.png"
+
+  # The headline on the front page, and the placeholder in the search boxes.
+  # tagline: "What do you want to do with AI?"
+  # searchPlaceholder: "Search tools, topics, guidance…"
+
+  # Curated links on the front page ("links to sections from the main page") are
+  # NOT configured here — they live in the home topic's bundle `index.md`, so they
+  # travel with the content in git:
+  #
+  #   ---
+  #   okf_version: "0.2"
+  #   presentation: portal
+  #   links:
+  #     - label: "Onboarding checklist"
+  #       to: "/p/onboarding"
+  #     - label: "Sections"
+  #       to: "/sections"
+  #       description: "Everything we curate"
+  #     - label: "Tool request form"
+  #       href: "https://intranet.example/tools/request"
+  #   ---
+  #
+  # `to:` is an in-app route, `href:` an external URL; exactly one per link.
+
+  # --- Custom news and updates on the front page -----------------------------
+  # The "What's new" list is site-wide and opt-out: `homepage_until` lets an item
+  # age OUT of it, but nothing lets a curator say "THESE are our news". A Section
+  # filtered to tags does, and a Section on the home topic renders on the front
+  # page. Sections are not configured in this file — they live in the database so
+  # a curator can change them without a redeploy — but the recipe is:
+  #
+  #   1. Name the home topic above (`homeTopic:`) and give it the `portal`
+  #      presentation in Admin → Topics. The front page renders the home topic's
+  #      Sections only in the portal layout.
+  #   2. Tag the items that are news. Tags are emergent: just add
+  #      `tags: [news]` to the item's frontmatter. Nothing has to be registered
+  #      first, and a tag nobody has used yet is not an error.
+  #   3. In Admin → Sections, add a section:
+  #        Name  : Company news
+  #        Topic : main            # the home topic slug — see the note below
+  #        Tags  : news, release, announcement
+  #        Slot  : latest          # picks the heading and where it sits
+  #        Order : 1
+  #        Limit : 5
+  #      An item matches if it carries ANY of the tags; the Type, Topic and Tags
+  #      filters all apply together. Leave Tags blank for no tag filter.
+  #
+  # Spanning several topics: LEAVE TOPIC BLANK.
+  #
+  # A section that names no topic is a cross-topic section — it draws from EVERY
+  # topic, and it is shown on the front page only, so it does not repeat on each
+  # topic's landing page. Type and Tags still apply, so "everything tagged news,
+  # from any topic, on the front page" is:
+  #
+  #        Name  : Company news
+  #        Topic : (blank)
+  #        Tags  : news, release, announcement
+  #        Slot  : latest
+  #
+  # A private topic's items stay out of a cross-topic section for anonymous
+  # visitors (that is what `visibility: private` means) and are shown to
+  # signed-in readers, exactly as everywhere else in the product.
+  #
+  # So the Topic field now has two meanings, and only these two:
+  #   set   -> the section appears on that topic's landing page, and draws from
+  #            that topic. Placement and membership are the same topic, which is
+  #            why a news section on the home topic shows the home topic's news.
+  #   blank -> the section appears on the front page, and draws from all topics.
+  # There is deliberately no way to place a section on one topic while drawing
+  # from another; if you need that, point at the other topic's section from the
+  # front page with a curated `links:` entry above.
 
 mcp:
   # Per-user request budget for the MCP JSON-RPC surface (requests/minute).
@@ -36,5 +299,6 @@ mcp:
 
 readAccess:
   # 'authenticated' = login required to read; 'public' = anonymous can read
-  # published content. Admins can also toggle this at runtime. Default: authenticated.
-  default: authenticated
+  # published content in public Spaces. Admins can also toggle this at runtime.
+  # Default: public.
+  default: public

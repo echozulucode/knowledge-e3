@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
-import { makeApp, seedAdminAndLogin } from './helpers.js';
+import { conformant, curateCategories, makeApp, seedAdminAndLogin } from './helpers.js';
 
 /**
  * Acceptance tests for the rename flow from spec section 6.5.
@@ -14,6 +14,7 @@ describe('wiki-link rename e2e', () => {
   beforeEach(async () => {
     app = await makeApp();
     ({ cookie } = await seedAdminAndLogin(app));
+    await curateCategories(app);
   });
   afterEach(async () => app.close());
 
@@ -21,7 +22,8 @@ describe('wiki-link rename e2e', () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/pages')
       .set('Cookie', cookie)
-      .send({ title, body, status: 'published' })
+      // Conformant, so the published fixture passes the publish gate (issue 98).
+      .send({ title, body, status: 'published', frontmatter: conformant() })
       .expect(201);
     return { id: res.body.page.id, version: res.body.page.version_token };
   }
@@ -156,6 +158,7 @@ describe('backlinks e2e', () => {
   beforeEach(async () => {
     app = await makeApp();
     ({ cookie } = await seedAdminAndLogin(app));
+    await curateCategories(app);
   });
   afterEach(async () => app.close());
 
@@ -163,18 +166,18 @@ describe('backlinks e2e', () => {
     const target = await request(app.getHttpServer())
       .post('/api/v1/pages')
       .set('Cookie', cookie)
-      .send({ title: 'Hub', body: 'Hub page.', status: 'published' })
+      .send({ title: 'Hub', body: 'Hub page.', status: 'published', frontmatter: conformant() })
       .expect(201);
 
     await request(app.getHttpServer())
       .post('/api/v1/pages')
       .set('Cookie', cookie)
-      .send({ title: 'Source 1', body: 'See [[Hub]] for context.', status: 'published' })
+      .send({ title: 'Source 1', body: 'See [[Hub]] for context.', status: 'published', frontmatter: conformant() })
       .expect(201);
     await request(app.getHttpServer())
       .post('/api/v1/pages')
       .set('Cookie', cookie)
-      .send({ title: 'Source 2', body: 'Also [[Hub]] over here.', status: 'published' })
+      .send({ title: 'Source 2', body: 'Also [[Hub]] over here.', status: 'published', frontmatter: conformant() })
       .expect(201);
 
     const res = await request(app.getHttpServer())
@@ -185,7 +188,9 @@ describe('backlinks e2e', () => {
     expect(res.body.backlinks).toHaveLength(2);
     const sourceTitles = res.body.backlinks.map((b: { source_title: string }) => b.source_title).sort();
     expect(sourceTitles).toEqual(['Source 1', 'Source 2']);
-    // Snippet should be a string with the wikilink context.
-    expect(res.body.backlinks[0].snippet).toContain('[[Hub]]');
+    // The snippet is the link's readable context — its text, never its markup
+    // (issue 114).
+    const snippets = res.body.backlinks.map((b: { snippet: string }) => b.snippet).sort();
+    expect(snippets).toEqual(['Also Hub over here.', 'See Hub for context.']);
   });
 });

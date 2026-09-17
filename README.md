@@ -22,7 +22,8 @@ with no lock-in.
 - **Wiki-links + backlinks** — `[[Target]]` links, atomic rename with link rewriting, backlink index.
 - **Full-text search** — SQLite FTS with recency weighting.
 - **MCP server** — `search`, `get_item`, `create_item`, `list_spaces`, `list_taxonomy`, OKF
-  import/export tools — the entire AI surface, no in-product LLM required.
+  import/export tools — the entire AI surface, no in-product LLM required. The same read tools
+  run locally over stdio via `npx @echozedlabs/knowledge-mcp`.
 - **Taxonomy** — spaces/topics, tags, categories, groups, and first-class content types (sections).
 - **Self-host ready** — single NestJS server + React/Vite client, SQLite storage, Docker image,
   structured logging, backup + restore-drill scripts.
@@ -54,19 +55,45 @@ pnpm --filter @echozedlabs/web dev
 Open http://localhost:5173 and sign in with the credentials above. Storage defaults to SQLite at
 `./data/` — no external database required.
 
-> **Tip:** setting `KNOWLEDGE_E3_AUTH_MODE=disabled` makes every request the local admin (no
-> login, and MCP needs no cookie) — handy for a first look or a demo.
+> **Note:** there is no no-login mode. Signing in is always required to write, and the server
+> refuses to start if the authentication mode is set to `disabled`. Reading can be open to
+> anonymous visitors: that is the `public` read access setting, and it is the default.
 
 ### Try the OKF bridge
 
 A ready-made, valid OKF bundle ships at [`examples/okf-demo/`](./examples/okf-demo) (linked
-concepts + a root `index.md`). Import it from **Admin → Data → Bundle folder** in the web UI (or
+concepts + a root `index.md`). Import it from **Admin → Data → Import** in the web UI (or
 via the server's `import:okf` script), then search it and export it back out as an OKF bundle.
 
 ### Docker
 
 A multi-stage `Dockerfile` and `docker-compose.yml` are included for containerized runs
-(`docker-compose up --build`; the app listens on `:3000`).
+(`docker-compose up --build`; the app listens on `:3000`). See
+[`docs/self-hosting.md`](./docs/self-hosting.md) for the first-run admin, TLS, backups and the
+environment variables.
+
+### Local MCP server (`npx`)
+
+`@echozedlabs/knowledge-mcp` is a **read-only** MCP server that runs over stdio, so an assistant
+can read knowledge that never leaves the machine — local folders and local git working trees —
+and, when you configure it, a Knowledge E3 server over its REST API.
+
+```jsonc
+{
+  "mcpServers": {
+    "knowledge": {
+      "command": "npx",
+      "args": ["-y", "@echozedlabs/knowledge-mcp", "--folder", "/path/to/notes"]
+    }
+  }
+}
+```
+
+It offers the same read tools this server's MCP does — both come from the shared
+`@echozedlabs/mcp-tools` package — so an assistant sees one contract either way. Search is
+keyword only; results are grouped by source and never merged into a single ranking. A server
+source reads its token from an environment variable you name, never from the config file. See
+[`apps/knowledge-mcp/README.md`](./apps/knowledge-mcp/README.md).
 
 ## Architecture
 
@@ -83,16 +110,26 @@ reusable, separately published [`@echozedlabs/*` editor packages](https://www.np
 
 ```
 packages/
-  codec/    # @echozedlabs/codec — Markdown ↔ AST round-trip codec (byte-stable)
-  okf/      # @echozedlabs/okf   — OKF build/parse/validate + link translation
-server/     # @echozedlabs/server — NestJS: auth, pages, wiki, search, taxonomy,
-            #                       OKF import/export, git mirror, MCP server, audit
-web/        # @echozedlabs/web    — React + Vite client (editor, viewer, admin)
-features/   # Gherkin feature specs
-examples/   # Sample OKF bundle(s)
-scripts/    # backup.sh, restore-drill.sh
-docs/       # API reference, testing strategy, sample-data guide
-deploy      # Dockerfile, docker-compose.yml
+  codec/          # @echozedlabs/codec           — Markdown ↔ AST round-trip codec (byte-stable)
+  okf/            # @echozedlabs/okf             — OKF build/parse/validate + link translation
+  knowledge-types/# @echozedlabs/knowledge-types — shared types (viewer, items, taxonomy)
+  content-model/  # @echozedlabs/content-model   — content rules and lint
+  content-store/  # @echozedlabs/content-store   — bundle/working-tree reads
+  repo-sync/      # @echozedlabs/repo-sync       — git working trees and sync policy
+  search/         # @echozedlabs/search          — keyword query parser, ranker, excerpts
+  api-client/     # @echozedlabs/api-client      — typed REST client
+  ui/             # @echozedlabs/ui              — shared UI pieces
+  mcp-tools/      # @echozedlabs/mcp-tools       — the shared MCP read-tool contract
+apps/
+  knowledge-mcp/  # @echozedlabs/knowledge-mcp   — read-only stdio MCP server (npx)
+server/           # @echozedlabs/server — NestJS: auth, pages, wiki, search, taxonomy,
+                  #                       OKF import/export, git mirror, MCP server, audit
+web/              # @echozedlabs/web    — React + Vite client (reader, editor, admin)
+features/         # Gherkin feature specs
+examples/         # Sample OKF bundle(s)
+scripts/          # seed-admin.mjs (first-run admin), NUL-byte check
+docs/             # API reference, self-hosting, testing strategy, sample-data guide
+deploy            # Dockerfile, docker-compose.yml
 ```
 
 ## Testing
@@ -109,6 +146,8 @@ See [`docs/testing-strategy.md`](./docs/testing-strategy.md) for the approach.
 ## Documentation
 
 - [`docs/api-reference.md`](./docs/api-reference.md) — HTTP API
+- [`docs/self-hosting.md`](./docs/self-hosting.md) — running it yourself: first-run admin, TLS, backups
+- [`apps/knowledge-mcp/README.md`](./apps/knowledge-mcp/README.md) — the read-only local MCP server
 - [`docs/sample-data.md`](./docs/sample-data.md) — seeding sample content
 - [`docs/testing-strategy.md`](./docs/testing-strategy.md) — testing approach
 

@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, readdirSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateBundle } from '@echozedlabs/okf';
+import { parseBundleIndex, validateBundle } from '@echozedlabs/okf';
 import { Kysely } from 'kysely';
 import type { INestApplication } from '@nestjs/common';
 import { makeApp, seedAdminAndLogin } from './helpers.js';
@@ -127,6 +127,23 @@ describe('GitRevisionMirrorAdapter (Phase A) e2e', () => {
     expect(rows.every((r) => r.dirty === 0 && r.last_commit)).toBe(true);
   });
 
+  it('does not create a second commit when re-persisting identical content (no-op guard)', async () => {
+    const orders = await items.create(adminId, {
+      title: 'Orders',
+      body: 'Unchanged body.',
+      status: 'published',
+    });
+    await adapter.afterItemVersionPersisted(eventFrom(orders));
+    await adapter.flush();
+    expect(gitRevCount(dir)).toBe(1);
+
+    // Re-persist the very same version — the concept content is byte-identical, so
+    // the content no-op guard must skip the write and the commit.
+    await adapter.afterItemVersionPersisted(eventFrom(orders));
+    await adapter.flush();
+    expect(gitRevCount(dir)).toBe(1);
+  });
+
   it('makes a second commit for a later edit of the same item', async () => {
     const orders = await items.create(adminId, {
       title: 'Orders',
@@ -170,7 +187,7 @@ describe('GitRevisionMirrorAdapter (Phase A) e2e', () => {
     const indexPath = join(dir, 'index.md');
     expect(existsSync(indexPath)).toBe(true);
     const index = readFileSync(indexPath, 'utf8');
-    expect(index).toMatch(/okf_version: "0\.1"/);
+    expect(index).toMatch(/okf_version: "0\.2"/);
     expect(index).toContain('(/concepts/apples.md)');
     expect(index).toContain('(/concepts/bananas.md)');
 
@@ -179,6 +196,34 @@ describe('GitRevisionMirrorAdapter (Phase A) e2e', () => {
     const report = validateBundle({ files });
     expect(report.conformant).toBe(true);
     expect(report.conceptCount).toBe(2);
+  });
+
+  it('carries a curated links: block through the index it regenerates', async () => {
+    const a = await items.create(adminId, { title: 'Apples', body: 'Crisp.', status: 'published' });
+    await adapter.afterItemVersionPersisted(eventFrom(a));
+    await adapter.flush();
+
+    // A curator adds curated landing links by hand, the way they would in the
+    // repository — the one part of the derived index a human authors.
+    const indexPath = join(dir, 'index.md');
+    const curated = ['links:', '  - label: "Sections"', '    to: "/sections"'].join('\n');
+    writeFileSync(
+      indexPath,
+      readFileSync(indexPath, 'utf8').replace('okf_version: "0.2"', `okf_version: "0.2"\n${curated}`),
+      'utf8',
+    );
+
+    // The next content commit rewrites the index from the concept files. The
+    // links must survive it — otherwise curation would be deleted by the next
+    // person who edits anything.
+    const b = await items.create(adminId, { title: 'Bananas', body: 'Yellow.', status: 'published' });
+    await adapter.afterItemVersionPersisted(eventFrom(b));
+    await adapter.flush();
+
+    const index = readFileSync(indexPath, 'utf8');
+    expect(index).toContain(curated);
+    expect(index).toContain('(/concepts/bananas.md)');
+    expect(parseBundleIndex(index).links).toEqual([{ label: 'Sections', to: '/sections' }]);
   });
 
   it('flush is a no-op when there is nothing pending', async () => {

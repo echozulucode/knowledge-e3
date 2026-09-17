@@ -1,3 +1,4 @@
+import { SearchHelp } from '../features/search/SearchHelp.js';
 import './Help.css';
 
 interface Shortcut {
@@ -9,7 +10,7 @@ const SECTIONS: Array<{ title: string; shortcuts: Shortcut[] }> = [
   {
     title: 'Navigation',
     shortcuts: [
-      { keys: 'Cmd/Ctrl + K', description: 'Open command palette' },
+      { keys: 'Cmd/Ctrl + K', description: 'Quick search — recent searches, then results as you type' },
       { keys: 'Cmd/Ctrl + ?', description: 'Open this help section' },
       { keys: 'Cmd/Ctrl + S', description: 'Save page' },
       { keys: 'Esc', description: 'Cancel / close dialog' },
@@ -84,6 +85,10 @@ export function Help() {
             </section>
           ))}
         </div>
+
+        {/* How to search, generated from the same table the parser accepts
+            (reader UX plan §5.7). */}
+        <SearchHelp />
       </article>
     </main>
   );

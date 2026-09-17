@@ -1,0 +1,49 @@
+/* ViewSwitch — segmented tabs, token-driven, light/dark. The selected tab is a
+   raised segment AND bold, so the state is never colour alone. */
+
+.kp-view-switch {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-sunken);
+  max-width: 100%;
+}
+
+.kp-view-switch__tab {
+  min-height: 36px;
+  padding: var(--kp-space-1) var(--kp-space-4);
+  border: 1px solid transparent;
+  border-radius: var(--kp-radius-sm);
+  background: transparent;
+  color: var(--kp-text-secondary);
+  font: inherit;
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-medium);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--kp-duration-fast) var(--kp-ease), color var(--kp-duration-fast) var(--kp-ease);
+}
+
+.kp-view-switch__tab:hover {
+  color: var(--kp-text-primary);
+}
+
+.kp-view-switch__tab[aria-selected='true'] {
+  background: var(--kp-surface-base);
+  border-color: var(--kp-border-subtle);
+  color: var(--kp-text-primary);
+  font-weight: var(--kp-weight-semibold);
+}
+
+.kp-view-switch__tab:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 1px;
+}
+
+.kp-view-switch__count {
+  color: var(--kp-text-secondary);
+  font-weight: var(--kp-weight-medium);
+}

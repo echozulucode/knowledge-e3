@@ -10,6 +10,10 @@
   align-items: center;
   gap: var(--kp-space-2);
   max-width: 320px;
+  /* min-width: 0 lets the button shrink below its content in the header row,
+     so a long topic name ellipsizes instead of pushing into the search button.
+     The full name stays in the DOM, so the accessible name is unchanged. */
+  min-width: 0;
   min-height: 36px;
   padding: 0 var(--kp-space-2) 0 var(--kp-space-2);
   border: 1px solid transparent;
@@ -23,6 +27,7 @@
   background: var(--kp-surface-sunken);
 }
 .kp-switcher-crumb > svg {
+  flex: 0 0 auto;
   color: var(--kp-text-muted);
   transform: rotate(90deg);
 }
@@ -42,6 +47,7 @@
 }
 
 .kp-switcher-label {
+  min-width: 0;
   font-weight: var(--kp-weight-semibold);
   font-size: var(--kp-text-sm);
   letter-spacing: var(--kp-tracking-snug);
@@ -174,20 +180,19 @@
   background: var(--kp-surface-muted);
 }
 
-.kp-switcher-empty,
-.kp-switcher-note {
+.kp-switcher-empty {
   color: var(--kp-text-muted);
   font-size: 12px;
   padding: var(--kp-space-3) var(--kp-space-2);
-}
-.kp-switcher-note {
-  border-top: 1px solid var(--kp-border-subtle);
-  margin-top: var(--kp-space-2);
-  line-height: 1.5;
 }
 
 @media (max-width: 860px) {
   .kp-switcher-crumb {
     max-width: 180px;
+  }
+}
+@media (max-width: 640px) {
+  .kp-switcher-crumb {
+    min-height: 40px;
   }
 }

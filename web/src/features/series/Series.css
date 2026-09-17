@@ -1,0 +1,162 @@
+/* Series — the series page's landing and parts (/series/:slug), and the
+   in-article series box and pager (home plan R2.11). Token-driven, light/dark. */
+
+/* ---- The series page ---- */
+
+/* A wide band, as a story's cover is: the Series item's cover heads its page. */
+.Series__cover {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 6;
+  object-fit: cover;
+  border-radius: var(--kp-radius-lg);
+  background: var(--kp-surface-sunken);
+}
+
+.Series__description {
+  margin: var(--kp-space-2) 0 0;
+  max-width: 60ch;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-base);
+  line-height: 1.5;
+}
+
+/* The parts are the shared ItemRow (the same row the feed lists use); the
+   number is a CSS counter on the <ol>, so assistive tech gets the ordered list
+   and the row component needs no leading slot of its own. */
+.Series__parts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+  counter-reset: series-part;
+}
+.Series__parts > .kp-item-row {
+  counter-increment: series-part;
+}
+.Series__parts > .kp-item-row::before {
+  content: counter(series-part);
+  flex: 0 0 2ch;
+  align-self: flex-start;
+  font-size: var(--kp-text-xl);
+  font-weight: var(--kp-weight-bold);
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--kp-text-muted);
+}
+.Series__thumb {
+  display: block;
+  width: 96px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-sunken);
+}
+
+@media (max-width: 640px) {
+  .Series__cover { aspect-ratio: 16 / 9; }
+  .Series__thumb { width: 64px; height: 48px; }
+}
+
+/* ---- In an article: the series box, near the top ---- */
+
+.kp-series-box {
+  max-width: var(--kp-article-width);
+  margin: 0 var(--kp-content-pad) var(--kp-space-4);
+  padding: var(--kp-space-3) var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-sunken);
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+.kp-series-box__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kp-space-2) var(--kp-space-4);
+}
+.kp-series-box__position {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  margin: 0;
+}
+.kp-series-box__title {
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-primary);
+  text-decoration: none;
+}
+.kp-series-box__title:hover { color: var(--kp-accent); text-decoration: underline; }
+.kp-series-box__toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--kp-accent);
+  cursor: pointer;
+}
+.kp-series-box__toggle:hover { color: var(--kp-accent-hover); text-decoration: underline; }
+.kp-series-box__toggle:focus-visible { outline: 2px solid var(--kp-accent); outline-offset: 2px; border-radius: 2px; }
+.kp-series-box__parts {
+  margin: var(--kp-space-3) 0 0;
+  padding-left: var(--kp-space-6);
+  display: grid;
+  gap: var(--kp-space-1);
+}
+.kp-series-box__part a { color: var(--kp-accent); text-decoration: none; }
+.kp-series-box__part a:hover { text-decoration: underline; }
+.kp-series-box__part[aria-current='page'] {
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-primary);
+}
+
+/* ---- In an article: previous / next, at the end ---- */
+
+.kp-series-pager {
+  max-width: var(--kp-article-width);
+  margin: 0 var(--kp-content-pad) var(--kp-space-8);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--kp-space-3);
+}
+.kp-series-pager__link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1);
+  min-width: 0;
+  padding: var(--kp-space-3) var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+  text-decoration: none;
+}
+.kp-series-pager__link:hover { border-color: var(--kp-border-strong); }
+.kp-series-pager__link[data-direction='next'] {
+  grid-column: 2;
+  text-align: right;
+  align-items: flex-end;
+}
+.kp-series-pager__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--kp-text-xs);
+  color: var(--kp-text-muted);
+}
+.kp-series-pager__title {
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-primary);
+}
+.kp-series-pager__link:hover .kp-series-pager__title { color: var(--kp-accent); }
+
+@media (max-width: 640px) {
+  .kp-series-pager { grid-template-columns: minmax(0, 1fr); }
+  .kp-series-pager__link[data-direction='next'] { grid-column: 1; }
+  .kp-series-pager > span[aria-hidden='true'] { display: none; }
+}

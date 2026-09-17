@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..', '..');
 const testDb = resolve(repoRoot, 'server', 'data', 'test-e2e.sqlite');
+const testWiki = resolve(repoRoot, 'server', 'data', 'test-e2e-wiki');
 
 if (process.env.KEEP_DB) {
   console.log('[e2e clean-db] KEEP_DB set — skipping cleanup');
@@ -28,5 +29,16 @@ for (const f of [testDb, `${testDb}-shm`, `${testDb}-wal`, `${testDb}-journal`])
       console.error(`[e2e clean-db] failed to remove ${f}: ${e.message}`);
       process.exit(1);
     }
+  }
+}
+
+// The e2e server's content root / git mirror (GIT_MIRROR_ROOT in playwright.config.ts).
+if (existsSync(testWiki)) {
+  try {
+    rmSync(testWiki, { recursive: true, force: true });
+    console.log(`[e2e clean-db] removed ${testWiki}`);
+  } catch (e) {
+    console.error(`[e2e clean-db] failed to remove ${testWiki}: ${e.message}`);
+    process.exit(1);
   }
 }

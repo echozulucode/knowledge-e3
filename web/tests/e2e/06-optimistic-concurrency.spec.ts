@@ -76,7 +76,7 @@ test.describe('optimistic concurrency — ConflictDialog UI', () => {
     await editor.press('Control+End');
     await editor.type(' — my local edit');
 
-    await signedInPage.getByRole('button', { name: /^save$/i }).first().click();
+    await signedInPage.getByRole('button', { name: /save draft/i }).first().click();
 
     // The dialog should appear with the heading and all three actions.
     const dialog = signedInPage.getByRole('heading', { name: /edit conflict/i });
@@ -94,7 +94,7 @@ test.describe('optimistic concurrency — ConflictDialog UI', () => {
 
     await signedInPage.locator('.cm-content').click();
     await signedInPage.locator('.cm-content').type(' — my edit');
-    await signedInPage.getByRole('button', { name: /^save$/i }).first().click();
+    await signedInPage.getByRole('button', { name: /save draft/i }).first().click();
 
     await expect(signedInPage.getByRole('heading', { name: /edit conflict/i })).toBeVisible({ timeout: 10_000 });
     // The whole dialog must not contain a Merge button — collab-merge is v0.5.
@@ -106,7 +106,7 @@ test.describe('optimistic concurrency — ConflictDialog UI', () => {
 
     await signedInPage.locator('.cm-content').click();
     await signedInPage.locator('.cm-content').type(' — my edit');
-    await signedInPage.getByRole('button', { name: /^save$/i }).first().click();
+    await signedInPage.getByRole('button', { name: /save draft/i }).first().click();
 
     await signedInPage.getByRole('button', { name: /view their changes/i }).click();
 
@@ -122,7 +122,7 @@ test.describe('optimistic concurrency — ConflictDialog UI', () => {
 
     await signedInPage.locator('.cm-content').click();
     await signedInPage.locator('.cm-content').type(' — my overwrite');
-    await signedInPage.getByRole('button', { name: /^save$/i }).first().click();
+    await signedInPage.getByRole('button', { name: /save draft/i }).first().click();
 
     await expect(signedInPage.getByRole('heading', { name: /edit conflict/i })).toBeVisible({ timeout: 10_000 });
 
@@ -145,7 +145,7 @@ test.describe('optimistic concurrency — ConflictDialog UI', () => {
 
     await signedInPage.locator('.cm-content').click();
     await signedInPage.locator('.cm-content').type(' — my discardable edit');
-    await signedInPage.getByRole('button', { name: /^save$/i }).first().click();
+    await signedInPage.getByRole('button', { name: /save draft/i }).first().click();
 
     await expect(signedInPage.getByRole('heading', { name: /edit conflict/i })).toBeVisible({ timeout: 10_000 });
 

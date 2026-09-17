@@ -3,6 +3,7 @@ import { Icon, appIcons } from '../icons.js';
 import { useMe, useChangePassword } from '../queries.js';
 import { useTheme, type ThemeMode } from '../styles/theme.js';
 import { pushToast } from '../hooks/useToast.js';
+import { TokensPanel } from '../features/tokens/TokensPanel.js';
 import './Profile.css';
 
 const THEME_OPTIONS: { value: ThemeMode; label: string; icon: typeof appIcons.sun }[] = [
@@ -159,6 +160,8 @@ export function Profile() {
               <strong>Sign out</strong> from the top-right menu to end this session.
             </p>
           </section>
+
+          <TokensPanel />
         </div>
       </div>
     </main>

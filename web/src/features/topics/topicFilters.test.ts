@@ -45,7 +45,7 @@ describe('topic filter helpers', () => {
     expect(topicForPage(page({ space_id: 'space_research_lab' }), lookup)).toBe('Research Lab');
     expect(topicForPage(page({ frontmatter: { topic: 'Product Discovery' } }), lookup)).toBe('Product Discovery');
     expect(topicForPage(page({ frontmatter: { space: 'Legacy Space' } }), lookup)).toBe('Legacy Space');
-    expect(topicForPage(page({ space_id: 'space_default' }), lookup)).toBe('Default space');
+    expect(topicForPage(page({ space_id: 'space_default' }), lookup)).toBe('Default topic');
   });
 
   it('matches topic filters by slug, display name, and legacy space alias', () => {
@@ -94,7 +94,7 @@ describe('topic filter helpers', () => {
     expect(describeActiveTopicFilter({ space: 'legacy-space' }, lookup)).toEqual({ kind: 'topic', label: 'Legacy Space', value: 'legacy-space' });
     expect(describeActiveTopicFilter({ space: 'space_research_lab' }, lookup)).toEqual({ kind: 'topic', label: 'Research Lab', value: 'space_research_lab' });
     expect(describeActiveTopicFilter({ topic: UNASSIGNED_TOPIC_VALUE }, lookup)).toEqual({ kind: 'unassigned', label: 'Unassigned', value: UNASSIGNED_TOPIC_VALUE });
-    expect(describeActiveTopicFilter({}, lookup)).toEqual({ kind: 'all', label: 'All spaces', value: undefined });
+    expect(describeActiveTopicFilter({}, lookup)).toEqual({ kind: 'all', label: 'All topics', value: undefined });
   });
 });
 

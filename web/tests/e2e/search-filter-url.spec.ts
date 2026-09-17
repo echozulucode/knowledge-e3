@@ -5,8 +5,7 @@ function cardForTitle(page: import('@playwright/test').Page, title: string) {
 }
 
 test.describe('browse filter URLs', () => {
-  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
-  test('restores query, metadata filters, status, and sort after opening an item and going back @quarantine', async ({ signedInPage, apiAsAdmin }) => {
+  test('restores query, metadata filters, status, and sort after opening an item and going back', async ({ signedInPage, apiAsAdmin }) => {
     const matching = await createPageViaApi(apiAsAdmin, {
       title: 'URL Filter Alpha',
       status: 'published',
@@ -45,7 +44,10 @@ test.describe('browse filter URLs', () => {
     await expect(cardForTitle(signedInPage, 'URL Filter Alpha')).toBeVisible({ timeout: 15_000 });
     await expect(cardForTitle(signedInPage, 'URL Filter Beta')).toHaveCount(0);
 
-    await cardForTitle(signedInPage, 'URL Filter Alpha').click({ position: { x: 24, y: 72 } });
+    // Drive the card's named primary action: a positional click can land on the
+    // edit pencil, which now opens Compose rather than the read page.
+    await cardForTitle(signedInPage, 'URL Filter Alpha').getByRole('button', { name: /open url filter alpha/i }).focus();
+    await signedInPage.keyboard.press('Enter');
     await expect(signedInPage).toHaveURL((url) => url.pathname === `/p/${matching.slug}`, { timeout: 10_000 });
 
     await signedInPage.goBack();
@@ -63,8 +65,7 @@ test.describe('browse filter URLs', () => {
     await expect(signedInPage.getByLabel('Active browse filters')).toContainText('Search: URL Filter');
   });
 
-  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
-  test('clear filters returns to all-items browse and malformed params do not blank the page @quarantine', async ({ signedInPage, apiAsAdmin }) => {
+  test('clear filters returns to all-items browse and malformed params do not blank the page', async ({ signedInPage, apiAsAdmin }) => {
     await createPageViaApi(apiAsAdmin, {
       title: 'Clear Filter Target',
       status: 'published',
@@ -78,7 +79,8 @@ test.describe('browse filter URLs', () => {
     await signedInPage.getByRole('button', { name: /clear filters/i }).click();
 
     await expect(signedInPage).toHaveURL((url) => url.pathname === '/browse' && url.searchParams.get('view') === 'grouped' && !url.searchParams.has('tag') && !url.searchParams.has('status'));
-    await expect(signedInPage.getByRole('heading', { name: 'Grouped by space' })).toBeVisible();
+    // The grouped layout uses a compact header: the subtitle, no h1.
+    await expect(signedInPage.locator('.PageList__Subtitle')).toContainText(/matching pages across/i);
     await expect(cardForTitle(signedInPage, 'Clear Filter Target')).toBeVisible();
 
     // Malformed params must fall back rather than blank the page: `view` falls

@@ -63,17 +63,32 @@ export const DEMO_CORPUS_CATEGORIES = [
   ['demo-checklist', 'Demo Checklist'],
 ] as const;
 
+/**
+ * Pattern tuple: [name, category slug, content type, description lead, body snippet].
+ *
+ * The category slugs are all in DEMO_CORPUS_CATEGORIES above and are inserted
+ * into `primary_categories` before any item is written, which is what makes them
+ * CURATED rather than merely used. Primary categories are curated, not emergent
+ * (Eric, 2026-09-11 — issues 97/106): the publish gate lints a document against
+ * the catalog alone, so a slug here that is absent from DEMO_CORPUS_CATEGORIES
+ * would make its 10 items unpublishable.
+ *
+ * `type` and the `description` (not `summary`) are here for the same reason —
+ * "lint is the migration" (ROADMAP §7.1). Measured 2026-09-11, before this
+ * change: every one of these 100 items failed `type.missing` and
+ * `description.missing`, and none failed anything about categories.
+ */
 const ITEM_PATTERNS = [
-  ['Command quick reference', 'demo-command-card', 'Copy this command when repeating the workflow.', '```bash\npnpm --filter @echozedlabs/web test:e2e -- grouped-topic-browse.spec.ts\n```'],
-  ['Decision tradeoff note', 'demo-decision-record', 'Record the options considered and the selected path.', 'Decision: prefer catalog-backed topic selection over discovered metadata fallbacks.'],
-  ['Research evidence packet', 'demo-research-notes', 'Collect quotes, links, and confidence notes.', 'Evidence table: source, quote, confidence, next question.'],
-  ['Operational runbook', 'demo-runbook', 'List repeatable steps, verification commands, and escalation triggers.', 'Verification: confirm health endpoint, recent jobs, and error budget.'],
-  ['Experiment result log', 'demo-experiment', 'Summarize the hypothesis, method, result, and next experiment.', 'Hypothesis: scaled topic browsing remains usable with 20 visible topics.'],
-  ['Reference pattern card', 'demo-reference', 'Document a reusable pattern with examples and adjacent concepts.', 'Pattern: durable topic + primary purpose category + flexible tags.'],
-  ['Meeting capture brief', 'demo-meeting-notes', 'Capture decisions, owners, and open questions from a focused conversation.', 'Follow-up: review topic density and category vocabulary.'],
-  ['Draft idea scratchpad', 'demo-draft-capture', 'Save a rough idea with enough context to evaluate later.', 'Idea: add saved views for repeated topic/category combinations.'],
-  ['Launch checklist', 'demo-checklist', 'Track a small readiness checklist for the topic.', '- [ ] owner assigned\n- [ ] evidence attached\n- [ ] review complete'],
-  ['Implementation how-to', 'demo-how-to', 'Explain the steps needed to repeat the implementation.', 'Steps: choose topic, choose primary category, add copyable command, save.'],
+  ['Command quick reference', 'demo-command-card', 'How-To', 'Copy this command when repeating the workflow.', '```bash\npnpm --filter @echozedlabs/web test:e2e -- grouped-topic-browse.spec.ts\n```'],
+  ['Decision tradeoff note', 'demo-decision-record', 'ADR', 'Record the options considered and the selected path.', 'Decision: prefer catalog-backed topic selection over discovered metadata fallbacks.'],
+  ['Research evidence packet', 'demo-research-notes', 'Concept', 'Collect quotes, links, and confidence notes.', 'Evidence table: source, quote, confidence, next question.'],
+  ['Operational runbook', 'demo-runbook', 'Runbook', 'List repeatable steps, verification commands, and escalation triggers.', 'Verification: confirm health endpoint, recent jobs, and error budget.'],
+  ['Experiment result log', 'demo-experiment', 'Concept', 'Summarize the hypothesis, method, result, and next experiment.', 'Hypothesis: scaled topic browsing remains usable with 20 visible topics.'],
+  ['Reference pattern card', 'demo-reference', 'Architecture Note', 'Document a reusable pattern with examples and adjacent concepts.', 'Pattern: durable topic + primary purpose category + flexible tags.'],
+  ['Meeting capture brief', 'demo-meeting-notes', 'Concept', 'Capture decisions, owners, and open questions from a focused conversation.', 'Follow-up: review topic density and category vocabulary.'],
+  ['Draft idea scratchpad', 'demo-draft-capture', 'Concept', 'Save a rough idea with enough context to evaluate later.', 'Idea: add saved views for repeated topic/category combinations.'],
+  ['Launch checklist', 'demo-checklist', 'Runbook', 'Track a small readiness checklist for the topic.', '- [ ] owner assigned\n- [ ] evidence attached\n- [ ] review complete'],
+  ['Implementation how-to', 'demo-how-to', 'How-To', 'Explain the steps needed to repeat the implementation.', 'Steps: choose topic, choose primary category, add copyable command, save.'],
 ] as const;
 
 type PopulateDemoCorpusResult = {
@@ -116,7 +131,7 @@ export async function populateDemoCorpus(db: Kysely<Database>, ownerId?: string)
 
   for (let index = 0; index < 100; index += 1) {
     const [topicSlug, topicName] = DEMO_CORPUS_TOPICS[index % DEMO_CORPUS_TOPICS.length];
-    const [patternName, category, summaryLead, bodySnippet] = ITEM_PATTERNS[index % ITEM_PATTERNS.length];
+    const [patternName, category, type, summaryLead, bodySnippet] = ITEM_PATTERNS[index % ITEM_PATTERNS.length];
     const topic = topicBySlug.get(topicSlug);
     const sequence = String(index + 1).padStart(3, '0');
     const cycle = Math.floor(index / DEMO_CORPUS_TOPICS.length) + 1;
@@ -132,7 +147,8 @@ export async function populateDemoCorpus(db: Kysely<Database>, ownerId?: string)
       title,
       status,
       topic: topicName,
-      summary: `${summaryLead} Topic ${topicName}; sample ${sequence} of 100.`,
+      type,
+      description: `${summaryLead} Topic ${topicName}; sample ${sequence} of 100.`,
       categories: [category],
       tags,
     };

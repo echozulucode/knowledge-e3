@@ -1,30 +1,43 @@
-import { gzipSync } from 'node:zlib';
+import { gzipSync, gunzipSync } from 'node:zlib';
 
 /**
- * Minimal, dependency-free `tar` (ustar) + gzip writer for OKF bundle downloads.
+ * Minimal, dependency-free `tar` (ustar) + gzip writer/reader for OKF bundle
+ * downloads and uploads.
  *
  * OKF lists "tarball/zip" as a first-class distribution form, so a `.tar.gz` of the
  * concept files is a real, portable OKF bundle: extract it and `git init` to get the
  * git-of-record repo. We hand-roll ustar (rather than add a dependency) because the
- * format is small and we only ever write regular files with short, known paths.
+ * format is small and we only ever handle regular files with short, known paths.
+ *
+ * A file's `content` may be a UTF-8 string (concepts, index, descriptor sidecars) or
+ * raw bytes (image/PDF/attachment assets) — the archive is the *full-fidelity* export
+ * form that carries binary assets, which the text-only JSON `{ files }` envelope cannot.
  */
 
 interface ArchiveFile {
   path: string;
-  content: string;
+  /** UTF-8 text, or raw bytes for binary assets. */
+  content: string | Uint8Array;
 }
 
-/** Build a gzipped tar archive from a set of UTF-8 text files. */
+/** One regular file recovered from an archive. */
+export interface ExtractedFile {
+  path: string;
+  bytes: Buffer;
+}
+
+/** Build a gzipped tar archive from a set of text and/or binary files. */
 export function createTarGz(files: ArchiveFile[]): Buffer {
   return gzipSync(createTar(files));
 }
 
-/** Build an uncompressed ustar archive from a set of UTF-8 text files. */
+/** Build an uncompressed ustar archive from a set of text and/or binary files. */
 export function createTar(files: ArchiveFile[]): Buffer {
   const mtime = Math.floor(Date.now() / 1000);
   const chunks: Buffer[] = [];
   for (const file of files) {
-    const body = Buffer.from(file.content, 'utf8');
+    const body =
+      typeof file.content === 'string' ? Buffer.from(file.content, 'utf8') : Buffer.from(file.content);
     chunks.push(tarHeader(file.path, body.length, mtime));
     chunks.push(body);
     const pad = (512 - (body.length % 512)) % 512;
@@ -33,6 +46,51 @@ export function createTar(files: ArchiveFile[]): Buffer {
   // Two 512-byte zero blocks mark end-of-archive.
   chunks.push(Buffer.alloc(1024, 0));
   return Buffer.concat(chunks);
+}
+
+/** Extract regular files from a gzipped ustar archive (the reverse of createTarGz). */
+export function extractTarGz(archive: Buffer): ExtractedFile[] {
+  return extractTar(gunzipSync(archive));
+}
+
+/**
+ * Extract regular files from an uncompressed ustar archive. Only regular files
+ * ('0' / '\0' typeflag) are returned; directory and other entries are skipped.
+ * The ustar `prefix` field is rejoined with `name` so long paths round-trip.
+ */
+export function extractTar(buf: Buffer): ExtractedFile[] {
+  const out: ExtractedFile[] = [];
+  let off = 0;
+  while (off + 512 <= buf.length) {
+    const header = buf.subarray(off, off + 512);
+    // End-of-archive: a zero block.
+    if (header.every((b) => b === 0)) break;
+    const name = readCString(header, 0, 100);
+    const prefix = readCString(header, 345, 155);
+    const size = readOctal(header, 124, 12);
+    const typeflag = String.fromCharCode(header[156] ?? 0);
+    off += 512;
+    const body = buf.subarray(off, off + size);
+    off += size + ((512 - (size % 512)) % 512);
+    if (typeflag === '0' || typeflag === '\0' || typeflag === '') {
+      const path = prefix ? `${prefix}/${name}` : name;
+      if (path) out.push({ path, bytes: Buffer.from(body) });
+    }
+  }
+  return out;
+}
+
+/** Read a NUL-terminated ustar string field. */
+function readCString(buf: Buffer, offset: number, len: number): string {
+  const slice = buf.subarray(offset, offset + len);
+  const end = slice.indexOf(0);
+  return slice.subarray(0, end === -1 ? len : end).toString('utf8');
+}
+
+/** Parse a ustar octal numeric field (space/NUL padded). */
+function readOctal(buf: Buffer, offset: number, len: number): number {
+  const str = buf.subarray(offset, offset + len).toString('ascii').replace(/[\0 ]/g, '');
+  return str ? parseInt(str, 8) : 0;
 }
 
 function tarHeader(path: string, size: number, mtime: number): Buffer {

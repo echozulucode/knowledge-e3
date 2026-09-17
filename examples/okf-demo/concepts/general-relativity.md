@@ -2,6 +2,7 @@
 type: concept
 title: General Relativity
 description: Einstein's geometric theory of gravitation.
+categories: [reference]
 tags:
   - physics
 ---

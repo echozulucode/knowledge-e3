@@ -9,6 +9,7 @@ import { KYSELY } from '../db/db.module.js';
 import type { Database } from '../db/schema.js';
 import { OkfImportService, type OkfImportResult } from '../okf/okf-import.service.js';
 import type { ReadActor } from '../pages/pages.service.js';
+import { RepoConfigService } from './repo-config.service.js';
 
 const execFileAsync = promisify(execFile);
 const CLONE_TIMEOUT_MS = 60_000;
@@ -30,17 +31,15 @@ export class RepoPullService {
   constructor(
     @Inject(KYSELY) private readonly db: Kysely<Database>,
     private readonly okfImport: OkfImportService,
+    private readonly repos: RepoConfigService,
   ) {}
 
   async pullIntoTopic(spaceId: string, actor: ReadActor): Promise<OkfImportResult> {
-    const repo = await this.db
-      .selectFrom('space_repos')
-      .select(['remote_url', 'branch', 'default_status'])
-      .where('space_id', '=', spaceId)
-      .executeTakeFirst();
-    if (!repo) {
+    const bound = await this.repos.forSpace(spaceId);
+    if (!bound?.remote_url) {
       throw new BadRequestException('No dedicated repository is bound to this topic.');
     }
+    const repo = { remote_url: bound.remote_url, branch: bound.branch, default_status: bound.default_status };
     const space = await this.db
       .selectFrom('spaces')
       .select(['slug', 'name'])
@@ -64,6 +63,8 @@ export class RepoPullService {
       // and apply the binding's import default for files that declare no state.
       const result = await this.okfImport.importBundleFiles(actor, files, {
         space: space.slug,
+        // A pull is an admin action on the REST door (POST /repos/:spaceId/pull).
+        via: 'rest',
         ...(repo.default_status ? { defaultStatus: repo.default_status } : {}),
       });
       this.logger.log(

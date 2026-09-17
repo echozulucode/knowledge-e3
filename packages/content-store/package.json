@@ -1,0 +1,30 @@
+{
+  "name": "@echozedlabs/content-store",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ContentStore over OKF bundle roots on disk: listing, atomic writes, digests, layout path resolution, reserved files.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@echozedlabs/okf": "workspace:*",
+    "@echozedlabs/knowledge-types": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.4",
+    "typescript": "^5.6.3"
+  }
+}

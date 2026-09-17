@@ -1,0 +1,1054 @@
+/* SearchPage — `/search`, the one full search surface.
+ *
+ * `.Search` is both the route's scroll container (Root.css) and a size
+ * container: the layout follows the width the PAGE has, which the app sidebar
+ * and drawer change independently of the viewport. Thresholds:
+ *
+ *   < 40rem   narrow — results full width; facets in a dialog behind "Filters (n)"
+ *   40–64rem  medium — facets as horizontally scrolling chip rows above results
+ *   ≥ 64rem   wide   — sticky filters sidebar (16.5rem) + results filling the rest
+ *
+ * 64rem is where a 16.5rem sidebar, its gap and the page gutters still leave
+ * the results column ~40rem — the least that holds a two-line title and snippet
+ * comfortably. Below that the facets move above the results instead. 40rem is
+ * where a chip row stops fitting a label plus a couple of options, so a phone
+ * gets one button rather than four scroll strips.
+ *
+ * Width (2026-09-13, shared page caps in tokens.css): the page's content is
+ * capped at `--kp-page-width` (85rem) and centred, like every list page. The
+ * results column is no longer held to 52rem; it takes what the cap leaves
+ * beside the sidebar (at most 80 − 16.5 − 2.5 = 61rem). A title reads fine at
+ * that width; the snippet, the one run of prose, keeps its own measure
+ * (`.Search__row .kp-result-row__snippet` below).
+ *
+ * The thresholds above are unchanged by the cap: `.Search` (the container) has
+ * no padding of its own — the centring padding is on `.Search__inner` — so the
+ * queries still measure the page's full width. With the 264px app sidebar the
+ * wide layout starts at a ~1300px viewport; with the rail collapsed, ~1110px.
+ */
+
+.Search {
+  container: search-page / inline-size;
+}
+
+.Search__inner {
+  box-sizing: border-box;
+  /* The shared centring pattern (tokens.css): gutter until the cap, then the
+     extra width becomes gutter. Padding, not an auto margin, so a percentage of
+     `.Search` sets it and nothing here changes the container's size. */
+  padding-block: var(--kp-space-4) var(--kp-space-8);
+  padding-inline: max(var(--kp-page-gutter), calc((100% - var(--kp-page-width)) / 2));
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-5);
+}
+
+@container search-page (min-width: 40rem) {
+  .Search__inner {
+    padding-block: var(--kp-space-6) var(--kp-space-10);
+  }
+}
+
+/* ── Header: the query box is the page's reason to exist, so it leads ────── */
+
+.Search__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+}
+
+.Search__header h1 {
+  margin: 0;
+  font-size: var(--kp-text-xl);
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-primary);
+}
+
+@container search-page (min-width: 40rem) {
+  .Search__header h1 {
+    font-size: var(--kp-text-2xl);
+  }
+}
+
+.Search__form {
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-3);
+  min-width: 0;
+  padding: var(--kp-space-2) var(--kp-space-2) var(--kp-space-2) var(--kp-space-4);
+  border: 1px solid var(--kp-border-strong, var(--kp-border-subtle));
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-raised);
+}
+
+.Search__form:focus-within {
+  border-color: var(--kp-accent);
+  box-shadow: 0 0 0 2px var(--kp-accent-bg);
+}
+
+.Search__formIcon {
+  display: inline-flex;
+  color: var(--kp-text-muted);
+}
+
+.Search__input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--kp-space-2) 0;
+  border: none;
+  background: transparent;
+  color: var(--kp-text-primary);
+  font-family: var(--kp-font-ui);
+  /* 16px minimum: iOS Safari zooms the page into any smaller focused field. */
+  font-size: max(16px, var(--kp-text-md));
+}
+
+.Search__input:focus {
+  outline: none;
+}
+
+.Search__go {
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: var(--kp-space-2) var(--kp-space-4);
+  border: none;
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-accent);
+  color: var(--kp-accent-fg);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-medium);
+  cursor: pointer;
+}
+
+.Search__go:hover {
+  background: var(--kp-accent-hover);
+}
+
+/* ── Layout ───────────────────────────────────────────────────────────────── */
+
+.Search__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--kp-space-5);
+  align-items: start;
+}
+
+.Search__main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-5);
+}
+
+/* A refinement is loading; the previous answer stays, visibly provisional. */
+.Search__main[aria-busy='true'] .Search__group {
+  opacity: 0.6;
+  transition: opacity var(--kp-duration-fast, 120ms) var(--kp-ease, ease);
+}
+
+@container search-page (min-width: 64rem) {
+  /* The sidebar column is reserved even before there is anything to filter,
+     so results never jump sideways when the first facets arrive. */
+  .Search__layout {
+    grid-template-columns: 16.5rem minmax(0, 1fr);
+    column-gap: 2.5rem;
+  }
+
+  .Search__main {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .Search__filters {
+    grid-column: 1;
+    grid-row: 1;
+    position: sticky;
+    top: var(--kp-space-4);
+    /* Scrolls on its own when a long tag list outgrows the screen. */
+    max-height: calc(100vh - var(--kp-header-height, 58px) - var(--kp-space-8));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: var(--kp-space-2);
+  }
+}
+
+/* ── Filters: the facet groups, one DOM, three presentations ─────────────── */
+
+.Search__filters {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-4);
+}
+
+.Search__filtersHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kp-space-3);
+}
+
+.Search__filtersTitle {
+  margin: 0;
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-primary);
+}
+
+.Search__facetGroup {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1);
+}
+
+.Search__facetHeading {
+  margin: 0;
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--kp-text-muted);
+}
+
+/* Default presentation (the wide sidebar and the dialog): a vertical list of
+   toggles, label left and count right. */
+.Search__facets {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.Search__facet {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kp-space-2);
+  width: 100%;
+  min-width: 0;
+  padding: var(--kp-space-1) var(--kp-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--kp-radius-sm);
+  background: transparent;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.Search__facet:hover {
+  background: var(--kp-surface-muted);
+  color: var(--kp-text-primary);
+}
+
+.Search__facet:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 1px;
+}
+
+/* Active is marked by more than colour: a leading bar in the list, a border on
+   the chips, and `aria-pressed` for assistive tech. */
+.Search__facet.active {
+  background: var(--kp-accent-bg);
+  color: var(--kp-accent);
+  font-weight: var(--kp-weight-medium);
+  box-shadow: inset 3px 0 0 var(--kp-accent);
+}
+
+.Search__facetLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.Search__facetCount {
+  flex-shrink: 0;
+  color: var(--kp-text-muted);
+  font-size: var(--kp-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.Search__facet.active .Search__facetCount {
+  color: var(--kp-accent);
+}
+
+/* "Show N more" / "Show fewer": quieter than an option, so it reads as a way
+   to see the list rather than as one more thing to filter by. */
+.Search__facetMore {
+  align-self: flex-start;
+  min-width: 0;
+  padding: var(--kp-space-1) var(--kp-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--kp-radius-sm);
+  background: transparent;
+  color: var(--kp-accent);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-medium);
+  text-align: left;
+  cursor: pointer;
+}
+
+.Search__facetMore:hover {
+  text-decoration: underline;
+}
+
+.Search__facetMore:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 1px;
+}
+
+.Search__dialog .Search__facetMore {
+  min-height: 40px;
+}
+
+/* Narrow: the inline facets give way to the Filters button and dialog. */
+@container search-page (max-width: 39.99rem) {
+  .Search__filters {
+    display: none;
+  }
+}
+
+/* Medium: one labelled, horizontally scrolling chip row per facet group. */
+@container search-page (min-width: 40rem) and (max-width: 63.99rem) {
+  .Search__filters {
+    gap: var(--kp-space-2);
+  }
+
+  .Search__filtersTitle {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .Search__filtersHead {
+    order: 1;
+    justify-content: flex-start;
+  }
+
+  .Search__facetGroup {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--kp-space-3);
+  }
+
+  .Search__facetHeading {
+    flex: 0 0 5.5rem;
+  }
+
+  .Search__facets {
+    flex: 1;
+    flex-direction: row;
+    gap: var(--kp-space-2);
+    overflow-x: auto;
+    padding-block: 2px;
+    scrollbar-width: thin;
+  }
+
+  .Search__facet {
+    width: auto;
+    flex-shrink: 0;
+    padding: var(--kp-space-1) var(--kp-space-3);
+    border-color: var(--kp-border-subtle);
+    border-radius: var(--kp-radius-pill);
+    background: var(--kp-surface-base);
+  }
+
+  .Search__facet:hover {
+    border-color: var(--kp-border-strong);
+  }
+
+  .Search__facet.active {
+    border-color: var(--kp-accent);
+    background: var(--kp-accent-bg);
+    box-shadow: none;
+  }
+
+  .Search__facetLabel {
+    max-width: 16rem;
+  }
+
+  /* The trailing chip of the row. */
+  .Search__facetMore {
+    align-self: center;
+    flex-shrink: 0;
+    padding: var(--kp-space-1) var(--kp-space-3);
+    border-color: var(--kp-border-subtle);
+    border-radius: var(--kp-radius-pill);
+    font-size: var(--kp-text-sm);
+    white-space: nowrap;
+  }
+}
+
+/* The Filters button and removable active-filter chips: narrow only. */
+.Search__filterBar {
+  display: none;
+}
+
+@container search-page (max-width: 39.99rem) {
+  .Search__filterBar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--kp-space-2);
+  }
+}
+
+.Search__filtersButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  min-height: 40px;
+  padding: var(--kp-space-1) var(--kp-space-4);
+  border: 1px solid var(--kp-border-strong, var(--kp-border-subtle));
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-medium);
+  cursor: pointer;
+}
+
+.Search__activeFilters {
+  display: contents;
+  list-style: none;
+}
+
+.Search__activeChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  max-width: 100%;
+  min-height: 36px;
+  padding: var(--kp-space-1) var(--kp-space-3);
+  border: 1px solid var(--kp-accent);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-accent-bg);
+  color: var(--kp-accent);
+  font-size: var(--kp-text-sm);
+  cursor: pointer;
+}
+
+.Search__activeChip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The dialog: a bottom sheet on a phone, a centred panel anywhere wider. */
+.Search__dialog {
+  box-sizing: border-box;
+  width: min(28rem, 100vw);
+  max-width: 100vw;
+  max-height: min(40rem, 90vh);
+  padding: 0;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-lg);
+  background: var(--kp-surface-raised);
+  color: var(--kp-text-primary);
+  box-shadow: var(--kp-shadow-lg);
+  overflow: hidden;
+}
+
+.Search__dialog::backdrop {
+  background: var(--kp-surface-overlay);
+}
+
+/* A modal dialog sits in the top layer, sized against the viewport rather than
+   the page, so this one is a viewport query. */
+@media (max-width: 40rem) {
+  .Search__dialog {
+    width: 100vw;
+    max-height: 85vh;
+    margin: auto 0 0;
+    border-radius: var(--kp-radius-lg) var(--kp-radius-lg) 0 0;
+    border-bottom: none;
+  }
+}
+
+.Search__dialogBody {
+  display: flex;
+  flex-direction: column;
+  max-height: inherit;
+}
+
+.Search__dialogHead,
+.Search__dialogFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kp-space-3);
+  padding: var(--kp-space-3) var(--kp-space-4);
+  flex-shrink: 0;
+}
+
+.Search__dialogHead {
+  border-bottom: 1px solid var(--kp-border-subtle);
+}
+
+.Search__dialogFoot {
+  border-top: 1px solid var(--kp-border-subtle);
+}
+
+.Search__dialogFoot .Search__go {
+  margin-left: auto;
+  min-height: 40px;
+}
+
+.Search__dialogDone {
+  padding: var(--kp-space-1) var(--kp-space-2);
+  border: none;
+  background: transparent;
+  color: var(--kp-accent);
+  font-size: var(--kp-text-base);
+  font-weight: var(--kp-weight-medium);
+  cursor: pointer;
+}
+
+.Search__dialogFacets {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-4);
+  padding: var(--kp-space-4);
+}
+
+.Search__dialog .Search__facet {
+  min-height: 40px;
+}
+
+/* ── Results ─────────────────────────────────────────────────────────────── */
+
+.Search__muted {
+  margin: 0;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+}
+
+.Search__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kp-space-2) var(--kp-space-4);
+}
+
+.Search__summary {
+  min-width: 0;
+  color: var(--kp-text-meta, var(--kp-text-secondary));
+  font-size: var(--kp-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.Search__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--kp-space-3);
+  padding: var(--kp-space-5);
+  border: 1px dashed var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  overflow-wrap: anywhere;
+}
+
+.Search__empty h2 {
+  margin: 0;
+  font-size: var(--kp-text-md);
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-primary);
+}
+
+.Search__empty p {
+  margin: 0;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+}
+
+.Search__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+}
+
+.Search__groupHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--kp-space-3);
+  padding-bottom: var(--kp-space-1);
+  border-bottom: 1px solid var(--kp-border-subtle);
+}
+
+.Search__groupHead h2 {
+  margin: 0;
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--kp-text-muted);
+}
+
+.Search__seeAll {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-1);
+  flex-shrink: 0;
+  color: var(--kp-accent);
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-medium);
+  text-decoration: none;
+}
+
+.Search__seeAll:hover {
+  text-decoration: underline;
+}
+
+.Search__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1);
+}
+
+.Search__row {
+  display: block;
+  padding: var(--kp-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--kp-radius-md);
+  color: inherit;
+  text-decoration: none;
+}
+
+@container search-page (max-width: 39.99rem) {
+  /* Full-bleed-feeling rows on a phone: the hover card's inset is wasted width. */
+  .Search__row {
+    padding: var(--kp-space-3) var(--kp-space-2);
+  }
+}
+
+.Search__row:hover,
+.Search__row:focus-visible {
+  border-color: var(--kp-border-subtle);
+  background: var(--kp-surface-muted);
+}
+
+/* Here a result is read, not jumped from: the snippet gets two lines. It also
+   keeps a prose measure: the results column can reach 61rem at the page cap,
+   and two ~150-character lines of small type are hard to track back across,
+   so the snippet stops at 96ch (~43rem at 13px, a little under the old 52rem
+   column) while the title and meta line use the full row. */
+.Search__row .kp-result-row__snippet {
+  max-width: 96ch;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Warnings: an operator the parser could not honour, said out loud (§5.5). */
+.Search__warnings {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--kp-space-2);
+  padding: var(--kp-space-3);
+  border: 1px solid var(--kp-warning-border, var(--kp-border-subtle));
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-warning-bg, var(--kp-surface-muted));
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.Search__warnings ul {
+  margin: 0;
+  padding-left: var(--kp-space-4);
+}
+
+.Search__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+}
+
+.Search__sort select {
+  padding: var(--kp-space-1) var(--kp-space-2);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font-family: var(--kp-font-ui);
+  font-size: var(--kp-text-sm);
+}
+
+.Search__clear {
+  padding: var(--kp-space-1) var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  cursor: pointer;
+}
+
+.Search__clear:hover {
+  border-color: var(--kp-border-strong);
+  color: var(--kp-text-primary);
+}
+
+.Search__more {
+  align-self: center;
+  padding: var(--kp-space-2) var(--kp-space-5);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-sm);
+  cursor: pointer;
+}
+
+.Search__more:hover:not(:disabled) {
+  border-color: var(--kp-border-strong);
+  background: var(--kp-surface-muted);
+}
+
+.Search__more:disabled {
+  cursor: default;
+  color: var(--kp-text-muted);
+}
+
+/* ── Other ways into the library — below results at every width ───────────── */
+
+.Search__waysNav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+  padding-top: var(--kp-space-4);
+  border-top: 1px solid var(--kp-border-subtle);
+}
+
+.Search__waysTitle {
+  margin: 0;
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--kp-text-muted);
+}
+
+/* Browse and the tag view left the sidebar (§3.4); this row is their door. */
+.Search__ways {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-2);
+}
+
+.Search__way {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  padding: var(--kp-space-1) var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.Search__way:hover {
+  border-color: var(--kp-border-strong);
+  background: var(--kp-surface-muted);
+  color: var(--kp-text-primary);
+}
+
+/* ── Search tips: the supported filters, generated from the same table the
+   parser accepts, so help and behaviour cannot drift. ───────────────────── */
+
+.Search__tips {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+}
+
+.Search__tipsToggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  cursor: pointer;
+}
+
+.Search__tipsToggle:hover {
+  color: var(--kp-text-primary);
+}
+
+.Search__tipsPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+  padding: var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-raised);
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+
+.Search__tipsList {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  gap: var(--kp-space-1) var(--kp-space-4);
+}
+
+/* On a phone the two-column tip table has no room for its descriptions. */
+@container search-page (max-width: 39.99rem) {
+  .Search__tipsList {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .Search__tipsList dd {
+    margin-bottom: var(--kp-space-2);
+  }
+}
+
+.Search__tip {
+  display: contents;
+}
+
+.Search__tipsList dt,
+.Search__tipsList dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.Search__tipsList dt code {
+  font-family: var(--kp-font-mono);
+  color: var(--kp-text-primary);
+}
+
+.Search__tipsNotes {
+  margin: 0;
+  padding-left: var(--kp-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1);
+}
+
+/* "Search tips" is a quiet text toggle; enlarge its touch target without
+   changing its size on screen (the mobile sweep measured it at 20px). */
+.Search__tipsToggle { position: relative; }
+.Search__tipsToggle::after { content: ''; position: absolute; inset: -10px -6px; }
+
+/* ── Scope: "In Architecture ×" at the top of the results (§5.6) ─────────── */
+
+.Search__scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2);
+  min-width: 0;
+}
+
+/* The active-filter chip's shape, at every width: a scope is a narrowing the
+   reader can see and undo, never a wall. */
+.Search__scopeChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  max-width: 100%;
+  min-height: 36px;
+  padding: var(--kp-space-1) var(--kp-space-3);
+  border: 1px solid var(--kp-accent);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-accent-bg);
+  color: var(--kp-accent);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-medium);
+  cursor: pointer;
+}
+
+.Search__scopeChip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.Search__scopeChip:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+}
+
+/* ── The no-query index (reader plan R12) ────────────────────────────────── */
+
+/* With nothing searched there is nothing to filter, so the reserved sidebar
+   column is given back: the index uses the page's whole measure. */
+@container search-page (min-width: 64rem) {
+  .Search__layout--index {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .Search__layout--index .Search__main {
+    grid-column: 1;
+  }
+}
+
+.Search__index {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-4);
+  min-width: 0;
+}
+
+.Search__indexHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1);
+}
+
+.Search__indexTitle {
+  margin: 0;
+  font-size: var(--kp-text-md);
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-primary);
+}
+
+/* Intrinsic 1 → 2 → 3 columns: a cell never narrower than 21rem (or the
+   page, on a phone), and the page's 85rem cap never fits a fourth — four cells
+   plus three gaps need ~89rem — so the six blocks always read as two rows of
+   three rather than four-and-two. (19rem fitted four once the cap grew from
+   80rem, 2026-09-13.) */
+.Search__indexGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr));
+  gap: var(--kp-space-5) var(--kp-space-6);
+  align-items: start;
+}
+
+.Search__indexCell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+}
+
+.Search__indexChips,
+.Search__indexTopics,
+.Search__indexItems {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One size for every chip — the count carries the weight, not the type size. */
+.Search__indexChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-2);
+}
+
+.Search__indexChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  max-width: 100%;
+  min-height: 32px;
+  padding: var(--kp-space-1) var(--kp-space-3);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  text-decoration: none;
+}
+
+.Search__indexChip:hover,
+.Search__indexTopicLink:hover {
+  border-color: var(--kp-border-strong);
+  background: var(--kp-surface-muted);
+  color: var(--kp-text-primary);
+}
+
+.Search__indexChip:focus-visible,
+.Search__indexTopicLink:focus-visible,
+.Search__indexTopicPage:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 1px;
+}
+
+.Search__indexTopics {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.Search__indexTopic {
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  min-width: 0;
+}
+
+.Search__indexTopicLink {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kp-space-2);
+  min-height: 32px;
+  padding: var(--kp-space-1) var(--kp-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--kp-radius-sm);
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  text-decoration: none;
+}
+
+.Search__indexTopicPage {
+  flex-shrink: 0;
+  padding: var(--kp-space-1) var(--kp-space-2);
+  color: var(--kp-accent);
+  font-size: var(--kp-text-xs);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.Search__indexTopicPage:hover {
+  text-decoration: underline;
+}
+
+.Search__indexItems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+}
+
+/* Compact: six rows in a third of the page are a list to scan, not cards. */
+.Search__indexItem {
+  padding: var(--kp-space-2) var(--kp-space-3);
+  box-shadow: none;
+}
+
+.Search__indexItem .kp-item-row__title {
+  overflow-wrap: anywhere;
+}

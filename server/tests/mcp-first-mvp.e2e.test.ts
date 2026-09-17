@@ -3,7 +3,15 @@ import request from 'supertest';
 import { Kysely } from 'kysely';
 import type { INestApplication } from '@nestjs/common';
 import { makeApp, seedAdminAndLogin } from './helpers.js';
-import { FIRST_MVP_SEED_CATEGORIES, FIRST_MVP_SEED_GROUPS, FIRST_MVP_SEED_SPACES, seedFirstMvpCorpus } from '../src/seed.js';
+import {
+  FIRST_MVP_SEED_CATEGORIES,
+  FIRST_MVP_SEED_GROUPS,
+  FIRST_MVP_SEED_ITEMS,
+  FIRST_MVP_SEED_SERIES,
+  FIRST_MVP_SEED_SPACES,
+  FIRST_MVP_SEED_UPDATES,
+  seedFirstMvpCorpus,
+} from '../src/seed.js';
 import { KYSELY } from '../src/db/db.module.js';
 import type { Database } from '../src/db/schema.js';
 
@@ -56,7 +64,17 @@ describe('first MVP MCP happy path', () => {
       FIRST_MVP_SEED_GROUPS.map((group) => group.slug).sort(),
     );
     expect(groups.length, 'seed should have enough groups to demonstrate cross-cutting workstreams').toBeGreaterThanOrEqual(6);
-    expect(pages.length, 'seed should include exactly 100 items for scaled browse QA').toBe(100);
+    // 100 items for browse scale, plus the seeded updates the front page leads
+    // with (FIRST_MVP_SEED_UPDATES) and the seeded series - its Series item and
+    // its parts (FIRST_MVP_SEED_SERIES). Asserted against the fixture rather than a
+    // literal so adding a story is a one-line change, and against 100 as well
+    // so the scale property cannot be lost by shrinking the demo corpus to keep
+    // a total steady.
+    expect(pages.length, 'seed must create every fixture item exactly once').toBe(FIRST_MVP_SEED_ITEMS.length);
+    expect(
+      pages.length - FIRST_MVP_SEED_UPDATES.length - 1 - FIRST_MVP_SEED_SERIES.parts.length,
+      'seed should include at least 100 items for scaled browse QA',
+    ).toBeGreaterThanOrEqual(100);
     expect(linkedItems.length, 'seeded retrieval item must contain an indexed link for backlink checks').toBeGreaterThanOrEqual(1);
   });
 

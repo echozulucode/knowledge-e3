@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useToast, type Toast } from '../hooks/useToast.js';
+import { pauseToast, resumeToast, toastAction, useToast, type Toast } from '../hooks/useToast.js';
 import './Toast.css';
 
 /**
@@ -95,8 +95,9 @@ interface ToastItemProps {
 }
 
 function ToastItem({ toast, onDismiss }: ToastItemProps) {
+  const action = toastAction(toast);
   const handleAction = () => {
-    toast.onAction?.();
+    action?.onAction();
     onDismiss(toast.id);
   };
 
@@ -112,6 +113,13 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
       className="kp-toast-item"
       role={toast.kind === 'error' ? 'alert' : 'status'}
       aria-live={toast.kind === 'error' ? 'assertive' : 'polite'}
+      // Hold the auto-dismiss clock while someone is reaching for the action.
+      onMouseEnter={() => pauseToast(toast.id)}
+      onMouseLeave={() => resumeToast(toast.id)}
+      onFocus={() => pauseToast(toast.id)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) resumeToast(toast.id);
+      }}
       style={{
         display: 'flex',
         alignItems: 'flex-start',
@@ -138,17 +146,20 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
         <p style={{ margin: 0, fontWeight: 'var(--kp-weight-medium)' }}>{toast.message}</p>
 
         {/* Action button */}
-        {toast.actionLabel && (
+        {action && (
           <button
+            type="button"
+            className="kp-toast-action"
             onClick={handleAction}
             style={{
               alignSelf: 'flex-start',
-              padding: '4px 8px',
-              fontSize: 'var(--kp-text-xs)',
+              minHeight: '40px',
+              padding: '0 12px',
+              fontSize: 'var(--kp-text-sm)',
               fontWeight: 'var(--kp-weight-semibold)',
               color: 'var(--kp-accent)',
               background: 'transparent',
-              border: 'none',
+              border: '1px solid var(--kp-border-subtle)',
               borderRadius: 'var(--kp-radius-xs)',
               cursor: 'pointer',
               transition: 'all var(--kp-duration) var(--kp-ease)',
@@ -160,7 +171,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
               e.currentTarget.style.background = 'transparent';
             }}
           >
-            {toast.actionLabel}
+            {action.label}
           </button>
         )}
       </div>

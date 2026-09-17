@@ -7,8 +7,8 @@
  */
 
 import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
-import { useLogin } from '../queries.js';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { useAccess, useLogin } from '../queries.js';
 import type { ApiError } from '../api.js';
 import './SignIn.css';
 
@@ -38,6 +38,11 @@ export function SignIn() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const login = useLogin();
+  // Eric, 2026-09-14: someone who reaches sign-in without an account needs an obvious
+  // way back to what they CAN read, without editing the URL. Only offered when the
+  // library is publicly readable - otherwise every page leads straight back here.
+  const { data: readMode } = useAccess();
+  const canBrowse = readMode === 'public';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,6 +65,11 @@ export function SignIn() {
 
   return (
     <div className="kp-signin">
+      {canBrowse ? (
+        <Link to="/" className="kp-signin-back">
+          <span aria-hidden="true">←</span> Back to home
+        </Link>
+      ) : null}
       <div className="kp-signin-card">
         <div className="kp-signin-wordmark">Knowledge</div>
         <div className="kp-signin-divider" />
@@ -121,9 +131,18 @@ export function SignIn() {
         </form>
 
         <div className="kp-signin-footer">
-          <a href="#" className="kp-signin-help-link">
-            Need help? ↗
-          </a>
+          {canBrowse ? (
+            <Link to="/" className="kp-signin-browse">
+              Continue without signing in
+            </Link>
+          ) : null}
+          {/* Help is a reader page: in login-required mode it would bounce back here, so
+              it is offered only when the library is browsable (it used to be a dead "#"). */}
+          {canBrowse ? (
+            <Link to="/help" className="kp-signin-help-link">
+              Need help?
+            </Link>
+          ) : null}
         </div>
       </div>
     </div>

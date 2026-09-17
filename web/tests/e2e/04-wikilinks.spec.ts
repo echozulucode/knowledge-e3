@@ -26,9 +26,11 @@ test.describe('wiki-links and backlinks — API', () => {
     const body = await res.json();
     const titles = body.backlinks.map((b: { source_title: string }) => b.source_title).sort();
     expect(titles).toEqual(['Source A', 'Source B']);
-    // Snippets should reference the link
+    // Snippets show the link in context as a reader sees it: its text, never
+    // its `[[…]]` markup (issue 114).
     for (const b of body.backlinks as { snippet: string }[]) {
-      expect(b.snippet).toContain('[[Hub Page]]');
+      expect(b.snippet).toContain('Hub Page');
+      expect(b.snippet).not.toContain('[[');
     }
   });
 

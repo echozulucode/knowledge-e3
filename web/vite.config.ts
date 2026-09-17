@@ -2,6 +2,14 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 const singletonPackages = [
+  // The read page and the editor's Preview both render through
+  // @echozedlabs/renderers. Without deduping it (and the two engines it loads)
+  // the symlinked editor repo resolves its own copy from ITS node_modules while
+  // web resolves another from this app's graph, and the build emits two mermaid
+  // bundles — ~450 kB downloaded twice for what is meant to be one renderer.
+  '@echozedlabs/renderers',
+  'mermaid',
+  'shiki',
   '@codemirror/autocomplete',
   '@codemirror/commands',
   '@codemirror/lang-markdown',

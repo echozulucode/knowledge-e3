@@ -1,0 +1,157 @@
+/* ReferencePicker — combobox + listbox + chips, token-driven, light/dark. */
+.kp-picker {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+  min-width: 0;
+}
+
+.kp-picker__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kp-picker__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 2px 2px 2px var(--kp-space-2);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-muted);
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-primary);
+}
+.kp-picker__chipLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kp-picker__chipRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--kp-text-secondary);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.kp-picker__chipRemove:hover,
+.kp-picker__chipRemove:focus-visible {
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-primary);
+}
+.kp-picker__chipRemove:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 1px;
+}
+
+.kp-picker__field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.kp-picker__input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 36px 0 var(--kp-space-3);
+  border: 1px solid var(--kp-border-strong);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font: inherit;
+  font-size: var(--kp-text-sm);
+}
+.kp-picker__input:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 1px;
+}
+.kp-picker__input[aria-invalid='true'] {
+  border-color: var(--kp-danger);
+}
+.kp-picker__input:disabled {
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-muted);
+}
+.kp-picker__toggle {
+  position: absolute;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--kp-text-secondary);
+  cursor: pointer;
+}
+
+.kp-picker__popup {
+  /* Hangs off the wrapper's bottom, which is the field's: chips sit above it. */
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: var(--kp-z-dropdown);
+  max-height: 16rem;
+  overflow-y: auto;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-raised);
+  box-shadow: var(--kp-shadow-md);
+}
+.kp-picker__list {
+  margin: 0;
+  padding: var(--kp-space-1) 0;
+  list-style: none;
+}
+.kp-picker__option {
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  min-height: 36px;
+  padding: var(--kp-space-1) var(--kp-space-3);
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-primary);
+  cursor: pointer;
+}
+.kp-picker__option[data-active] {
+  background: var(--kp-accent-bg);
+}
+.kp-picker__option[aria-selected='true'] {
+  font-weight: var(--kp-weight-semibold);
+}
+.kp-picker__option[aria-selected='true']::after {
+  content: '✓';
+  margin-left: auto;
+  color: var(--kp-accent);
+}
+.kp-picker__option[data-kind='empty'],
+.kp-picker__option[data-kind='create'] {
+  color: var(--kp-text-secondary);
+  font-style: italic;
+}
+.kp-picker__none {
+  margin: 0;
+  padding: var(--kp-space-2) var(--kp-space-3);
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+.kp-picker__invalid {
+  margin: 0;
+  font-size: var(--kp-text-sm);
+  color: var(--kp-danger);
+}

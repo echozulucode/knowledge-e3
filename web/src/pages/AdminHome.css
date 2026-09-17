@@ -1,3 +1,5 @@
+/* Shared by the Overview and by Users, Authentication and Audit, which use the
+   `.AdminHome` root and its panels. The gutter comes from AdminLayout. */
 .AdminHome {
   display: flex;
   flex-direction: column;
@@ -7,42 +9,9 @@
   color: var(--kp-text-primary);
 }
 
-.AdminHome__hero,
-.AdminHome__card {
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: 24px;
-  background: var(--kp-surface-base);
-  box-shadow: var(--kp-shadow-sm);
-}
-
-.AdminHome__hero {
-  padding: 28px;
-  background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--kp-accent) 18%, transparent), transparent 42%),
-    var(--kp-surface-base);
-}
-
-.AdminHome__eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  color: var(--kp-accent);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.AdminHome h1,
+.AdminHome h2,
 .AdminHome p {
   margin: 0;
-}
-
-.AdminHome h1 {
-  font-size: clamp(2rem, 4vw, 3.5rem);
-  line-height: 1;
-  letter-spacing: -0.05em;
 }
 
 .AdminHome p {
@@ -50,62 +19,6 @@
   margin-top: 10px;
   color: var(--kp-text-secondary);
   line-height: 1.55;
-}
-
-.AdminHome__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
-}
-
-.AdminHome__card {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 14px;
-  padding: 22px;
-  color: inherit;
-  text-decoration: none;
-  transition: border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
-}
-
-.AdminHome__card:hover,
-.AdminHome__card:focus-visible {
-  border-color: color-mix(in srgb, var(--kp-accent) 55%, var(--kp-border-subtle));
-  box-shadow: var(--kp-shadow-md);
-  transform: translateY(-1px);
-  outline: none;
-}
-
-.AdminHome__cardIcon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--kp-accent) 12%, transparent);
-  color: var(--kp-accent);
-}
-
-.AdminHome__cardText {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.AdminHome__cardText strong {
-  font-size: 1.08rem;
-}
-
-.AdminHome__cardText span,
-.AdminHome__cardAction {
-  color: var(--kp-text-secondary);
-  line-height: 1.45;
-}
-
-.AdminHome__cardAction {
-  grid-column: 2;
-  font-weight: 700;
 }
 
 .AdminHome__panel {
@@ -154,4 +67,193 @@
   .AdminHome {
     padding: 18px;
   }
+}
+
+/* ---------------------------------------------------------------- Overview */
+
+.AdminOverview {
+  gap: var(--kp-space-5);
+  /* The shortcut columns follow the width the admin area really has (the nav
+     may take a column beside it), not the viewport. */
+  container: kp-admin-overview / inline-size;
+}
+
+.AdminOverview .AdminOverview__sectionTitle,
+.AdminOverview .AdminOverview__groupHeading {
+  margin: 0;
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-md, var(--kp-text-base));
+  font-weight: var(--kp-weight-semibold);
+}
+
+/* Group headings read as the nav's group headings do. */
+.AdminOverview .AdminOverview__groupHeading {
+  color: var(--kp-text-meta, var(--kp-text-secondary));
+  font-size: var(--kp-text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.AdminOverview__attention {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+  padding: var(--kp-space-4) var(--kp-space-5);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-lg);
+  background: var(--kp-surface-base);
+}
+
+.AdminOverview__attentionList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.AdminOverview__attentionItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--kp-space-3);
+  padding: var(--kp-space-2) var(--kp-space-3);
+  min-width: 0;
+  border-inline-start: 3px solid var(--kp-warning);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-warning-bg);
+}
+
+.AdminOverview__attentionItem[data-tone='alert'] {
+  border-inline-start-color: var(--kp-danger);
+  background: var(--kp-danger-bg);
+}
+
+/* The tone chip keeps its width so the links line up down the list. */
+.AdminOverview__attentionItem > .kp-status-chip {
+  flex: none;
+  min-width: 5rem;
+  justify-content: center;
+}
+
+.AdminOverview__attentionText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.AdminOverview__attentionText a {
+  color: var(--kp-text-primary);
+  font-weight: var(--kp-weight-semibold);
+}
+
+.AdminOverview__attentionDetail {
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+}
+
+.AdminOverview .AdminOverview__clear,
+.AdminOverview .AdminOverview__muted,
+.AdminOverview .AdminOverview__note {
+  margin: 0;
+  max-width: none;
+}
+
+.AdminOverview .AdminOverview__clear {
+  color: var(--kp-success);
+  font-weight: var(--kp-weight-semibold);
+}
+
+/* A phone: the tone chip goes above its text instead of squeezing it. */
+@container kp-admin-overview (max-width: 26rem) {
+  .AdminOverview__attentionItem {
+    flex-direction: column;
+    gap: var(--kp-space-1);
+  }
+}
+
+.AdminOverview .AdminOverview__note {
+  color: var(--kp-text-meta, var(--kp-text-secondary));
+  font-size: var(--kp-text-sm);
+}
+
+/* One column on a phone, three (one per nav group) once each can hold a
+   readable line; never two-and-an-orphan in between. */
+.AdminOverview__groups {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--kp-space-5);
+  align-items: start;
+}
+
+@container kp-admin-overview (min-width: 48rem) {
+  .AdminOverview__groups {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.AdminOverview__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-3);
+  min-width: 0;
+}
+
+.AdminOverview__shortcuts {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--kp-border-subtle);
+}
+
+.AdminOverview__shortcut {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--kp-space-2) 0;
+  border-bottom: 1px solid var(--kp-border-subtle);
+  min-width: 0;
+}
+
+.AdminOverview__shortcutHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 var(--kp-space-2);
+  min-width: 0;
+}
+
+.AdminOverview__shortcutLink {
+  width: fit-content;
+  color: var(--kp-text-primary);
+  font-weight: var(--kp-weight-semibold);
+  text-decoration: none;
+}
+
+.AdminOverview__shortcutLink:hover {
+  color: var(--kp-accent);
+  text-decoration: underline;
+}
+
+.AdminOverview__shortcutLink:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--kp-radius-xs);
+}
+
+.AdminOverview__shortcutDescription {
+  color: var(--kp-text-secondary);
+  font-size: var(--kp-text-sm);
+  line-height: var(--kp-leading-snug, 1.4);
+}
+
+.AdminOverview__shortcutStatus {
+  color: var(--kp-text-meta, var(--kp-text-secondary));
+  font-size: var(--kp-text-sm);
+  font-variant-numeric: tabular-nums;
 }

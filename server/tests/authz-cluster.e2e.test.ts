@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
-import { makeApp, seedAdminAndLogin, seedUserAndLogin } from './helpers.js';
+import { conformant, curateCategories, makeApp, seedAdminAndLogin, seedUserAndLogin } from './helpers.js';
 
 describe('authz cluster e2e (#38, #39, #44)', () => {
   let app: INestApplication;
@@ -26,6 +26,8 @@ describe('authz cluster e2e (#38, #39, #44)', () => {
     ({ cookie: adminCookie } = await seedAdminAndLogin(app));
     ({ cookie: aliceCookie, userId: aliceId } = await seedUserAndLogin(app, 'alice'));
     ({ cookie: bobCookie, userId: bobId } = await seedUserAndLogin(app, 'bob'));
+    // The published fixtures below must be publishable (issue 98).
+    await curateCategories(app);
   });
   afterEach(async () => app.close());
 
@@ -127,7 +129,7 @@ describe('authz cluster e2e (#38, #39, #44)', () => {
       const pub = await request(app.getHttpServer())
         .post('/api/v1/pages')
         .set('Cookie', aliceCookie)
-        .send({ title: 'Published', body: 'all may see', status: 'published' })
+        .send({ title: 'Published', body: 'all may see', status: 'published', frontmatter: conformant() })
         .expect(201);
       const pubId = pub.body.page.id;
 
@@ -256,7 +258,7 @@ describe('authz cluster e2e (#38, #39, #44)', () => {
       const page = await request(app.getHttpServer())
         .post('/api/v1/pages')
         .set('Cookie', aliceCookie)
-        .send({ title: 'Alice Doc', body: 'hi', status: 'published' })
+        .send({ title: 'Alice Doc', body: 'hi', status: 'published', frontmatter: conformant() })
         .expect(201);
       const id = page.body.page.id;
       const token = page.body.version_token;
@@ -280,7 +282,7 @@ describe('authz cluster e2e (#38, #39, #44)', () => {
       const page = await request(app.getHttpServer())
         .post('/api/v1/pages')
         .set('Cookie', aliceCookie)
-        .send({ title: 'Alice Owns This', body: 'hi', status: 'published' })
+        .send({ title: 'Alice Owns This', body: 'hi', status: 'published', frontmatter: conformant() })
         .expect(201);
       const id = page.body.page.id;
       const token = page.body.version_token;
@@ -297,7 +299,7 @@ describe('authz cluster e2e (#38, #39, #44)', () => {
       const page = await request(app.getHttpServer())
         .post('/api/v1/pages')
         .set('Cookie', aliceCookie)
-        .send({ title: 'Alice Page To Admin Rename', body: 'hi', status: 'published' })
+        .send({ title: 'Alice Page To Admin Rename', body: 'hi', status: 'published', frontmatter: conformant() })
         .expect(201);
       const id = page.body.page.id;
       const token = page.body.version_token;
@@ -314,7 +316,7 @@ describe('authz cluster e2e (#38, #39, #44)', () => {
       const page = await request(app.getHttpServer())
         .post('/api/v1/pages')
         .set('Cookie', aliceCookie)
-        .send({ title: 'Bad Versions Payload', body: 'x', status: 'published' })
+        .send({ title: 'Bad Versions Payload', body: 'x', status: 'published', frontmatter: conformant() })
         .expect(201);
       const id = page.body.page.id;
       const token = page.body.version_token;
@@ -337,7 +339,7 @@ describe('authz cluster e2e (#38, #39, #44)', () => {
       const page = await request(app.getHttpServer())
         .post('/api/v1/pages')
         .set('Cookie', aliceCookie)
-        .send({ title, body: 'hi', status: 'published' })
+        .send({ title, body: 'hi', status: 'published', frontmatter: conformant() })
         .expect(201);
       return { id: page.body.page.id as string, token: page.body.version_token as number };
     }
@@ -412,7 +414,7 @@ describe('authz cluster e2e (#38, #39, #44)', () => {
       const item = await request(app.getHttpServer())
         .post('/api/v1/items')
         .set('Cookie', aliceCookie)
-        .send({ title: 'Alice Item Update Target', body: 'hi', status: 'published' })
+        .send({ title: 'Alice Item Update Target', body: 'hi', status: 'published', frontmatter: conformant() })
         .expect(201);
       const id = item.body.item.id;
       const token = item.body.version_token;

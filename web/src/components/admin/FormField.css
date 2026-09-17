@@ -1,0 +1,96 @@
+/* FormField — label above, control, helper, error. Token-driven, light/dark.
+   The base control rules below give bare <input>/<select>/<textarea> children
+   the admin look (40px target, visible focus) without a component library;
+   custom controls (pickers) can ignore them. */
+
+.kp-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1);
+  min-width: 0;
+}
+
+.kp-field__label {
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-semibold);
+  color: var(--kp-text-primary);
+  line-height: var(--kp-leading-snug);
+}
+.kp-field__required {
+  color: var(--kp-danger);
+}
+.kp-field__hint {
+  font-weight: var(--kp-weight-regular);
+  color: var(--kp-text-secondary);
+}
+.kp-field__label--hidden,
+.kp-field__vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.kp-field__control {
+  min-width: 0;
+}
+.kp-field__control > :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color']), select, textarea) {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: var(--kp-space-2) var(--kp-space-3);
+  border: 1px solid var(--kp-border-strong);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font: inherit;
+  font-size: var(--kp-text-base);
+}
+.kp-field__control > textarea {
+  min-height: 5rem;
+  line-height: var(--kp-leading-normal);
+  resize: vertical;
+}
+.kp-field__control > :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 1px;
+}
+.kp-field__control > :is(input, select, textarea):disabled {
+  background: var(--kp-surface-muted);
+  color: var(--kp-text-secondary);
+  cursor: not-allowed;
+}
+.kp-field[data-invalid='true'] .kp-field__control > :is(input, select, textarea) {
+  border-color: var(--kp-danger);
+}
+
+.kp-field__helper {
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+  line-height: var(--kp-leading-normal);
+}
+.kp-field__helper > p {
+  margin: 0;
+}
+
+.kp-field__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--kp-space-1);
+  margin: 0;
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-medium);
+  color: var(--kp-danger);
+  line-height: var(--kp-leading-snug);
+}
+.kp-field__error svg {
+  flex: none;
+  width: 1em;
+  height: 1em;
+  margin-top: 0.15em;
+}

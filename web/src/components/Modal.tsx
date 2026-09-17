@@ -30,6 +30,15 @@ interface ModalProps {
   closeOnBackdrop?: boolean;
 }
 
+/**
+ * Open modals, innermost last. Every Modal listens on `document`, and
+ * stopPropagation does not stop a sibling listener on the same node, so a
+ * ConfirmDialog opened over a Sheet used to close BOTH on one Esc (and the
+ * outer trap could pull Tab focus back out of the inner dialog). Only the
+ * topmost modal handles Esc and Tab.
+ */
+const openModals: object[] = [];
+
 function focusableWithin(root: HTMLElement | null): HTMLElement[] {
   if (!root) return [];
   const selector =
@@ -48,17 +57,26 @@ export function Modal({
   closeOnBackdrop = true,
 }: ModalProps): JSX.Element {
   const panelRef = useRef<HTMLDivElement>(null);
+  // The latest onClose, read at key time. Depending on `onClose` directly made
+  // the effect below re-run whenever a caller passed a fresh inline function -
+  // i.e. on every parent render - which re-ran the initial-focus step and yanked
+  // focus back to the first control while someone was typing in the dialog.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
+    const layer = {};
+    openModals.push(layer);
     const previouslyFocused = document.activeElement as HTMLElement | null;
     // Move focus into the dialog (first focusable, else the panel itself).
     const initial = focusableWithin(panelRef.current)[0] ?? panelRef.current;
     initial?.focus();
 
     const onKeyDown = (e: KeyboardEvent): void => {
+      if (openModals[openModals.length - 1] !== layer) return;
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key === 'Tab') {
@@ -84,16 +102,19 @@ export function Modal({
     document.addEventListener('keydown', onKeyDown, true);
     return () => {
       document.removeEventListener('keydown', onKeyDown, true);
+      const index = openModals.indexOf(layer);
+      if (index !== -1) openModals.splice(index, 1);
       previouslyFocused?.focus?.();
     };
-  }, [onClose]);
+    // Mount-only: focus moves in once and is restored once.
+  }, []);
 
   return (
     <div
       className={backdropClassName}
       role="presentation"
       onMouseDown={(e) => {
-        if (closeOnBackdrop && e.target === e.currentTarget) onClose();
+        if (closeOnBackdrop && e.target === e.currentTarget) onCloseRef.current();
       }}
     >
       <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={labelledBy} className={className}>

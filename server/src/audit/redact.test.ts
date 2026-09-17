@@ -32,6 +32,19 @@ describe('audit redact()', () => {
     expect(redacted).toEqual({ safe_field: 'value' });
   });
 
+  it("keeps a token's name, and only under that exact key", () => {
+    // token.revoke names the token it revoked; the name is a label, not the secret.
+    expect(redact({ id: 't1', token_name: 'ci-bot', owner_username: 'bob' })).toEqual({
+      id: 't1',
+      token_name: 'ci-bot',
+      owner_username: 'bob',
+    });
+    // Not a pattern: near-misses are still dropped.
+    expect(redact({ Token_Name: 'x', token_names: 'x', token_name_hash: 'x', token: 'x' })).toEqual({});
+    // And the exception never reaches a nested secret under it.
+    expect(redact({ token_name: { token: 'abc' } })).toEqual({ token_name: {} });
+  });
+
   it('redacts keys case-insensitively', () => {
     const obj = { Password: 'secret', PASSWORD: 'secret2', Token: 'token' };
     const redacted = redact(obj);

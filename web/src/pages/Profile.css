@@ -1,23 +1,24 @@
 /* `.Profile` is the page scroll container (see Root.css), so it must stay full
    width — otherwise its scrollbar would sit at the content edge mid-screen.
-   Content is centered and width-limited by `.Profile__inner`. */
+   Content is centered and width-limited by padding: the shared page-width
+   pattern (tokens.css, 2026-09-13; `.Profile__inner` was capped at 1100px). */
 .Profile {
   min-height: 100%;
-  padding: clamp(16px, 4vw, 40px);
+  padding-block: clamp(16px, 4vw, 40px);
+  padding-inline: max(var(--kp-page-gutter), calc((100% - var(--kp-page-width)) / 2));
   color: var(--kp-text-primary);
 }
 
 .Profile__inner {
   width: 100%;
-  max-width: 1100px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
 /* Panels flow into a responsive grid: one column on small screens, two on
-   normal/large; capped by `.Profile__inner` so it never stretches absurdly. */
+   normal/large; capped by the page width (`.Profile`) so it never stretches
+   absurdly — at 85rem (1275px) two 460px columns fit, a third does not. */
 .Profile__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
@@ -239,4 +240,263 @@
   margin: 0;
   color: var(--kp-text-secondary);
   line-height: 1.55;
+}
+
+/* Personal access tokens */
+.Profile__panel--wide {
+  grid-column: 1 / -1;
+}
+
+.Profile__tokenReveal {
+  margin: 16px 0 4px;
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--kp-accent) 40%, var(--kp-border-subtle));
+  border-radius: 16px;
+  background: var(--kp-accent-bg);
+}
+
+.Profile__tokenReveal strong {
+  color: var(--kp-text-primary);
+}
+
+.Profile__tokenReveal p {
+  margin: 4px 0 10px;
+  color: var(--kp-text-secondary);
+  font-size: 0.86rem;
+}
+
+.Profile__tokenRevealRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.Profile__tokenValue {
+  flex: 1 1 320px;
+  padding: 8px 12px;
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-base);
+  border: 1px solid var(--kp-border-subtle);
+  font-family: var(--kp-font-mono, ui-monospace, monospace);
+  font-size: 0.9rem;
+  color: var(--kp-text-primary);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.Profile__tokenSnippet {
+  margin-top: 12px;
+  font-size: 0.86rem;
+  color: var(--kp-text-secondary);
+}
+
+.Profile__tokenSnippet summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.Profile__tokenSnippet pre {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-base);
+  border: 1px solid var(--kp-border-subtle);
+  font-family: var(--kp-font-mono, ui-monospace, monospace);
+  font-size: 0.82rem;
+  color: var(--kp-text-primary);
+  overflow-x: auto;
+}
+
+.Profile__tokenBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
+}
+
+.Profile__tokenBtn:hover:not(:disabled) {
+  background: var(--kp-surface-sunken);
+  border-color: var(--kp-border-strong);
+}
+
+.Profile__tokenBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.Profile__tokenBtn--ghost {
+  margin-top: 12px;
+  background: transparent;
+}
+
+.Profile__tokenBtn--danger {
+  color: var(--kp-danger);
+}
+
+.Profile__tokenForm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 520px;
+  margin-top: 8px;
+}
+
+.Profile__tokenForm label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--kp-text-secondary);
+  margin-top: 10px;
+}
+
+.Profile__tokenForm input,
+.Profile__tokenForm select {
+  padding: 9px 12px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-primary);
+  font-size: 0.95rem;
+}
+
+.Profile__tokenForm input:focus,
+.Profile__tokenForm select:focus {
+  outline: none;
+  border-color: var(--kp-border-focus);
+  box-shadow: 0 0 0 2px var(--kp-accent-bg);
+}
+
+.Profile__tokenScopes {
+  border: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.Profile__tokenScopes legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--kp-text-secondary);
+}
+
+.Profile__tokenScope {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: 12px;
+  background: var(--kp-surface-sunken);
+  cursor: pointer;
+}
+
+.Profile__tokenScope input {
+  margin-top: 3px;
+  accent-color: var(--kp-accent);
+}
+
+.Profile__tokenScope > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.Profile__tokenScope strong {
+  font-size: 0.92rem;
+  color: var(--kp-text-primary);
+}
+
+.Profile__tokenScope > span > span {
+  font-size: 0.84rem;
+  color: var(--kp-text-secondary);
+}
+
+.Profile__tokenScope:has(input:checked) {
+  border-color: var(--kp-accent);
+  background: var(--kp-accent-bg);
+}
+
+.Profile__tokenTableWrap {
+  margin-top: 20px;
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: 16px;
+  overflow-x: auto;
+}
+
+.Profile__tokenTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.Profile__tokenTable thead th {
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--kp-text-muted);
+  border-bottom: 1px solid var(--kp-border-subtle);
+  background: var(--kp-surface-sunken);
+  white-space: nowrap;
+}
+
+.Profile__tokenTable tbody td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--kp-border-subtle);
+  vertical-align: middle;
+  color: var(--kp-text-primary);
+  white-space: nowrap;
+}
+
+.Profile__tokenTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.Profile__tokenRow--inactive {
+  opacity: 0.6;
+}
+
+.Profile__scopeChip,
+.Profile__tokenState {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-secondary);
+}
+
+.Profile__scopeChip--write {
+  background: var(--kp-accent-bg);
+  color: var(--kp-accent);
+}
+
+.Profile__tokenState--active {
+  background: var(--kp-success-bg, color-mix(in srgb, #22c55e 18%, transparent));
+  color: var(--kp-success, #16a34a);
+}
+
+.Profile__tokenState--revoked {
+  background: var(--kp-danger-bg);
+  color: var(--kp-danger);
+}
+
+.Profile__tokenActions {
+  text-align: right;
 }

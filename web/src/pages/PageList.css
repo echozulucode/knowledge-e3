@@ -3,8 +3,16 @@
  * Linear-inspired, scannable rows with token-based design.
  */
 
+/* Browse is a data-heavy, multi-column page (facet panel beside a card grid,
+   scrollspy beside grouped results), so it takes the WIDE shared cap —
+   `--kp-page-width-wide`, 96rem, like Home (tokens.css, 2026-09-13; it was
+   full width). Centred with padding, as every page is: this element is the
+   route's scroll container, so its scrollbar stays at the window edge.
+   `--pl-pad-x` stays the plain gutter — the grouped view's inner scroller bleeds
+   by it (`.PageList__TopicGroupsScroller`), and a percentage-based centring
+   value would resolve against that scroller's box, not this page's. */
 .PageList {
-  --pl-pad-x: clamp(var(--kp-space-4), 3vw, var(--kp-space-8));
+  --pl-pad-x: var(--kp-page-gutter);
   display: flex;
   flex-direction: column;
   gap: var(--kp-space-5);
@@ -13,7 +21,8 @@
   min-height: calc(100vh - var(--kp-space-10, 80px));
   margin: 0;
   box-sizing: border-box;
-  padding: var(--kp-space-5) var(--pl-pad-x);
+  padding-block: var(--kp-space-5);
+  padding-inline: max(var(--pl-pad-x), calc((100% - var(--kp-page-width-wide)) / 2));
 }
 
 .PageList__Header {
@@ -118,7 +127,6 @@
   color: var(--kp-accent);
   border-color: var(--kp-accent);
 }
-
 
 .PageList__ActiveFilters {
   display: flex;
@@ -307,7 +315,6 @@
   flex-shrink: 0;
 }
 
-
 .PageList__TagChipButton {
   border: 0;
   cursor: pointer;
@@ -448,6 +455,14 @@
   .PageList__Controls {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  /* The search field's `flex: 1 1 320px` is a WIDTH basis in the wide row; once
+     the controls stack into a column it became a 320px HEIGHT, leaving a blank
+     band under the input on every phone. */
+  .PageList__Controls > .PageList__MainSearch {
+    flex: 0 0 auto;
+    max-width: none;
   }
 
   .PageList__Controls > div:last-child {
@@ -1010,7 +1025,6 @@
   font-size: var(--kp-text-xs);
 }
 
-
 .PageList__Panel,
 .PageList__TagGrid {
   border: 1px solid var(--kp-border-subtle);
@@ -1126,260 +1140,6 @@
 .PageList__EmptyInline {
   color: var(--kp-text-muted);
 }
-
-.PageList__ComposerBackdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: min(8vh, var(--kp-space-10)) var(--kp-space-4);
-  background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(10px);
-  overflow-y: auto;
-}
-
-.PageList__Composer {
-  width: min(720px, 100%);
-  display: flex;
-  flex-direction: column;
-  gap: var(--kp-space-4);
-  padding: var(--kp-space-5);
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: var(--kp-radius-xl);
-  background: var(--kp-surface-base);
-  box-shadow: var(--kp-shadow-lg);
-}
-
-.PageList__ComposerHeader,
-.PageList__ComposerActions {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--kp-space-4);
-}
-
-.PageList__ComposerHeader h2 {
-  margin: 0;
-  color: var(--kp-text-primary);
-  font-size: var(--kp-text-xl);
-  letter-spacing: var(--kp-tracking-tight);
-}
-
-.PageList__ComposerHeader p {
-  margin: var(--kp-space-1) 0 0;
-  color: var(--kp-text-secondary);
-  font-size: var(--kp-text-sm);
-}
-
-.PageList__ComposerGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--kp-space-3);
-}
-
-.PageList__ComposerField {
-  display: flex;
-  flex-direction: column;
-  gap: var(--kp-space-2);
-  color: var(--kp-text-primary);
-  font-size: var(--kp-text-sm);
-  font-weight: var(--kp-weight-medium);
-}
-
-.PageList__FieldLabelText {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--kp-space-1);
-}
-
-.PageList__HelpWrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-
-.PageList__HelpIcon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: 999px;
-  background: var(--kp-surface-sunken);
-  color: var(--kp-text-secondary);
-  cursor: help;
-  font-size: 11px;
-  font-weight: var(--kp-weight-semibold);
-  line-height: 1;
-  padding: 0;
-}
-
-.PageList__HelpIcon:hover,
-.PageList__HelpIcon:focus-visible,
-.PageList__HelpIcon[aria-expanded='true'] {
-  border-color: var(--kp-accent);
-  color: var(--kp-accent);
-  background: var(--kp-accent-bg);
-}
-
-.PageList__HelpTooltip {
-  position: absolute;
-  z-index: 20;
-  left: 50%;
-  bottom: calc(100% + var(--kp-space-2));
-  width: min(320px, 70vw);
-  transform: translateX(-50%);
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: var(--kp-radius-md);
-  background: var(--kp-surface-elevated);
-  color: var(--kp-text-primary);
-  box-shadow: var(--kp-shadow-lg);
-  padding: var(--kp-space-3);
-  font-size: var(--kp-text-xs);
-  font-weight: var(--kp-weight-normal);
-  line-height: 1.45;
-}
-
-.PageList__HelpIcon:hover + .PageList__HelpTooltip,
-.PageList__HelpIcon:focus-visible + .PageList__HelpTooltip {
-  display: inline-block;
-}
-
-.PageList__ComposerField input,
-.PageList__ComposerField select,
-.PageList__ComposerField textarea {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: var(--kp-radius-md);
-  background: var(--kp-surface-sunken);
-  color: var(--kp-text-primary);
-  padding: var(--kp-space-3);
-  font: inherit;
-  font-weight: var(--kp-weight-normal);
-}
-
-.PageList__ComposerField textarea {
-  resize: vertical;
-  min-height: 86px;
-}
-
-.PageList__ComposerHint {
-  margin: calc(var(--kp-space-2) * -1) 0 0;
-  color: var(--kp-text-muted);
-  font-size: var(--kp-text-xs);
-}
-
-.PageList__ComposerError {
-  border: 1px solid color-mix(in srgb, var(--kp-danger) 40%, transparent);
-  border-radius: var(--kp-radius-md);
-  background: color-mix(in srgb, var(--kp-danger) 10%, transparent);
-  color: var(--kp-danger);
-  padding: var(--kp-space-3);
-  font-size: var(--kp-text-sm);
-}
-
-.PageList__ComposerTagEditor {
-  min-height: 44px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--kp-space-2);
-  box-sizing: border-box;
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: var(--kp-radius-md);
-  background: var(--kp-surface-sunken);
-  padding: var(--kp-space-2);
-}
-
-.PageList__ComposerTagEditor:focus-within {
-  border-color: var(--kp-accent);
-  box-shadow: 0 0 0 3px var(--kp-accent-bg);
-}
-
-.PageList__ComposerTagEditor input {
-  flex: 1 1 120px;
-  min-width: 120px;
-  width: auto;
-  border: 0;
-  background: transparent;
-  padding: var(--kp-space-1);
-  box-shadow: none;
-}
-
-.PageList__ComposerTagEditor input:focus {
-  box-shadow: none;
-}
-
-.PageList__ComposerTagPill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--kp-space-1);
-  padding: 3px var(--kp-space-2);
-  border-radius: var(--kp-radius-pill);
-  background: var(--kp-accent-bg);
-  color: var(--kp-accent);
-  font-size: var(--kp-text-xs);
-  font-weight: var(--kp-weight-medium);
-}
-
-.PageList__ComposerTagPill button {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-  padding: 0;
-}
-
-.PageList__ComposerField input:focus,
-.PageList__ComposerField select:focus,
-.PageList__ComposerField textarea:focus {
-  outline: none;
-  border-color: var(--kp-accent);
-  box-shadow: 0 0 0 3px var(--kp-accent-bg);
-}
-
-.PageList__ComposerGhost {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--kp-space-2) var(--kp-space-4);
-  border: 1px solid var(--kp-border-subtle);
-  border-radius: var(--kp-radius-pill);
-  background: var(--kp-surface-sunken);
-  color: var(--kp-text-secondary);
-  cursor: pointer;
-  font-family: var(--kp-font-ui);
-  white-space: nowrap;
-}
-
-.PageList__ComposerGhost:hover {
-  border-color: var(--kp-border-strong);
-  color: var(--kp-text-primary);
-}
-
-.PageList__ComposerActions {
-  align-items: center;
-  justify-content: flex-end;
-  padding-top: var(--kp-space-2);
-}
-
-@media (max-width: 640px) {
-  .PageList__ComposerGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .PageList__ComposerHeader,
-  .PageList__ComposerActions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-}
-
 
 .TopicSwitcher {
   display: inline-flex;
@@ -1592,9 +1352,9 @@
 }
 
 .TopicSwitcher__Star.active {
-  color: #ca8a04;
-  border-color: #facc15;
-  background: color-mix(in srgb, #facc15 16%, var(--kp-surface-base));
+  color: var(--kp-warning);
+  border-color: var(--kp-warning);
+  background: var(--kp-warning-bg);
 }
 
 .TopicSwitcher__Empty {
@@ -1686,8 +1446,11 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  /* Bleed past PageList's right padding so the scrollbar is flush to the window
-     edge; keep the content padded away from it. */
+  /* Bleed past PageList's right gutter so the scrollbar is flush to the window
+     edge; keep the content padded away from it. Past the 96rem cap the page's
+     padding is wider than the gutter, and the scrollbar then sits one gutter
+     outside the centred content rather than at the window edge — it belongs to
+     this region, so it stays with it. */
   margin-right: calc(-1 * var(--pl-pad-x));
   padding-right: var(--pl-pad-x);
 }
@@ -1780,4 +1543,59 @@
     align-items: flex-start;
     flex-direction: column;
   }
+}
+
+/* "By type" view: one section per content type; rows share the palette's
+   SearchResultRow and the List view's overlay open button, so semantics and
+   focus styling match. */
+.PageList__TypeGroups {
+  display: grid;
+  gap: var(--kp-space-6);
+}
+
+.PageList__TypeGroup {
+  display: grid;
+  gap: var(--kp-space-3);
+}
+
+.PageList__TypeGroupHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--kp-space-3);
+}
+
+.PageList__TypeGroupHeader h2 {
+  margin: 0;
+  color: var(--kp-text-primary);
+  font-size: var(--kp-text-lg);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: var(--kp-tracking-tight);
+}
+
+.PageList__ResultList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--kp-space-2);
+}
+
+.PageList__ResultItem {
+  position: relative;
+  padding: var(--kp-space-3) var(--kp-space-4);
+  border: 1px solid var(--kp-border-subtle);
+  border-radius: var(--kp-radius-md);
+  background: var(--kp-surface-base);
+  box-shadow: var(--kp-shadow-xs);
+}
+
+.PageList__ResultItem:hover {
+  border-color: var(--kp-border-strong);
+}
+
+.PageList__ResultItem > .kp-result-row {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
 }

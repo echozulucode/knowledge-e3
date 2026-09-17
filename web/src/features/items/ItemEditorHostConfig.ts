@@ -29,7 +29,7 @@ export const knowledgeItemPropertySchema: FrontmatterPropertySchema[] = [
   {
     key: 'topic',
     type: 'text',
-    label: 'Space',
+    label: 'Topic',
     icon: 'space',
     defaultValue: 'Default topic',
     order: 30,

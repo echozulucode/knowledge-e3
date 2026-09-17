@@ -14,7 +14,6 @@ import { ToastViewport } from '../components/Toast.js';
 import '../pages/Root.css';
 
 const SIDEBAR_STORAGE_KEY = 'kp-sidebar-collapsed';
-const AUTH_MODE = import.meta.env.VITE_KNOWLEDGE_E3_AUTH_MODE === 'disabled' ? 'disabled' : 'session';
 
 export function Root() {
   const { data: user, isLoading, isError } = useMe();
@@ -23,9 +22,11 @@ export function Root() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const onLoginPage = pathname === '/login';
 
-  // An anonymous visitor (session mode, no resolved /me). In `public` read mode
-  // they may browse content, but admin/profile routes still require a login.
-  const isAnon = AUTH_MODE === 'session' && !isLoading && isError;
+  // An anonymous visitor (no resolved /me). In `public` read mode they may
+  // browse content, but admin/profile routes still require a login. There is no
+  // client-side "authentication disabled" bypass: the server refuses to start
+  // without authentication, so every instance has a sign-in.
+  const isAnon = !isLoading && isError;
   const isProtectedRoute = pathname.startsWith('/admin') || pathname.startsWith('/profile');
   const mustLogin =
     isAnon && !onLoginPage && !accessLoading && (readMode !== 'public' || isProtectedRoute);
@@ -137,7 +138,6 @@ export function Root() {
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
-        onOpenPalette={() => setPaletteOpen(true)}
         mobileOpen={navOpen}
         onMobileClose={() => setNavOpen(false)}
       />

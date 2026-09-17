@@ -3,7 +3,9 @@ import type { Request, Response } from 'express';
 import { AdminOnly, CurrentUser, PublicRead } from '../auth/auth.decorators.js';
 import type { AuthedUser } from '../auth/auth.service.js';
 import { ANONYMOUS_ACTOR } from '../auth/auth-mode.js';
-import { ImagesService } from './images.service.js';
+import { isSiteBrandingAsset } from '../config/server-config.js';
+import { IMAGE_KINDS, IMAGE_SORTS, IMAGE_USAGES, ImagesService } from './images.service.js';
+import { wholeNumber } from '../auth/list-params.js';
 import { dispositionFor, sanitizeFilename } from './attachment-policy.js';
 
 /** Unauthenticated visitor on a public instance (see SessionGuard/@PublicRead). */
@@ -18,6 +20,16 @@ const EXT_MIME: Record<string, string> = {
 };
 /** Stored files are content-addressed (`<sha16>.<ext>`); reject anything else. */
 const SAFE_FILE = /^[a-zA-Z0-9]+\.[a-zA-Z0-9]+$/;
+
+/** An optional enum query parameter: absent → undefined, unknown → 400. */
+function oneOf<T extends string>(raw: string | undefined, param: string, allowed: readonly T[]): T | undefined {
+  const value = raw?.trim();
+  if (!value) return undefined;
+  if (!(allowed as readonly string[]).includes(value)) {
+    throw new BadRequestException(`${param} must be one of ${allowed.join(', ')}`);
+  }
+  return value as T;
+}
 
 @Controller()
 export class ImagesController {
@@ -55,10 +67,20 @@ export class ImagesController {
 
     // Bytes are served by filename alone, so this is the only visibility check
     // an asset ever gets. An anonymous visitor may fetch an asset only if some
-    // published page embeds it — otherwise a draft-only image would be readable
-    // by anyone who learned its (non-secret) content-addressed name.
-    const publiclyLinked = await this.images.isPubliclyLinked(file);
+    // published page in a public space embeds it — otherwise a draft-only or
+    // private-space image would be readable by anyone who learned its
+    // (non-secret) content-addressed name.
+    //
+    // The site's own logo/favicon is the exception: it is embedded in the chrome
+    // rather than in any item, so nothing would ever link it, and naming it in
+    // `site:` is the operator declaring it the public face of the instance.
+    const branding = isSiteBrandingAsset(file);
+    const publiclyLinked = branding || (await this.images.isPubliclyLinked(file));
     if (!publiclyLinked && isAnonymous(user)) {
+      res.status(404).end();
+      return;
+    }
+    if (!branding && !isAnonymous(user) && !(await this.images.isReadableByMember(file, user))) {
       res.status(404).end();
       return;
     }
@@ -86,16 +108,45 @@ export class ImagesController {
     res.send(bytes);
   }
 
+  /**
+   * The Files library. `{ images }` is what this route always returned, every
+   * file largest-first, and it still does when no parameter is given (the
+   * asset picker and the Overview read the whole list). `total`, `limit`,
+   * `offset` and `summary` are additive; `q`/`type`/`usage`/`sort`/`limit`/
+   * `offset` filter and page in SQL. A malformed value is a 400, since silently
+   * ignoring it would filter or page the list wrongly.
+   */
   @AdminOnly()
   @Get('admin/images')
-  async listAdmin() {
-    return { images: await this.images.list() };
+  async listAdmin(
+    @Query('q') q?: string,
+    @Query('type') type?: string,
+    @Query('usage') usage?: string,
+    @Query('sort') sort?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.images.listPage({
+      q: q?.trim() || undefined,
+      kind: oneOf(type, 'type', IMAGE_KINDS),
+      usage: oneOf(usage, 'usage', IMAGE_USAGES),
+      sort: oneOf(sort, 'sort', IMAGE_SORTS),
+      limit: wholeNumber(limit, 'limit', 1),
+      offset: wholeNumber(offset, 'offset', 0),
+    });
+  }
+
+  /** One file for the detail sheet (`?file=<id>`): uploader and the items that use it. */
+  @AdminOnly()
+  @Get('admin/images/:id')
+  async getAdmin(@Param('id') id: string) {
+    return { image: await this.images.get(id) };
   }
 
   @AdminOnly()
   @Delete('admin/images/:id')
-  async remove(@Param('id') id: string) {
-    await this.images.remove(id);
+  async remove(@Param('id') id: string, @CurrentUser() user: AuthedUser) {
+    await this.images.remove(id, user.id);
     return { ok: true };
   }
 }

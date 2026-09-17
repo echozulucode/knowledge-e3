@@ -4,9 +4,10 @@ import { ConfigController } from './config.controller.js';
 import { PrefsController } from './prefs.controller.js';
 import { AccessController } from './access.controller.js';
 import { SectionsController } from './sections.controller.js';
+import { SiteController } from './site.controller.js';
 
 @Module({
-  controllers: [ConfigController, PrefsController, AccessController, SectionsController],
+  controllers: [ConfigController, PrefsController, AccessController, SectionsController, SiteController],
   providers: [ConfigService],
   exports: [ConfigService],
 })

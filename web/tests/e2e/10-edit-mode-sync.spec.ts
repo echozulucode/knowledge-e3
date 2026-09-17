@@ -1,7 +1,7 @@
 /**
  * P0 regression test: edit-mode sync on mode switch.
  *
- * Maps to docs/ux-review-plan.md §1A (Critical Bug: Edit-Mode Sync on Mode Switch).
+ * Maps to the UX review plan §1A (Critical Bug: Edit-Mode Sync on Mode Switch).
  *
  * Regression test suite for the unified markdown state across CM6 (hybrid/preview)
  * and Lexical (WYSIWYG) editors. Proves that edits in one mode persist when

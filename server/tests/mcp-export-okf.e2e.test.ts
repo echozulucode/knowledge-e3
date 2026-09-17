@@ -64,7 +64,7 @@ describe('MCP export_okf tool e2e', () => {
 
     const files: BundleFile[] = result.bundle.files;
     const index = files.find((f) => f.path === 'index.md');
-    expect(index?.content).toContain('okf_version: "0.1"');
+    expect(index?.content).toContain('okf_version: "0.2"');
     const concepts = files.filter((f) => f.path.startsWith('concepts/'));
     expect(concepts.length).toBe(result.item_count);
     // Every concept embeds its stable E3 id and a required type.
@@ -106,17 +106,22 @@ describe('MCP export_okf tool e2e', () => {
   });
 
   it('space-scoped export includes only the chosen topic', async () => {
+    // Publishing through MCP in one call is held to the content-model rules, so
+    // both fixtures carry `type`, a primary category and a `description`. The
+    // test is about space scoping; nothing else about it changed.
     const physics = await callTool('knowledge.create_item', {
       title: 'Quark Confinement',
       body: 'Physics note.',
       status: 'published',
       space: 'Physics',
+      frontmatter: { type: 'Concept', categories: ['research-notes'], description: 'Why quarks stay bound.' },
     });
     const music = await callTool('knowledge.create_item', {
       title: 'Sonata Form',
       body: 'Music note.',
       status: 'published',
       space: 'Music',
+      frontmatter: { type: 'Concept', categories: ['research-notes'], description: 'The shape of a sonata.' },
     });
 
     const result = await callTool('knowledge.export_okf', { space: 'physics', limit: 200 });

@@ -1,12 +1,15 @@
+/* `.kp-help-page` is the route's scroll container (Root.css), so it stays full
+   width and centres the card with padding — the shared page-width pattern
+   (tokens.css, 2026-09-13; the card was capped at 960px). The intro and the
+   section blocks keep their own measures inside the wider card. */
 .kp-help-page {
   min-height: 100%;
-  padding: var(--kp-space-8);
+  padding-block: var(--kp-space-8);
+  padding-inline: max(var(--kp-page-gutter), calc((100% - var(--kp-page-width)) / 2));
   background: var(--kp-surface-canvas);
 }
 
 .kp-help-card {
-  max-width: 960px;
-  margin: 0 auto;
   padding: var(--kp-space-8);
   border: 1px solid var(--kp-border-subtle);
   border-radius: var(--kp-radius-lg);

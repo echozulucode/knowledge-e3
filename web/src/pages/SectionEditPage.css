@@ -1,0 +1,131 @@
+/* SectionEditPage — form controls and the preview aside. Layout comes from EditPageLayout. Token-driven, light/dark. */
+.SectionEditPage__input {
+  width: 100%;
+  min-height: 40px;
+  padding: var(--kp-space-2) var(--kp-space-3);
+  border: 1px solid var(--kp-border-strong);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font: inherit;
+  font-size: var(--kp-text-sm);
+}
+.SectionEditPage__input:focus-visible {
+  outline: 2px solid var(--kp-border-focus);
+  outline-offset: 1px;
+}
+.SectionEditPage__input[aria-invalid='true'] {
+  border-color: var(--kp-danger);
+}
+.SectionEditPage__input[readonly] {
+  background: var(--kp-surface-sunken);
+  color: var(--kp-text-secondary);
+}
+textarea.SectionEditPage__input {
+  resize: vertical;
+}
+
+.SectionEditPage__slugRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2);
+}
+.SectionEditPage__slugRow .SectionEditPage__input {
+  flex: 1 1 10rem;
+  width: auto;
+  font-family: var(--kp-font-mono);
+}
+.SectionEditPage__slugPrefix {
+  font-family: var(--kp-font-mono);
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+.SectionEditPage__warn {
+  color: var(--kp-warning);
+}
+
+.SectionEditPage__stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+}
+.SectionEditPage__number {
+  width: 5rem;
+  text-align: center;
+}
+
+.SectionEditPage__position {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2) var(--kp-space-3);
+  font-size: var(--kp-text-sm);
+}
+.SectionEditPage__positionLabel {
+  flex-basis: 100%;
+  font-weight: var(--kp-weight-semibold);
+}
+.SectionEditPage__positionActions {
+  display: inline-flex;
+  gap: var(--kp-space-2);
+}
+
+.SectionEditPage__topicOption {
+  display: flex;
+  flex: 1;
+  justify-content: space-between;
+  gap: var(--kp-space-3);
+}
+.SectionEditPage__muted {
+  margin: 0;
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+.SectionEditPage__danger {
+  align-self: flex-start;
+  border-color: var(--kp-danger);
+  color: var(--kp-danger);
+}
+
+.SectionEditPage__preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-4);
+  font-size: var(--kp-text-sm);
+}
+.SectionEditPage__previewBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1);
+}
+.SectionEditPage__previewBlock p {
+  margin: 0;
+}
+.SectionEditPage__previewTitle {
+  margin: 0;
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--kp-text-secondary);
+}
+.SectionEditPage__appears {
+  margin: 0;
+  padding-left: 1.1em;
+}
+.SectionEditPage__appears code {
+  font-family: var(--kp-font-mono);
+  font-size: var(--kp-text-xs);
+}
+.SectionEditPage__zero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--kp-space-1);
+}
+.SectionEditPage__previewItems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+}

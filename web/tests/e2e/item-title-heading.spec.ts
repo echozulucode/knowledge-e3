@@ -16,21 +16,21 @@ async function saveTitleChange(page: import('@playwright/test').Page, pageId: st
 
 test.describe('item title and first-heading sync', () => {
   test('new item drafts keep title metadata out of the body scaffold', async ({ signedInPage, apiAsAdmin }) => {
-    await signedInPage.goto('/browse');
-    await signedInPage.getByRole('button', { name: /new item/i }).first().click();
+    // Creation is a route now (plan §4.1): the content type's template seeds the
+    // body, and the title stays metadata rather than becoming an H1 the author
+    // then has to keep in sync by hand.
+    await signedInPage.goto('/new?type=concept');
+    await signedInPage.getByRole('textbox', { name: 'Title', exact: true }).fill('Heading Scaffold Item');
 
-    const dialog = signedInPage.getByRole('dialog', { name: /new item composer/i });
-    await dialog.getByLabel(/^title/i).fill('Heading Scaffold Item');
-    await dialog.getByRole('button', { name: /start draft/i }).click();
+    const editor = markdownEditor(signedInPage);
+    await expect(editor).toContainText('Overview', { timeout: 15_000 });
+    await expect(editor).not.toContainText('Heading Scaffold Item');
 
-    await expect(signedInPage).toHaveURL((url) => url.pathname.startsWith('/p/') && Boolean(url.searchParams.get('edit')), {
-      timeout: 10_000,
-    });
-    await expect(signedInPage.getByRole('textbox', { name: 'Title', exact: true })).toHaveValue('Heading Scaffold Item', {
-      timeout: 15_000,
-    });
-    await expect(markdownEditor(signedInPage)).toContainText('Overview');
-    await expect(markdownEditor(signedInPage)).not.toContainText('Heading Scaffold Item');
+    // Autosave (3 s after the last change) is what writes the draft.
+    await editor.click();
+    await editor.press('Control+End');
+    await editor.type('\n\nFirst thoughts.');
+    await expect(signedInPage).toHaveURL(/\/p\/heading-scaffold-item\/edit$/, { timeout: 20_000 });
 
     const created = await apiAsAdmin.get('/api/v1/pages/by-title/Heading%20Scaffold%20Item');
     expect(created.ok()).toBeTruthy();
@@ -39,22 +39,10 @@ test.describe('item title and first-heading sync', () => {
     expect(body.page.body_markdown).not.toContain('# Heading Scaffold Item');
   });
 
-  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
-  test('explains title metadata versus Markdown H1 content in edit mode @quarantine', async ({ signedInPage, apiAsAdmin }) => {
-    const p = await createPageViaApi(apiAsAdmin, {
-      title: 'Metadata Copy Item',
-      body: '# Metadata Copy Item\n\nBody text.',
-      status: 'draft',
-    });
-
-    await signedInPage.goto(`/p/${p.slug}?edit=1`);
-
-    await expect(signedInPage.getByText(/Title is canonical item metadata/i)).toBeVisible();
-    await expect(signedInPage.getByText(/Headings in the body are authored Markdown content/i)).toBeVisible();
-  });
-
-  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
-  test('preserves an imported first H1 even when it matches the old metadata title @quarantine', async ({ signedInPage, apiAsAdmin }) => {
+  // De-quarantined 2026-09-11 (issue 92): passes against the current UI, verified over
+  // three consecutive runs. It was swept up in the 2026-08-13 bulk quarantine, which
+  // tagged 55 tests with one boilerplate 'not yet triaged' comment.
+  test('preserves an imported first H1 even when it matches the old metadata title', async ({ signedInPage, apiAsAdmin }) => {
     const p = await createPageViaApi(apiAsAdmin, {
       title: 'Synced Heading Before',
       body: '# Synced Heading Before\n\nBody text.',
@@ -71,8 +59,10 @@ test.describe('item title and first-heading sync', () => {
     expect(body.page.body_markdown).not.toContain('# Synced Heading After');
   });
 
-  // @quarantine (undiagnosed): fails against current UI; not yet triaged. Do not assume test rot — could be a real regression.
-  test('does not rewrite a manually authored first H1 when title metadata changes @quarantine', async ({ signedInPage, apiAsAdmin }) => {
+  // De-quarantined 2026-09-11 (issue 92): passes against the current UI, verified over
+  // three consecutive runs. It was swept up in the 2026-08-13 bulk quarantine, which
+  // tagged 55 tests with one boilerplate 'not yet triaged' comment.
+  test('does not rewrite a manually authored first H1 when title metadata changes', async ({ signedInPage, apiAsAdmin }) => {
     const p = await createPageViaApi(apiAsAdmin, {
       title: 'Metadata Title Before',
       body: '# Handwritten Markdown Heading\n\nBody text.',

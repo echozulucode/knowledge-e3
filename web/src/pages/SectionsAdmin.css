@@ -1,0 +1,133 @@
+/* SectionsAdmin — the Sections list, and the "Sections · Pinned topics" link pair both pages share. Token-driven, light/dark. */
+.SectionsAdmin,
+.PinnedTopicsAdmin,
+.SectionEditPage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-4);
+  min-width: 0;
+}
+
+.SectionsAdmin__subnav {
+  display: flex;
+  align-items: center;
+  gap: var(--kp-space-2);
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+.SectionsAdmin__subnav a {
+  color: var(--kp-text-secondary);
+  text-decoration: none;
+}
+.SectionsAdmin__subnav a:hover {
+  text-decoration: underline;
+}
+.SectionsAdmin__subnav a[aria-current='page'] {
+  color: var(--kp-text-primary);
+  font-weight: var(--kp-weight-semibold);
+}
+
+.SectionsAdmin__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--kp-space-3);
+}
+.SectionsAdmin__filter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-1);
+  font-size: var(--kp-text-sm);
+  font-weight: var(--kp-weight-medium);
+  color: var(--kp-text-primary);
+}
+.SectionsAdmin__filter input,
+.SectionsAdmin__filter select {
+  min-height: 36px;
+  min-width: min(100%, 14rem);
+  padding: 0 var(--kp-space-3);
+  border: 1px solid var(--kp-border-strong);
+  border-radius: var(--kp-radius-sm);
+  background: var(--kp-surface-base);
+  color: var(--kp-text-primary);
+  font: inherit;
+  font-weight: var(--kp-weight-regular);
+}
+.SectionsAdmin__hint,
+.SectionsAdmin__groupHint {
+  margin: 0;
+  font-size: var(--kp-text-sm);
+  color: var(--kp-text-secondary);
+}
+
+.SectionsAdmin__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kp-space-2);
+}
+.SectionsAdmin__groupHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--kp-space-1) var(--kp-space-4);
+}
+.SectionsAdmin__groupTitle {
+  margin: 0;
+  font-size: var(--kp-text-xs);
+  font-weight: var(--kp-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--kp-text-secondary);
+}
+
+.SectionsAdmin__name {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.SectionsAdmin__nameLine {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-2);
+}
+.SectionsAdmin__nameText {
+  font-weight: var(--kp-weight-semibold);
+}
+.SectionsAdmin__slug,
+.SectionsAdmin__muted {
+  font-size: var(--kp-text-xs);
+  color: var(--kp-text-muted);
+}
+.SectionsAdmin__slug {
+  font-family: var(--kp-font-mono);
+}
+.SectionsAdmin__tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-1);
+}
+.SectionsAdmin__tag,
+.SectionsAdmin__more {
+  padding: 1px var(--kp-space-2);
+  border-radius: var(--kp-radius-pill);
+  background: var(--kp-surface-muted);
+  font-size: var(--kp-text-xs);
+  color: var(--kp-text-primary);
+  white-space: nowrap;
+}
+.SectionsAdmin__more {
+  background: transparent;
+  color: var(--kp-text-secondary);
+}
+
+/* The admin nav already shows "Sections · Pinned topics" as children on tablet and
+   desktop (AdminNav), so this pair only earns its place on a phone, where the nav
+   collapses to a switcher and these are one tap away instead of two. */
+@container kp-admin (min-width: 40rem) {
+  .SectionsAdmin__subnav {
+    display: none;
+  }
+}
