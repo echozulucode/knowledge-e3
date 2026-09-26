@@ -71,7 +71,15 @@ export const HOST_OPTIONS: { value: HostKind; label: string }[] = [
   { value: 'bitbucket-dc', label: 'Bitbucket Data Center' },
 ];
 
-/** Host fields only make sense for `review` mode — the only mode that opens change requests. */
+/**
+ * Does this mode *require* a change-request host? Only `review` — the one mode
+ * that opens PRs, and the one the server refuses to save without `host_kind`.
+ *
+ * It no longer decides whether the host FIELDS are shown or sent: since issue
+ * 122 the same `host_token_env` is the credential git transport authenticates
+ * with, so a `direct` or `read-only` source on a private repository needs it
+ * too.
+ */
 export function needsHost(mode: SyncMode): boolean {
   return mode === 'review';
 }
@@ -193,7 +201,8 @@ export function describeSecrets(row: SourceStatusView): SecretChip[] {
     row.host_token_present,
     runbookHint(
       RUNBOOK.reviewHostUnconfigured,
-      `${row.host_token_env} is not set in this server's environment, so no change request can be opened for this source.`,
+      `${row.host_token_env} is not set in this server's environment, so this source cannot authenticate to its repository ` +
+        '(clone, fetch, push) and no change request can be opened for it.',
     ),
   );
   // No runbook section covers a missing webhook secret, and pointing at the
@@ -407,11 +416,14 @@ export function validateSourceForm(form: SourceForm): Partial<Record<keyof Sourc
 
 /**
  * The `PUT /admin/sources/:id` body. Every column is sent so clearing a field
- * clears it upstream; blanks become `null`, and the host fields are dropped for
- * the modes that never open a change request.
+ * clears it upstream, and blanks become `null`.
+ *
+ * The host fields are sent for **every** mode (issue 122). They used to be
+ * dropped for anything but `review`, which silently discarded the credential a
+ * `direct` source on a private repository had just been given — the row saved,
+ * the field came back empty, and the sync kept failing to authenticate.
  */
 export function formToUpsert(form: SourceForm): SourceUpsertInput {
-  const host = needsHost(form.mode);
   const every = form.sync_every_seconds.trim();
   return {
     local_dir: form.local_dir.trim() || defaultLocalDir(form.id.trim()),
@@ -420,9 +432,9 @@ export function formToUpsert(form: SourceForm): SourceUpsertInput {
     role: form.role,
     mode: form.mode,
     branch_prefix: form.branch_prefix.trim() || null,
-    host_kind: host && form.host_kind ? form.host_kind : null,
-    host_base_url: host ? form.host_base_url.trim() || null : null,
-    host_token_env: host ? form.host_token_env.trim() || null : null,
+    host_kind: form.host_kind || null,
+    host_base_url: form.host_base_url.trim() || null,
+    host_token_env: form.host_token_env.trim() || null,
     sync_every_seconds: every ? Number(every) : null,
     webhook_secret_env: form.webhook_secret_env.trim() || null,
     default_status: form.default_status || null,

@@ -373,12 +373,17 @@ test.describe('Admin → Sources', () => {
     await expect(editor.getByText(/Fits: Solo, small team, backup remote/i)).toBeVisible();
     await expect(editor.getByText(/Fits: Teams whose repository requires PRs/i)).toBeVisible();
 
-    // Direct is the default and needs no change-request host.
+    // Direct is the default. It still gets the credential fields (issue 122):
+    // a private repository cannot be cloned or fetched without one, whatever
+    // the policy.
     await expect(editor.locator('input[name="source-mode"][value="direct"]')).toBeChecked();
-    await expect(editor.getByRole('combobox', { name: /^Host\b/ })).toHaveCount(0);
+    await expect(editor.getByRole('group', { name: 'Host and credentials' })).toBeVisible();
+    await expect(editor.getByRole('combobox', { name: /^Host\b/ })).toBeVisible();
+    await expect(editor.getByLabel('Host token env var')).toBeVisible();
+    await expect(editor.getByText(/private repository needs a credential/i)).toBeVisible();
 
     await editor.locator('input[name="source-mode"][value="review"]').check();
-    await expect(editor.getByRole('group', { name: 'Change-request host' })).toBeVisible();
+    await expect(editor.getByRole('group', { name: 'Host and credentials' })).toBeVisible();
     // Required fields carry a required marker in their accessible name, so match the select by role and prefix.
     await expect(editor.getByRole('combobox', { name: /^Host\b/ })).toBeVisible();
     await expect(editor.getByLabel('Host base URL')).toBeVisible();
@@ -646,6 +651,59 @@ test.describe('Admin → Sources → host tokens', () => {
     } finally {
       await apiAsAdmin.delete(`/api/v1/admin/sources/${enc(present)}`);
       await apiAsAdmin.delete(`/api/v1/admin/sources/${enc(absent)}`);
+    }
+  });
+
+  /**
+   * Issue 122 — `host_token_env` is the credential for this source's HOST, which
+   * git transport uses too. The form used to drop it for anything but `review`,
+   * so a private repository on a `direct` source had nowhere to name its token:
+   * the row saved, the field came back empty, and every fetch kept failing.
+   *
+   * No remote is ever reached: the source is local-only, and the connection
+   * probe is refused before it runs because the variable it names is not set.
+   */
+  test('a direct source can name its credential variable, and Test connection says when the server lacks it', async ({
+    signedInPage,
+    apiAsAdmin,
+  }, testInfo) => {
+    const id = sourceId('e2e-directcred', testInfo.workerIndex);
+    const missingVar = `E3_E2E_UNSET_CRED_${testInfo.workerIndex}`;
+
+    try {
+      await signedInPage.goto('/admin/repos?new=1');
+      const editor = signedInPage.getByRole('dialog', { name: 'Register a source' });
+      await editor.getByLabel('Source id').fill(id);
+      await editor.getByLabel('Local working tree').fill(`topics/${id.slice('topic:'.length)}`);
+      await editor.locator('input[name="source-mode"][value="direct"]').check();
+
+      // The credential fields are there under the direct policy, and say what for.
+      await expect(editor.getByRole('group', { name: 'Host and credentials' })).toBeVisible();
+      await editor.getByRole('combobox', { name: /^Host\b/ }).selectOption('github');
+      await editor.getByLabel('Host token env var').fill(missingVar);
+      await expect(editor.getByText(/private repository access/i)).toBeVisible();
+
+      // Test connection reports the missing variable by name, and nothing else.
+      await editor.getByLabel('Remote URL').fill('https://github.com/acme/e2e-not-a-repo.git');
+      await editor.getByRole('button', { name: 'Test connection' }).click();
+      const result = editor.locator('.Sources__testRow [role="status"]');
+      await expect(result).toBeVisible({ timeout: 30_000 });
+      await expect(result).toContainText(missingVar);
+      await expect(result).toContainText(/not set in this server's environment/i);
+
+      // Saved and round-tripped: the credential survives a direct-mode save.
+      await editor.getByLabel('Remote URL').fill('');
+      await editor.getByRole('button', { name: 'Register source' }).click();
+      await expect(signedInPage.getByText('Source saved')).toBeVisible();
+
+      const wire = await (await apiAsAdmin.get('/api/v1/admin/sources')).json();
+      const row = (wire.sources as { id: string; mode: string; host_token_env: string | null }[]).find((s) => s.id === id);
+      expect(row).toMatchObject({ mode: 'direct', host_token_env: missingVar });
+
+      await signedInPage.goto(`/admin/repos?edit=${enc(id)}`);
+      await expect(signedInPage.getByRole('dialog', { name: `Edit ${id}` }).getByLabel('Host token env var')).toHaveValue(missingVar);
+    } finally {
+      await apiAsAdmin.delete(`/api/v1/admin/sources/${enc(id)}`);
     }
   });
 });

@@ -230,7 +230,13 @@ describe('formToUpsert', () => {
     });
   });
 
-  it('drops the host fields for the modes that never open a change request', () => {
+  /**
+   * Issue 122: `host_token_env` is the credential for this source's HOST, not
+   * only for its change requests, so a `direct` source on a private repository
+   * has to be able to carry one. It used to be dropped here — the row saved,
+   * the field came back empty, and every fetch kept failing to authenticate.
+   */
+  it('keeps the host fields for a direct source, which needs the credential to clone and fetch', () => {
     const payload = formToUpsert({
       ...emptySourceForm(),
       id: 'main',
@@ -239,6 +245,13 @@ describe('formToUpsert', () => {
       host_base_url: 'https://api.github.com',
       host_token_env: 'GITHUB_TOKEN',
     });
+    expect(payload.host_kind).toBe('github');
+    expect(payload.host_base_url).toBe('https://api.github.com');
+    expect(payload.host_token_env).toBe('GITHUB_TOKEN');
+  });
+
+  it('still clears a host field the admin blanked, whatever the mode', () => {
+    const payload = formToUpsert({ ...emptySourceForm(), id: 'main', mode: 'read-only' });
     expect(payload.host_kind).toBeNull();
     expect(payload.host_base_url).toBeNull();
     expect(payload.host_token_env).toBeNull();

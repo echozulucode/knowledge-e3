@@ -148,6 +148,67 @@ least 50 MB so OKF `.tar.gz` archive imports pass through (image uploads need 25
 - Upgrade by pulling or rebuilding the image and recreating the container — the
   `/data` volume persists and the admin bootstrap stays a no-op.
 
+## Git sources, and private repositories
+
+**Admin → Sources** registers a git repository as a source. Use an **HTTPS**
+remote: there is no SSH key in the container, so a `git@github.com:…` URL cannot
+authenticate.
+
+A **public** repository needs nothing else. A **private** one needs a credential,
+and each source carries its **own** — which is how one instance serves two GitHub
+accounts, or GitHub and Bitbucket together. Three steps:
+
+1. In **Admin → Sources**, open the source and, under *Host and credentials*,
+   set **Host token env var** to a name you choose — say `ACME_DOCS_TOKEN`. Set
+   **Host** too: it decides the username git pairs with the token (GitHub →
+   `x-access-token`, Bitbucket → `x-token-auth`). This applies to **every** sync
+   mode; a `direct` or `read-only` source on a private repository needs it just
+   as much as a `review` one.
+2. Put that variable in `.env` with the token as its value.
+3. `docker compose up -d` to recreate the container.
+
+```sh
+# .env
+ACME_DOCS_TOKEN=github_pat_xxxxxxxxxxxx
+BITBUCKET_DOCS_TOKEN=xxxxxxxxxxxx
+```
+
+Compose passes the whole of `.env` into the container (`env_file:` in
+`docker-compose.yml`), so **adding a source's variable needs no compose edit**.
+That is also why the tokens are not listed one by one under `environment:`: an
+`environment:` entry is interpolated when Compose parses the file, so the token
+itself is what `docker compose config` prints, while an `env_file` is a path the
+runtime reads.
+
+A fine-grained GitHub token with **Contents: read** on that repository is enough
+for a read-only source; a source that pushes (direct mode, or review branches)
+needs **Contents: read and write**. On **Bitbucket Data Center**, an HTTP access
+token works as the password; if your instance expects a real account name rather
+than `x-token-auth`, set it by appending `_USERNAME` to the variable:
+
+```sh
+BITBUCKET_DOCS_TOKEN=xxxxxxxxxxxx
+BITBUCKET_DOCS_TOKEN_USERNAME=e3.service
+```
+
+**`GIT_HTTPS_TOKEN` still works** as the instance-wide fallback, used by any
+source that names no variable of its own — the right setting for a single
+identity on a single host. A source's own variable always wins over it.
+
+**Where the token goes.** Into the environment of the one `git` process making
+that source's call, through `GIT_ASKPASS`, and nowhere else: not into the
+database, not into gitconfig, not into a remote URL, not into an argument `ps`
+could show, not into a log line or a recorded *Last error*, and not into any API
+response. **Admin → Sources** reports only whether the named variable is set on
+the server — a tick or a cross beside its name, never the value, its length or a
+prefix. `GIT_TERMINAL_PROMPT=0` is set on every call, so a missing or wrong
+credential fails with an authentication error within seconds instead of hanging
+the source's sync on a prompt nobody can answer.
+
+**Admin → Sources → Test connection** runs `git ls-remote` with exactly that
+credential, so it answers the same question the sync will. If the variable the
+form names is not set on the server, it says so by name.
+
 ## Where things are in the admin console
 
 | You want to | Go to |

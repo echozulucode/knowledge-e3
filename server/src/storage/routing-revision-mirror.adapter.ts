@@ -35,7 +35,7 @@ export class RoutingRevisionMirror implements RevisionMirrorPort, OnModuleDestro
   async afterItemVersionPersisted(event: RevisionMirrorEvent, opts: { movedIn?: boolean } = {}): Promise<void> {
     const target = await this.paths.resolve(event.spaceId);
     const repo = this.repoFor(target.repoDir);
-    repo.setRemote(target.remoteUrl, target.branch); // hot-reload the remote
+    repo.setRemote(target.remoteUrl, target.branch, target.credential); // hot-reload the remote (and its credential)
     repo.setPushOnCommit(!this.managedSources.has(target.sourceId));
     await repo.enqueue(event, target.conceptDir, opts);
   }
@@ -50,7 +50,7 @@ export class RoutingRevisionMirror implements RevisionMirrorPort, OnModuleDestro
     event: { itemId: string; path: string; actorId: string; versionToken: number },
   ): Promise<void> {
     const repo = this.repoFor(from.repoDir);
-    repo.setRemote(from.remoteUrl, from.branch);
+    repo.setRemote(from.remoteUrl, from.branch, from.credential);
     repo.setPushOnCommit(!this.managedSources.has(from.sourceId));
     await repo.enqueueRemoval(event, 'move');
   }
@@ -65,7 +65,7 @@ export class RoutingRevisionMirror implements RevisionMirrorPort, OnModuleDestro
     event: { itemId: string; path: string; actorId: string; versionToken: number },
   ): Promise<void> {
     const repo = this.repoFor(from.repoDir);
-    repo.setRemote(from.remoteUrl, from.branch);
+    repo.setRemote(from.remoteUrl, from.branch, from.credential);
     repo.setPushOnCommit(!this.managedSources.has(from.sourceId));
     await repo.enqueueRemoval(event, 'delete');
   }

@@ -1,15 +1,17 @@
 #!/bin/sh
 set -e
 
-# --- git auth from a RUNTIME secret (never baked into the image) ---
-# GIT_HTTPS_TOKEN authenticates github.com over HTTPS so the git-of-record mirror
-# can pull/push private repos. The token lands only in the node user's in-container
-# gitconfig, not in any remote URL or image layer.
-if [ -n "${GIT_HTTPS_TOKEN:-}" ]; then
-  git config --global \
-    url."https://x-access-token:${GIT_HTTPS_TOKEN}@github.com/".insteadOf \
-    "https://github.com/"
-fi
+# --- git identity only; credentials are NOT written here (issue 122) ---
+# Git transport authenticates per source: a source names the environment
+# variable holding its token (`host_token_env`) and the server hands that token
+# to the git child process through GIT_ASKPASS, for that one call. GIT_HTTPS_TOKEN
+# is still honoured as the instance-wide fallback, by the same path.
+#
+# This is why there is no `url.…insteadOf` rewrite here any more: it wrote a
+# token into the node user's gitconfig for the life of the container (on disk,
+# readable by anything running as that user), it covered github.com only, and it
+# applied one identity to every source. The per-source path covers all of that,
+# including the global token, so the rewrite is redundant as well as unsafe.
 git config --global user.name "${GIT_AUTHOR_NAME:-Knowledge E3}"
 git config --global user.email "${GIT_AUTHOR_EMAIL:-knowledge-e3@users.noreply.github.com}"
 

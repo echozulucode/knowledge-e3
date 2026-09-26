@@ -5,6 +5,21 @@
  */
 export { runGit, GitError, DEFAULT_GIT_TIMEOUT_MS, type GitExecOptions } from './git.js';
 export {
+  resolveGitCredential,
+  resolveTokenEnvName,
+  askpassUsername,
+  askpassScriptPath,
+  resetAskpassScript,
+  isTokenAuthRemote,
+  redactSecrets,
+  GLOBAL_GIT_TOKEN_ENV,
+  ASKPASS_USERNAME_ENV,
+  ASKPASS_PASSWORD_ENV,
+  DEFAULT_ASKPASS_USERNAME,
+  type GitCredentialRef,
+  type ResolvedGitCredential,
+} from './git-credentials.js';
+export {
   LocalGitRepo,
   SYSTEM_COMMITTER,
   EMPTY_TREE,

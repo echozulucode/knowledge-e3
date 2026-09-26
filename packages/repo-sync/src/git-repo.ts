@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { GitRepo, MergeResult, PathChange, PushResult, RepoStatus, Revision } from '@echozedlabs/knowledge-types';
 import { GitError, runGit, type GitExecOptions } from './git.js';
+import { resolveGitCredential, type GitCredentialRef } from './git-credentials.js';
 
 export interface GitIdentity {
   name: string;
@@ -33,6 +34,12 @@ export interface LocalGitRepoOptions {
   committer?: GitIdentity;
   /** Remote name to fetch from / push to (default `origin`). */
   remoteName?: string;
+  /**
+   * Which credential this repository's git calls authenticate with (issue 122):
+   * the NAMES its source recorded, never a token. Resolved against the process
+   * environment at each call, so nothing here holds a secret between calls.
+   */
+  credential?: GitCredentialRef | null;
 }
 
 export interface CommitOptions {
@@ -65,17 +72,34 @@ export class LocalGitRepo implements GitRepo {
   readonly remoteName: string;
   private readonly committer: GitIdentity;
   private readonly timeoutMs: number | undefined;
+  private readonly credential: GitCredentialRef | null;
 
   constructor(dir: string, opts: LocalGitRepoOptions = {}) {
     this.dir = dir;
     this.committer = opts.committer ?? SYSTEM_COMMITTER;
     this.remoteName = opts.remoteName ?? 'origin';
     this.timeoutMs = opts.timeoutMs;
+    this.credential = opts.credential ?? null;
   }
 
-  /** Run `git -C <dir> args…`. Exposed for hosts that need one-off plumbing. */
+  /**
+   * Run `git -C <dir> args…`. Exposed for hosts that need one-off plumbing.
+   *
+   * This instance's credential (issue 122) is attached to **every** call rather
+   * than only to fetch/push: it costs nothing on a local command, and one place
+   * that decides means no transport call can be added later that forgets it.
+   * Scoping is automatic — the credential belongs to this repository's source
+   * and this instance only ever runs git in that source's working tree.
+   */
   git(args: string[], opts: GitExecOptions = {}): Promise<string> {
-    return runGit(this.dir, args, { timeoutMs: this.timeoutMs, ...opts });
+    const cred = this.credential ? resolveGitCredential(this.credential) : null;
+    if (!cred) return runGit(this.dir, args, { timeoutMs: this.timeoutMs, ...opts });
+    return runGit(this.dir, [...cred.args, ...args], {
+      timeoutMs: this.timeoutMs,
+      ...opts,
+      env: { ...cred.env, ...opts.env },
+      secrets: [...cred.secrets, ...(opts.secrets ?? [])],
+    });
   }
 
   private committerArgs(): string[] {

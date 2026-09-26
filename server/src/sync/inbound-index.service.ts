@@ -55,7 +55,7 @@ import {
   type ImportIds,
 } from './import-identity.js';
 import { ReviewService } from './review.service.js';
-import { globList, type SourceRow } from './source-registry.service.js';
+import { globList, gitCredentialOf, type SourceRow } from './source-registry.service.js';
 
 const DEFAULT_TOPIC_SLUG = 'default';
 
@@ -316,7 +316,7 @@ export class InboundIndexService {
     const dir = this.paths.dirOf(source);
     if (!existsSync(join(dir, '.git'))) return;
     try {
-      const repo = new LocalGitRepo(dir);
+      const repo = new LocalGitRepo(dir, { credential: gitCredentialOf(source) });
       const status = (await repo.git(['status', '--porcelain', '--', ...paths])).trim();
       if (!status) return;
       await repo.commit(paths, `knowledge-e3: assign ids to ${paths.length} imported file(s)`, SYSTEM_COMMITTER);

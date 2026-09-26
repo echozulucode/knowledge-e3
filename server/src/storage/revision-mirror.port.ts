@@ -1,3 +1,5 @@
+import type { GitCredentialRef } from '@echozedlabs/repo-sync';
+
 export const REVISION_MIRROR = Symbol('REVISION_MIRROR');
 
 export interface RevisionMirrorEvent {
@@ -33,6 +35,13 @@ export interface MovedOutSource {
   repoDir: string;
   remoteUrl: string | null;
   branch: string | null;
+  /**
+   * NAMES of the git credential that source authenticates its push with
+   * (issue 122) — `host_token_env` and `host_kind`, never a token. Travels with
+   * the source so a departure pushes as that source, not as whichever source
+   * wrote last.
+   */
+  credential?: GitCredentialRef | null;
 }
 
 export interface RevisionMirrorPort {

@@ -24,6 +24,23 @@ services:
     image: knowledge-e3
     container_name: knowledge-e3-app
     restart: unless-stopped
+    # Every variable in .env reaches the container as-is.
+    #
+    # WHY env_file rather than one `environment:` line per variable: each source
+    # names its OWN credential variable (Admin -> Sources -> "Host token env
+    # var"), so the set is open-ended — listing them here would mean editing
+    # this file, which is committed, every time a source is added. It also keeps
+    # the values out of the compose model: an `environment: FOO: "${FOO}"` entry
+    # is interpolated at parse time, so the token itself is what
+    # `docker compose config` prints, while an env_file is a path the runtime
+    # reads. The explicit entries below stay because they have DEFAULTS this
+    # file supplies; .env still overrides any of them.
+    #
+    # `required: false` needs Compose v2.24+; on an older Compose drop that line
+    # and keep `- .env` (and then the file must exist).
+    env_file:
+      - path: .env
+        required: false
     environment:
       NODE_ENV: "${NODE_ENV:-development}"
       HTTPS_ONLY: "${HTTPS_ONLY:-0}"
@@ -44,6 +61,12 @@ services:
       # Proxy hops allowed to report the client address; without it the per-IP
       # sign-in throttle sees one address for every client behind the proxy.
       TRUST_PROXY: "${TRUST_PROXY:-}"
+      # Git credentials are NOT listed here: a source names its own variable
+      # (Admin -> Sources -> "Host token env var") and env_file above carries it,
+      # along with the optional instance-wide GIT_HTTPS_TOKEN fallback. See
+      # .env.example and docs/self-hosting.md.
+      GIT_AUTHOR_NAME: "${GIT_AUTHOR_NAME:-Knowledge E3}"
+      GIT_AUTHOR_EMAIL: "${GIT_AUTHOR_EMAIL:-knowledge-e3@users.noreply.github.com}"
       # SQLite WAL breaks on SMB/NFS/Azure-Files mounts — set DELETE there.
       SQLITE_JOURNAL_MODE: "${SQLITE_JOURNAL_MODE:-WAL}"
     ports:

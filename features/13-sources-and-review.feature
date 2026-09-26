@@ -39,9 +39,15 @@ Feature: Sources, conflicts, and the review queue
       | failed its last sync cycle                                               |
 
   Scenario: A direct source is not blocked by a token it never uses
-    Given a direct source that names a host token not set on this server
+    Given a direct source with no remote that names a host token not set on this server
     When I open Admin then Sources
     Then it is not named among the sources that need attention
+
+  Scenario: A source that cannot reach its private repository is named
+    Given a direct source on a private remote that names a host token not set on this server
+    When I open Admin then Sources
+    Then it is named among the sources that need attention
+    And the variable's name is shown, never its value
 
   Scenario: The list can be narrowed, and the narrowing can be shared
     Given two registered sources, one of which needs attention
@@ -76,13 +82,25 @@ Feature: Sources, conflicts, and the review queue
     Then each of direct, review, and read-only explains what it does to local commits, pushes, inbound changes, and who publishes
     And each names the kind of team it fits
 
-  Scenario: The change-request host is asked for only when it is used
+  Scenario: A credential can be named whatever the policy is
     Given I am registering a source
     When I choose the direct policy
-    Then no change-request host is asked for
+    Then I can name the environment variable holding this source's token
+    And it says the token is what git uses to reach a private repository
+
+  Scenario: A change-request host is required only by the review policy
+    Given I am registering a source
+    When I choose the direct policy
+    Then I can save without choosing a change-request host
     When I choose the review policy
-    Then a change-request host, its base URL, and the name of its token environment variable are asked for
-    And I cannot save until a host is chosen
+    Then I cannot save until a host is chosen
+
+  Scenario: A direct source keeps the credential it was given
+    Given I am registering a source with the direct policy and a private remote
+    When I name the environment variable holding its token and save it
+    Then I am told the source was saved
+    When I open it again
+    Then it still names that variable
 
   Scenario: A source is registered from the form
     Given I am registering a source
@@ -119,6 +137,14 @@ Feature: Sources, conflicts, and the review queue
     And I have tested the connection to a remote URL
     When I change the remote URL
     Then the earlier connection result is no longer shown
+
+  Scenario: A connection test names the variable this server is missing
+    Given I am registering a source with a private remote
+    And I have named an environment variable nobody has set on this server
+    When I test the connection
+    Then I am told that variable is not set on this server
+    And I am told where to set it
+    And the value of no variable is shown
 
   Scenario: Removing a source asks me to type its id
     Given a source registered with a local working tree and no remote

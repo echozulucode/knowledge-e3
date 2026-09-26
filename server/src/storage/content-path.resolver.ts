@@ -2,9 +2,10 @@ import { isAbsolute, join, resolve } from 'node:path';
 import { Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
 import { conceptDirFor } from '@echozedlabs/content-store';
+import type { GitCredentialRef } from '@echozedlabs/repo-sync';
 import type { Database, SyncMode } from '../db/schema.js';
 import { loadServerConfig } from '../config/server-config.js';
-import { resolveLocalDir, SourceRegistryService, type SourceRow } from '../sync/source-registry.service.js';
+import { gitCredentialOf, resolveLocalDir, SourceRegistryService, type SourceRow } from '../sync/source-registry.service.js';
 
 const DEFAULT_SLUG = 'default';
 
@@ -18,6 +19,8 @@ export interface ContentTarget {
   conceptDir: string;
   remoteUrl: string | null;
   branch: string | null;
+  /** NAMES of this source's git credential (issue 122); never a token. Null when unregistered. */
+  credential: GitCredentialRef | null;
   dedicated: boolean;
   /** Sync policy of the source (plan §8.2); `direct` when the source is not registered. */
   mode: SyncMode;
@@ -67,6 +70,7 @@ export class ContentPathResolver {
         conceptDir: conceptDirFor(slug, { dedicated: true }),
         remoteUrl: dedicated.enabled === 1 ? dedicated.remote_url : null,
         branch: dedicated.branch,
+        credential: gitCredentialOf(dedicated),
         dedicated: true,
         mode: dedicated.mode,
       };
@@ -81,6 +85,9 @@ export class ContentPathResolver {
       conceptDir: conceptDirFor(slug, { dedicated: false }),
       remoteUrl: main ? (main.enabled === 1 ? main.remote_url : null) : fileRemote,
       branch: main?.branch ?? null,
+      // A main repo declared only in the config file names no credential of its
+      // own; its pushes fall back to the instance-wide GIT_HTTPS_TOKEN.
+      credential: main ? gitCredentialOf(main) : null,
       dedicated: false,
       mode: main?.mode ?? 'direct',
     };

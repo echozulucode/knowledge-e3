@@ -102,7 +102,22 @@ describe('attentionItems', () => {
     expect(items).toEqual([{ sourceId: 'topic:ops', reason: 'conflict', label: 'Conflict (3)', tab: 'conflicts' }]);
   });
 
-  it('flags a missing host token or webhook secret only for review mode, by name', () => {
+  /**
+   * Issue 122: the host token is also what git transport authenticates with, so
+   * a `direct` source on an https remote is blocked without it exactly as a
+   * review source is. The webhook secret is still review-only.
+   */
+  it('flags a missing host token on any source with an https remote, by name', () => {
+    const items = attentionItems([
+      src({ id: 'topic:priv', mode: 'direct', remote_url: 'https://github.com/acme/priv.git', host_token_env: 'ACME_TOKEN', host_token_present: false }),
+      src({ id: 'topic:ssh', mode: 'direct', remote_url: 'git@github.com:acme/priv.git', host_token_env: 'ACME_TOKEN', host_token_present: false }),
+      src({ id: 'topic:local', mode: 'direct', remote_url: null, host_token_env: 'ACME_TOKEN', host_token_present: false }),
+    ]);
+    // Only the https one: the others authenticate with a key, or have nowhere to go.
+    expect(items).toEqual([{ sourceId: 'topic:priv', reason: 'host-token', label: 'ACME_TOKEN ✗', tab: 'overview' }]);
+  });
+
+  it('flags a missing host token or webhook secret for review mode, by name', () => {
     const review = src({
       id: 'topic:hr',
       mode: 'review',

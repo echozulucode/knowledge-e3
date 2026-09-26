@@ -4,7 +4,8 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { KYSELY } from '../db/db.module.js';
 import type { Database } from '../db/schema.js';
-import { SourceRegistryService, type SourceRow } from '../sync/source-registry.service.js';
+import { redactSecrets, resolveGitCredential, type GitCredentialRef } from '@echozedlabs/repo-sync';
+import { SourceRegistryService, envVarPresent, type SourceRow } from '../sync/source-registry.service.js';
 
 const execFileAsync = promisify(execFile);
 const LS_REMOTE_TIMEOUT_MS = 15_000;
@@ -46,8 +47,10 @@ export interface ConnectionResult {
  * Admin-managed mapping of a topic (space) to a backend git repository (ADR-0001
  * multi-repo) — now a **facade over the source registry** (`content_sources`,
  * plan §7.4): a topic binding is the `topic:<slug>` row, the main remote is the
- * `main` row. Stores only the remote URL/branch — never credentials; pushes use
- * the host's ambient SSH identity. Also runs a read-connectivity check.
+ * `main` row. Stores only the remote URL/branch and the NAME of the source's
+ * credential variable — never a token (issue 122). Also runs a
+ * read-connectivity check, over the same per-source credential path the sync
+ * engine uses.
  */
 @Injectable()
 export class RepoConfigService {
@@ -128,22 +131,47 @@ export class RepoConfigService {
     return value;
   }
 
-  /** Read-connectivity check: `git ls-remote` using the ambient SSH identity. */
-  async testConnection(remoteUrl: string): Promise<ConnectionResult> {
+  /**
+   * Read-connectivity check: `git ls-remote` over the **same credential path
+   * the sync engine uses** (issue 122), so "Test connection" answers the
+   * question an admin is actually asking — can this source reach this
+   * repository with the token it names?
+   *
+   * `credential` carries NAMES only (`host_token_env` / `host_kind`), which is
+   * what the Sources form holds; the token is read from the server's
+   * environment inside `resolveGitCredential` and reaches git through its
+   * child environment. Nothing about the value is reported back — only whether
+   * the named variable is set at all, which the caller already knows from
+   * `host_token_present`.
+   */
+  async testConnection(remoteUrl: string, credential?: GitCredentialRef | null): Promise<ConnectionResult> {
     const remote = remoteUrl.trim();
     try {
       assertSafeRemote(remote);
     } catch (err) {
       return { ok: false, message: errMessage(err) };
     }
+    const named = credential?.tokenEnv?.trim();
+    if (named && !envVarPresent(named)) {
+      return {
+        ok: false,
+        message:
+          `${named} is not set in this server's environment, so this source has no credential to authenticate with. ` +
+          'Set it where the process gets its environment (.env for Docker Compose), then restart the server.',
+      };
+    }
+    const cred = resolveGitCredential({ ...(credential ?? {}), remote });
     try {
-      const { stdout } = await execFileAsync('git', ['ls-remote', '--heads', remote], {
+      const { stdout } = await execFileAsync('git', [...(cred?.args ?? []), 'ls-remote', '--heads', remote], {
         timeout: LS_REMOTE_TIMEOUT_MS,
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...(cred?.env ?? {}) },
       });
       const refs = stdout.trim() ? stdout.trim().split('\n').length : 0;
-      return { ok: true, message: `Reachable — ${refs} branch(es) visible.` };
+      const how = cred ? ` Authenticated with ${cred.tokenEnvName}.` : '';
+      return { ok: true, message: `Reachable — ${refs} branch(es) visible.${how}` };
     } catch (err) {
-      return { ok: false, message: errMessage(err).slice(0, 300) };
+      const message = redactSecrets(errMessage(err), cred?.secrets ?? []);
+      return { ok: false, message: message.slice(0, 300) };
     }
   }
 }

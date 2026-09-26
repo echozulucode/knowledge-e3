@@ -65,7 +65,7 @@ import { e3FrontmatterFromFile } from '../storage/index-rebuild.service.js';
 import { renderConceptFile, type RenderedConceptFile } from '../storage/render-concept.js';
 import { importedStatus } from '../sync/import-identity.js';
 import { ReviewService, type StageIntent, type StageOptions } from '../sync/review.service.js';
-import { SourceRegistryService, type SourceRow } from '../sync/source-registry.service.js';
+import { SourceRegistryService, gitCredentialOf, type SourceRow } from '../sync/source-registry.service.js';
 import { SYNC_PUSH, type SyncPushPort } from '../sync/sync.port.js';
 import { SpacesService } from '../taxonomy/spaces.service.js';
 import { readActorOf, type ServerActor } from './actor.js';
@@ -822,6 +822,7 @@ export class ContentCommandsService implements ContentCommands {
         repoDir: target.repoDir,
         remoteUrl: target.remoteUrl,
         branch: target.branch,
+        credential: target.credential,
         mode: target.mode,
       };
     }
@@ -832,6 +833,7 @@ export class ContentCommandsService implements ContentCommands {
         repoDir: this.paths.dirOf(row),
         remoteUrl: row.enabled === 1 ? row.remote_url : null,
         branch: row.branch,
+        credential: gitCredentialOf(row),
         mode: row.mode,
       };
     }
@@ -842,6 +844,7 @@ export class ContentCommandsService implements ContentCommands {
         repoDir: this.paths.mainDir,
         remoteUrl: loadServerConfig().git.mainRemote ?? null,
         branch: null,
+        credential: null,
         mode: 'direct',
       };
     }

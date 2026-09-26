@@ -98,10 +98,13 @@ export interface AttentionItem {
  * extra request. One entry per source per reason, in list order:
  *
  *   - open conflicts → the Conflicts tab;
- *   - a review-mode source whose host token or webhook secret env var is not
- *     set on the server → Overview (where the presence chips are). Only review
- *     mode: a direct source that names a token it never uses is not blocked.
- *     A server that did not report presence (`undefined`) is not "missing";
+ *   - a source whose host token env var is not set on the server, when that
+ *     token is one it would actually use (issue 122): any source with an https
+ *     remote — which cannot clone, fetch or push without it — and any review
+ *     source, which cannot open a change request without it. A local-only or
+ *     ssh source that names a token it never uses is still not blocked. The
+ *     webhook secret stays review-only, and a server that did not report
+ *     presence (`undefined`) is not "missing";
  *   - a last run that failed (or an error state) → Overview, with the error.
  *
  * Disabled sources are skipped: nothing runs for them, so nothing is blocked.
@@ -114,11 +117,11 @@ export function attentionItems(sources: readonly SourceStatusView[]): AttentionI
     if (conflicts > 0) {
       items.push({ sourceId: source.id, reason: 'conflict', label: `Conflict (${conflicts})`, tab: 'conflicts' });
     }
-    if (needsHost(source.mode)) {
-      for (const secret of describeSecrets(source)) {
-        if (secret.tone !== 'error') continue;
-        items.push({ sourceId: source.id, reason: secret.kind, label: `${secret.env} ✗`, tab: 'overview' });
-      }
+    for (const secret of describeSecrets(source)) {
+      if (secret.tone !== 'error') continue;
+      const used = secret.kind === 'host-token' ? usesHostToken(source) : needsHost(source.mode);
+      if (!used) continue;
+      items.push({ sourceId: source.id, reason: secret.kind, label: `${secret.env} ✗`, tab: 'overview' });
     }
     const chip = sourceStateChip(source);
     if (conflicts === 0 && chip.tone === 'error') {
@@ -126,6 +129,17 @@ export function attentionItems(sources: readonly SourceStatusView[]): AttentionI
     }
   }
   return items;
+}
+
+/**
+ * Does this source authenticate git with the token it names? An `https` remote
+ * does (issue 122) — clone, fetch and push all go through it — and so does a
+ * review source, whose change requests go through the host API. An `ssh://`,
+ * `git@host:path` or local remote uses the server's key or the filesystem, so a
+ * token named beside one is unused and must not raise an alert.
+ */
+function usesHostToken(source: Pick<SourceStatusView, 'mode' | 'remote_url'>): boolean {
+  return needsHost(source.mode) || /^https?:\/\//i.test((source.remote_url ?? '').trim());
 }
 
 /** "1 source needs attention" / "2 sources need attention". */

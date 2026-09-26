@@ -143,6 +143,9 @@ describe('source registry e2e', () => {
       conceptDir: 'concepts',
       remoteUrl: 'https://example.com/vendor.git',
       branch: 'main',
+      // Issue 122: the target carries the NAMES of this source's git credential
+      // so the routing mirror pushes as this source, not as whichever wrote last.
+      credential: { tokenEnv: null, hostKind: null, remote: 'https://example.com/vendor.git' },
       dedicated: true,
       mode: 'read-only',
     });

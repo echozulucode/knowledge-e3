@@ -46,7 +46,7 @@ import type { Database, ReviewState } from '../db/schema.js';
 import type { PageView } from '../pages/pages.service.js';
 import { ContentPathResolver } from '../storage/content-path.resolver.js';
 import { prepareRepo } from './prepare-repo.js';
-import { SourceRegistryService, type SourceRow } from './source-registry.service.js';
+import { SourceRegistryService, gitCredentialOf, type SourceRow } from './source-registry.service.js';
 
 /** One item's change request, as Admin → Repos → Reviews lists it. */
 export interface ReviewRecord {
@@ -145,7 +145,9 @@ export class ReviewService {
       });
     }
 
-    const repo = new LocalGitRepo(this.paths.dirOf(source));
+    // Staging pushes the item branch, so it needs this source's own git
+    // credential (issue 122) — the same `host_token_env` the host API above uses.
+    const repo = new LocalGitRepo(this.paths.dirOf(source), { credential: gitCredentialOf(source) });
     await prepareRepo(repo, source);
     const base = source.branch ?? (await repo.currentBranch()) ?? 'main';
     await this.ensureBase(repo, base);

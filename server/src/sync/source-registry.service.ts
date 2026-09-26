@@ -10,6 +10,7 @@ import { isAbsolute, resolve } from 'node:path';
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
 import type { SourceRef } from '@echozedlabs/knowledge-types';
+import type { GitCredentialRef } from '@echozedlabs/repo-sync';
 import { canonicalTypeLabel, findContentType } from '@echozedlabs/content-model';
 import { KYSELY } from '../db/db.module.js';
 import type { ContentSourcesTable, Database, HostKind, SourceRole, SyncMode } from '../db/schema.js';
@@ -378,6 +379,21 @@ export function resolveLocalDir(localDir: string, root: string): string {
 export function envVarPresent(name: string | null | undefined, env: NodeJS.ProcessEnv = process.env): boolean {
   if (!name) return false;
   return (env[name] ?? '').trim() !== '';
+}
+
+/**
+ * What a source's git calls authenticate with (issue 122) — **names only**.
+ *
+ * `host_token_env` has one meaning: the credential for this source's host. The
+ * change-request host API reads it (`ReviewService.hostFor`) and so does git
+ * transport, which is why this returns the same three columns to everything
+ * that shells out to git for a source. The token itself is read from the
+ * environment inside `resolveGitCredential`, at the moment of the call.
+ */
+export function gitCredentialOf(
+  row: Pick<SourceRow, 'host_token_env' | 'host_kind' | 'remote_url'>,
+): GitCredentialRef {
+  return { tokenEnv: row.host_token_env, hostKind: row.host_kind, remote: row.remote_url };
 }
 
 /**

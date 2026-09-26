@@ -226,13 +226,32 @@ export interface ConnectionResult {
   message: string;
 }
 
+/** What the probe tests: a URL, plus the NAMES of the credential to try it with. */
+export interface ConnectionProbe {
+  remoteUrl: string;
+  /** `host_token_env` as typed in the form — a name, never a token (issue 122). */
+  hostTokenEnv?: string;
+  hostKind?: string;
+}
+
 /**
  * Read-connectivity probe for a remote URL (`git ls-remote` server-side) before
  * the row is saved. Still the legacy `/admin/repos/test` route — it is about a
  * URL, not about a registered source, so there is no registry equivalent.
+ *
+ * The credential variable's NAME goes with it so the server tries the same
+ * token the sync engine would (issue 122); a private repository would otherwise
+ * report "not reachable" for a source that is configured perfectly well. The
+ * value never travels in either direction — the server answers with presence
+ * and a message, nothing more.
  */
 export function useTestConnection() {
   return useMutation({
-    mutationFn: (remoteUrl: string) => apiClient.post<ConnectionResult>('/admin/repos/test', { remote_url: remoteUrl }),
+    mutationFn: (probe: ConnectionProbe) =>
+      apiClient.post<ConnectionResult>('/admin/repos/test', {
+        remote_url: probe.remoteUrl,
+        ...(probe.hostTokenEnv ? { host_token_env: probe.hostTokenEnv } : {}),
+        ...(probe.hostKind ? { host_kind: probe.hostKind } : {}),
+      }),
   });
 }

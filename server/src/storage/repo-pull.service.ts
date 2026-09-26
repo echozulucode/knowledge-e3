@@ -5,8 +5,10 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Kysely } from 'kysely';
+import { redactSecrets, resolveGitCredential } from '@echozedlabs/repo-sync';
 import { KYSELY } from '../db/db.module.js';
 import type { Database } from '../db/schema.js';
+import { gitCredentialOf } from '../sync/source-registry.service.js';
 import { OkfImportService, type OkfImportResult } from '../okf/okf-import.service.js';
 import type { ReadActor } from '../pages/pages.service.js';
 import { RepoConfigService } from './repo-config.service.js';
@@ -49,13 +51,23 @@ export class RepoPullService {
 
     const tmp = mkdtempSync(join(tmpdir(), 'e3-pull-'));
     try {
-      const args = ['clone', '--depth', '1'];
+      // The clone authenticates as THIS source (issue 122): the token reaches
+      // git through the child's environment via GIT_ASKPASS, never through the
+      // URL — a token in the URL would be written into the clone's
+      // `.git/config` on disk and printed in the error below.
+      const cred = resolveGitCredential(gitCredentialOf(bound));
+      const args = [...(cred?.args ?? []), 'clone', '--depth', '1'];
       if (repo.branch) args.push('--branch', repo.branch);
       args.push(repo.remote_url, tmp);
       try {
-        await execFileAsync('git', args, { timeout: CLONE_TIMEOUT_MS });
+        await execFileAsync('git', args, {
+          timeout: CLONE_TIMEOUT_MS,
+          env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...(cred?.env ?? {}) },
+        });
       } catch (err) {
-        throw new BadRequestException(`Could not clone the repository: ${gitError(err)}`);
+        throw new BadRequestException(
+          `Could not clone the repository: ${redactSecrets(gitError(err), cred?.secrets ?? [])}`,
+        );
       }
 
       const files = readConceptFiles(tmp);

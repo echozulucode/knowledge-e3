@@ -27,12 +27,21 @@ class MainRemoteDto {
 
 class TestConnectionDto {
   @IsString() remote_url!: string;
+  /**
+   * NAMES only (issue 122): the variable this source reads its git credential
+   * from and the host kind that picks the username convention. Sent from the
+   * unsaved Sources form so an admin can test the credential before saving.
+   * A value never crosses this boundary in either direction.
+   */
+  @IsOptional() @IsString() host_token_env?: string;
+  @IsOptional() @IsString() host_kind?: string;
 }
 
 /**
  * Admin → Repos: map each topic to a backend git repository and check
- * connectivity. Admin-only; credentials are never handled here (pushes use the
- * host's ambient SSH identity).
+ * connectivity. Admin-only; only the NAME of a source's credential variable is
+ * handled here — the token itself is read from the server's environment and
+ * reaches git through its child process (issue 122).
  */
 @AdminOnly()
 @Controller('admin/repos')
@@ -56,7 +65,10 @@ export class ReposController {
 
   @Post('test')
   async test(@Body() body: TestConnectionDto) {
-    return this.repos.testConnection(body.remote_url);
+    return this.repos.testConnection(body.remote_url, {
+      tokenEnv: body.host_token_env ?? null,
+      hostKind: body.host_kind ?? null,
+    });
   }
 
   @Post(':spaceId/sync')

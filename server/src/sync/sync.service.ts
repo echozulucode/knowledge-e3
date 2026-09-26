@@ -43,7 +43,13 @@ import { ConflictQueueService } from './conflict-queue.service.js';
 import { InboundIndexService } from './inbound-index.service.js';
 import { prepareRepo } from './prepare-repo.js';
 import { ReviewService, type ReviewRecord } from './review.service.js';
-import { SourceRegistryService, envVarPresent, resolveLocalDir, type SourceRow } from './source-registry.service.js';
+import {
+  SourceRegistryService,
+  envVarPresent,
+  gitCredentialOf,
+  resolveLocalDir,
+  type SourceRow,
+} from './source-registry.service.js';
 import type { SyncPushPort } from './sync.port.js';
 
 interface Managed {
@@ -316,7 +322,9 @@ export class SyncService implements OnApplicationBootstrap, OnModuleDestroy, Syn
 
   private async start(row: SourceRow): Promise<Managed> {
     const ref = this.registry.toSourceRef(row, this.paths.root);
-    const repo = new LocalGitRepo(ref.local);
+    // The engine's fetch/push authenticate with THIS source's credential
+    // (issue 122); only its names are held here, the token is read per call.
+    const repo = new LocalGitRepo(ref.local, { credential: gitCredentialOf(row) });
     await prepareRepo(repo, row);
     const engine = new SyncEngine({
       source: ref,
@@ -397,6 +405,10 @@ function sameConfig(a: SourceRow, b: SourceRow): boolean {
     a.branch === b.branch &&
     a.mode === b.mode &&
     a.role === b.role &&
+    // The credential's NAMES: an admin who repoints a source at another
+    // variable must get an engine that reads that one, without a restart.
+    a.host_token_env === b.host_token_env &&
+    a.host_kind === b.host_kind &&
     a.sync_every_seconds === b.sync_every_seconds
   );
 }

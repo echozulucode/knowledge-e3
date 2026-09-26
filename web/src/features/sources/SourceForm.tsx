@@ -4,8 +4,9 @@
  * (the admin UX review §4.4).
  *
  * The seventeen controls are grouped by the question an admin is answering:
- * 1 Repository · 2 Sync policy · 3 Change-request host (review only — the one
- * mode that opens PRs) · 4 Which files this source indexes (collapsed; most
+ * 1 Repository · 2 Sync policy · 3 Host and credentials (every mode: a private
+ * repository needs a credential to clone/fetch/push, and review mode also opens
+ * PRs through the host) · 4 Which files this source indexes (collapsed; most
  * sources use the OKF layout) · ▸ Advanced. The mode cards carry the plan §8.2
  * explanation of what each policy does. Tokens are named by env var, never
  * typed here, and their presence comes from the server as a boolean.
@@ -234,7 +235,7 @@ export function SourceEditorSheet({ initial, isNew, source, busy = false, saveEr
           label="Remote URL"
           htmlFor={fieldId('remote_url')}
           error={errorFor('remote_url')}
-          helper="Optional. Pushes use the server's own SSH identity — no key is entered here."
+          helper="Optional. An https remote authenticates with the token named below; an ssh remote uses the server's own key. Neither is typed here."
         >
           {(control) => (
             <>
@@ -244,7 +245,15 @@ export function SourceEditorSheet({ initial, isNew, source, busy = false, saveEr
                   type="button"
                   className="kp-admin-button"
                   disabled={!form.remote_url.trim() || testConnection.isPending}
-                  onClick={() => testConnection.mutate(form.remote_url.trim())}
+                  onClick={() =>
+                    // Tested with the credential this form names, so the check
+                    // answers the same question the sync engine will ask.
+                    testConnection.mutate({
+                      remoteUrl: form.remote_url.trim(),
+                      hostTokenEnv: form.host_token_env.trim(),
+                      hostKind: form.host_kind,
+                    })
+                  }
                 >
                   {testConnection.isPending ? 'Testing…' : 'Test connection'}
                 </button>
@@ -307,38 +316,54 @@ export function SourceEditorSheet({ initial, isNew, source, busy = false, saveEr
         </FormField>
       </FormSection>
 
-      {showHost ? (
-        <FormSection title="Change-request host" description="Review mode opens a PR/MR through this host. Its token is read from the named environment variable on the server.">
-          <FormField label="Host" htmlFor={fieldId('host_kind')} required error={errorFor('host_kind')}>
-            {(control) => (
-              <select {...control} value={form.host_kind} onChange={(e) => set('host_kind', e.target.value as '' | HostKind)}>
-                <option value="">(choose a host)</option>
-                {HOST_OPTIONS.map((host) => (
-                  <option key={host.value} value={host.value}>
-                    {host.label}
-                  </option>
-                ))}
-              </select>
-            )}
-          </FormField>
-          <FormField label="Host base URL" htmlFor={fieldId('host_base_url')} error={errorFor('host_base_url')} helper="Needed for a self-hosted host.">
-            {(control) => (
-              <input {...control} value={form.host_base_url} onChange={(e) => set('host_base_url', e.target.value)} placeholder="https://bitbucket.example.com" />
-            )}
-          </FormField>
-          <FormField
-            label="Host token env var"
-            htmlFor={fieldId('host_token_env')}
-            error={errorFor('host_token_env')}
-            helper={<PresenceHelper present={hostTokenPresence} lead="The variable's name — never the token itself." />}
-          >
-            {(control) => (
-              <input {...control} value={form.host_token_env} onChange={(e) => set('host_token_env', e.target.value)} placeholder="GITHUB_TOKEN" />
-            )}
-          </FormField>
-          {webhookField}
-        </FormSection>
-      ) : null}
+      <FormSection
+        title="Host and credentials"
+        description={
+          showHost
+            ? 'Review mode opens a PR/MR through this host, and git authenticates with the same credential. Its token is read from the named environment variable on the server.'
+            : 'A private repository needs a credential to clone, fetch and push. Name the environment variable holding this source’s token; the server reads it and never stores or shows it.'
+        }
+      >
+        <FormField
+          label="Host"
+          htmlFor={fieldId('host_kind')}
+          required={showHost}
+          error={errorFor('host_kind')}
+          helper={showHost ? undefined : 'Optional here — it picks the username convention git sends with the token.'}
+        >
+          {(control) => (
+            <select {...control} value={form.host_kind} onChange={(e) => set('host_kind', e.target.value as '' | HostKind)}>
+              <option value="">(choose a host)</option>
+              {HOST_OPTIONS.map((host) => (
+                <option key={host.value} value={host.value}>
+                  {host.label}
+                </option>
+              ))}
+            </select>
+          )}
+        </FormField>
+        <FormField label="Host base URL" htmlFor={fieldId('host_base_url')} error={errorFor('host_base_url')} helper="Needed for a self-hosted host.">
+          {(control) => (
+            <input {...control} value={form.host_base_url} onChange={(e) => set('host_base_url', e.target.value)} placeholder="https://bitbucket.example.com" />
+          )}
+        </FormField>
+        <FormField
+          label="Host token env var"
+          htmlFor={fieldId('host_token_env')}
+          error={errorFor('host_token_env')}
+          helper={
+            <PresenceHelper
+              present={hostTokenPresence}
+              lead="The variable's name — never the token itself. Used for private repository access (clone, fetch, push), and for change requests under review mode."
+            />
+          }
+        >
+          {(control) => (
+            <input {...control} value={form.host_token_env} onChange={(e) => set('host_token_env', e.target.value)} placeholder="GITHUB_TOKEN" />
+          )}
+        </FormField>
+        {showHost ? webhookField : null}
+      </FormSection>
 
       <FormSection title="Which files this source indexes">
         <Disclosure

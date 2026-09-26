@@ -7,6 +7,7 @@ import { Kysely } from 'kysely';
 import { parse } from '@echozedlabs/codec';
 import { renderBundleIndex, isContentUnchanged, parseBundleIndex, type BundleIndexEntry, type BundleLink } from '@echozedlabs/okf';
 import { digestOf } from '@echozedlabs/content-store';
+import { redactSecrets, resolveGitCredential, type GitCredentialRef } from '@echozedlabs/repo-sync';
 import type { Database } from '../db/schema.js';
 import type { SpaceView } from '../taxonomy/spaces.service.js';
 import { exportSpaceName, pageLikeFromEvent, renderConceptFile } from './render-concept.js';
@@ -75,6 +76,12 @@ export interface MirrorOptions {
   /** Branch to push to; omit to push the current branch by name. */
   branch?: string | null;
   /**
+   * NAMES of the git credential this repo's pushes authenticate with (issue
+   * 122) — `host_token_env` and `host_kind` from the source's registry row,
+   * never a token. Omit to fall back to the instance-wide `GIT_HTTPS_TOKEN`.
+   */
+  credential?: GitCredentialRef | null;
+  /**
    * Push after every commit and on `flush()` (default true). `false` for a
    * source the `SyncService` manages: commits stay local and the sync engine
    * pushes on publish or every five minutes (plan §12 decision 1).
@@ -116,6 +123,7 @@ export class GitRevisionMirrorAdapter implements RevisionMirrorPort, OnModuleDes
   // Mutable so the router can hot-reload the remote without recreating the repo.
   private remoteUrl?: string;
   private branch?: string | null;
+  private credential?: GitCredentialRef | null;
   private pushOnCommit: boolean;
   private configuredRemote?: string;
   private readonly onCommitted?: (committed: MirroredFile[], at: string) => Promise<void>;
@@ -156,6 +164,7 @@ export class GitRevisionMirrorAdapter implements RevisionMirrorPort, OnModuleDes
     this.shutdownFlushTimeoutMs = opts.shutdownFlushTimeoutMs ?? DEFAULT_SHUTDOWN_FLUSH_TIMEOUT_MS;
     this.remoteUrl = opts.remoteUrl;
     this.branch = opts.branch;
+    this.credential = opts.credential;
     this.pushOnCommit = opts.pushOnCommit ?? true;
     this.onCommitted = opts.onCommitted;
   }
@@ -270,10 +279,18 @@ export class GitRevisionMirrorAdapter implements RevisionMirrorPort, OnModuleDes
     this.scheduleCommit();
   }
 
-  /** Point this repo at a remote (or clear it). Applied on the next commit/flush. */
-  setRemote(remoteUrl: string | null, branch: string | null): void {
+  /**
+   * Point this repo at a remote (or clear it). Applied on the next commit/flush.
+   *
+   * `credential` travels with the remote because the two belong together: one
+   * routing mirror serves every source, so re-pointing the repo without
+   * re-pointing the credential is how one source would end up pushing with
+   * another's token (issue 122).
+   */
+  setRemote(remoteUrl: string | null, branch: string | null, credential?: GitCredentialRef | null): void {
     this.remoteUrl = remoteUrl ?? undefined;
     this.branch = branch;
+    this.credential = credential ?? null;
   }
 
   /** Whether commits (and `flush`) push; see `MirrorOptions.pushOnCommit`. */
@@ -706,12 +723,28 @@ export class GitRevisionMirrorAdapter implements RevisionMirrorPort, OnModuleDes
     return { entries, issues };
   }
 
+  /**
+   * One `git` call in this repo's working tree, carrying the source's own
+   * transport credential (issue 122) when one is configured: the token reaches
+   * the child through `GIT_ASKPASS` and its environment, never argv, never a
+   * remote URL, never gitconfig. Resolved per call from the names the registry
+   * stored, so nothing here holds a secret between pushes.
+   */
   private async git(args: string[]): Promise<string> {
-    const { stdout } = await execFileAsync('git', args, {
-      cwd: this.dir,
-      signal: this.gitAbortController.signal,
-    });
-    return stdout;
+    const cred = resolveGitCredential({ ...(this.credential ?? {}), remote: this.remoteUrl ?? null });
+    try {
+      const { stdout } = await execFileAsync('git', cred ? [...cred.args, ...args] : args, {
+        cwd: this.dir,
+        signal: this.gitAbortController.signal,
+        // See `runGit`: a server has no terminal to answer a credential prompt on.
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...(cred?.env ?? {}) },
+      });
+      return stdout;
+    } catch (err) {
+      // A failed authenticated push is logged and can reach the operator; scrub
+      // the token out of whatever git printed before it travels any further.
+      throw cred ? new Error(redactSecrets(errMessage(err), cred.secrets)) : err;
+    }
   }
 
   private async markDirty(pageId: string, path: string, versionToken: number): Promise<void> {
